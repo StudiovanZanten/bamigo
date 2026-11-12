@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { openDb, json } from '../server/db.js';
 import * as C from '../server/content.js';
-import { seedMuchachos } from '../server/seed-muchachos.js';
+import { seedMuchachos, sealedBeforeFinal } from '../server/seed-muchachos.js';
 
 const dir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'seed');
 const quiet = { log: () => {} };
@@ -46,4 +46,13 @@ test('Startinhoud: bestaande avond wordt aangevuld zonder dubbelen; bericht in h
   assert.equal(db.get("SELECT COUNT(*) AS n FROM rounds WHERE event_id = ? AND title = 'Algemene kennis'", event.id).n, 1);
   const first = db.get('SELECT send_at FROM messages WHERE event_id = ? ORDER BY send_at LIMIT 1', event.id).send_at;
   assert.ok(first > now && first - now <= 20 * 60_000);
+});
+
+test('Verzegelde ronde schuift vóór de Finale', () => {
+  const db = openDb(':memory:');
+  const r = seedMuchachos(db, dir, { now: Date.UTC(2026, 10, 12), ...quiet });
+  assert.equal(sealedBeforeFinal(db, quiet), 1);
+  const rs = db.all('SELECT kind, settings FROM rounds WHERE event_id = ? ORDER BY sort', r.event);
+  assert.equal(rs.at(-1).kind, 'final'); assert.ok(json(rs.at(-2).settings, {}).sealed);
+  assert.equal(sealedBeforeFinal(db, quiet), 0);
 });

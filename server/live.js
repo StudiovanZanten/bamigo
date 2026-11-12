@@ -320,7 +320,7 @@ export class Live {
       if (['ranking', 'shot', 'invest', 'envelope'].includes(q.type) || q.settings.kompaan) v = null;
       else switch (q.type) {
         case 'mc': case 'tf': v = (Array.isArray(key.correct) ? key.correct.includes(a) : a === key.correct) ? 'correct' : 'wrong'; break;
-        case 'open': v = judgeOpen(a, [...(key.correct != null ? [String(key.correct)] : []), ...key.accepted]); break;
+        case 'open': { const vs = [...(key.correct != null ? [String(key.correct)] : []), ...key.accepted]; v = vs.length ? judgeOpen(a, vs) : 'review'; break; } // geen sleutel: quizmaster beoordeelt
         case 'number': v = q.scoring === 'closest' ? null : (Math.abs(a - Number(key.correct)) <= (key.tolerance ?? 0) ? 'correct' : 'wrong'); break;
         case 'order': case 'match': v = sameArray(a, key.correct) ? 'correct' : 'wrong'; break;
         case 'career': v = this.verdictFor(q, key, a); break;

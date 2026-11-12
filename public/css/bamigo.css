@@ -162,3 +162,4 @@ input.code { font-family: var(--display); font-size: 2rem; letter-spacing: .3em;
 @keyframes rlBump { from { transform: scale(1.5); } to { transform: scale(1); } }
 .reduce-motion .roulette *, .reduce-motion .roulette { animation: none !important; }
 @media (prefers-reduced-motion: reduce) { .roulette, .roulette * { animation: none !important; } }
+.ok-text { color: var(--ok); }

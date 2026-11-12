@@ -139,7 +139,7 @@ function bindTodo(v) {
 function homeTab(v) {
   const r = v.readiness || {};
   const n = (x, one, many) => `${x ?? 0} ${x === 1 ? one : many}`;
-  const qWarn = r.exampleQuestions ? `<span class="pill warn">${n(r.exampleQuestions, 'voorbeeldvraag', 'voorbeeldvragen')}</span>` : r.questionsWithoutAnswer ? `<span class="pill bad">${n(r.questionsWithoutAnswer, 'vraag', 'vragen')} zonder antwoord</span>` : '';
+  const qWarn = !v.perms.content ? '' : r.exampleQuestions ? `<span class="pill warn">${n(r.exampleQuestions, 'voorbeeldvraag', 'voorbeeldvragen')}</span>` : r.questionsWithoutAnswer ? `<span class="pill bad">${n(r.questionsWithoutAnswer, 'vraag', 'vragen')} zonder antwoord</span>` : '';
   const item = (go, title, sub, extra = '') => `<button class="home-item" data-goto="${go}"><span class="grow"><b>${title}</b><span class="small muted">${sub}</span></span>${extra}<span class="arrow" aria-hidden="true">›</span></button>`;
   main.innerHTML = `<div class="home">
     ${v.perms.roles ? todoCard(v) : ''}
@@ -158,10 +158,10 @@ function homeTab(v) {
           <li><span>Spelers scannen de QR-code op de tv, of gaan naar <b>${esc(location.host)}/speel</b> met code <b class="code">${esc(v.event.joinCode)}</b>.</span></li>
           <li><button class="btn primary big" data-goto="live">Start de quiz</button></li>
         </ol></section>` : ''}
-      <section class="home-step"><span class="home-num">3</span><h2>Na afloop</h2><p class="muted">Uitslag en bewaren.</p>
+      ${v.perms.scores || v.perms.roles ? `<section class="home-step"><span class="home-num">3</span><h2>Na afloop</h2><p class="muted">Uitslag en bewaren.</p>
         ${v.perms.scores ? item('scores', 'Scores', 'Stand, correcties en uitslag downloaden') : ''}
         ${v.perms.roles ? item('event', 'Instellingen', 'Naam, links voor anderen, kopie maken') : ''}
-      </section>
+      </section>` : ''}
     </div></div>`;
 }
 
@@ -173,18 +173,50 @@ const FLOW = ['Klaarzetten', 'Openen', 'Antwoorden', 'Onthullen', 'Punten'];
 const FLOW_AT = { idle: 0, ready: 1, open: 2, closed: 3, revealed: 4, scored: 5 };
 function explain(v) {
   const p = v.live.phase; const q = v.question;
-  if (p === 'idle' || (p === 'scored' && !v.nextQuestionId)) return v.nextQuestionId ? 'Druk op de knop om de eerste vraag klaar te zetten. Spelers zien nog niets.' : 'Alle vragen zijn gespeeld. Zet het scorebord of de finale op de tv (bij “Meer opties”).';
+  const idle = p === 'idle' || p === 'scored' || (p === 'closed' && ['shot', 'envelope'].includes(q?.type));
+  if (idle && !v.nextQuestionId) return v.envelope?.filled && !v.envelope.opened ? 'Alle vragen zijn gespeeld! Nu de spanning: open de enveloppen op tv. Daarna de definitieve eindstand.'
+    : v.live.screen !== 'finale' ? 'Klaar met de enveloppen? Zet de definitieve eindstand op tv. VAMOSSS!' : 'Dat was BAMIGO! De eindstand staat op tv. Uitslag bewaren kan bij Scores.';
+  if (idle && nextRoundIntro(v)) return `Volgende ronde: de tv toont eerst de titel en uitleg. Lees hem voor, en druk daarna op “Volgende vraag klaarzetten”.${v.rounds.length ? ' Tussen de rondes kun je de Shot-roulette draaien (kaart hieronder).' : ''}`;
+  if (p === 'ready' && q?.pitch && !q.pitch.team) return 'Dragons: wie pitcht dit ding? Laat BAMIGO loten met de knop, of kies zelf een team in de kaart hieronder.';
+  if (p === 'ready' && q?.pitch) return `${q.pitch.team.name} pitcht. Open de vraag: het ding verschijnt op tv en de andere teams bieden. Jouw eigen bod als Dragon doe je in de kaart hieronder.`;
+  if (p === 'open' && q?.career && !q.career.auto) return q.career.clues.length < q.career.total ? `Hint ${q.career.clues.length} van ${q.career.total} staat op tv. Geef de teams even, en zet dan de volgende hint op tv. Hoe eerder goed, hoe meer punten.` : 'Alle hints staan op tv. Sluit de vraag als iedereen gekozen heeft.';
+  if (p === 'open' && q?.type === 'envelope') return 'De captains voorspellen hun eindplek (en hun belofte). Vul ook jouw eigen voorspelling in, in de kaart “De BAMIGO Envelop” hieronder.';
+  if (p === 'open' && q?.pitch) return 'De andere teams bieden nu geheim. Vergeet jouw eigen bod als Dragon niet (kaart hieronder). Sluit als iedereen geboden heeft.';
+  if (p === 'idle') return v.nextQuestionId ? 'Druk op de knop om de eerste vraag klaar te zetten. Spelers zien nog niets.' : 'Er staan nog geen vragen klaar.';
   if (p === 'ready') return 'De vraag staat klaar, maar is nog geheim. Druk op de knop: de tv telt af en de vraag verschijnt op tv en telefoons.';
   if (p === 'open') return 'Spelers antwoorden nu op hun telefoon. De vraag sluit vanzelf als de tijd op is. Iedereen klaar? Dan mag je zelf sluiten.';
   if (p === 'closed' && q?.type === 'envelope') return 'De enveloppen zijn verzegeld, ook voor jou. Ze gaan open bij de uitslag (kaart “De BAMIGO Envelop”). Ga door naar de volgende vraag.';
   if (p === 'closed' && q?.type === 'shot') return 'Shots worden pas aan het eind van de ronde samen onthuld. Ga door naar de volgende shot.';
+  const review = (v.submissions || []).filter(s => s.verdict === 'review').length;
+  if (['closed', 'revealed'].includes(p) && review) return `Beoordeel eerst ${review === 1 ? 'het antwoord' : `de ${review} antwoorden`} met twijfel: ✓ of ✗ in de kaart hieronder. Daarna ${p === 'closed' ? 'onthullen' : 'punten toekennen'}.`;
   if (p === 'closed') return 'De vraag is dicht. Druk op de knop om het goede antwoord op de tv te laten zien.';
   if (p === 'revealed') return 'Het antwoord staat op de tv. Druk op de knop om de punten bij te schrijven.';
   if (p === 'scored' && v.nextQuestionId && v.question?.played) return 'Je kijkt terug naar een gespeelde vraag. Het antwoord staat op de tv; de punten tellen al. Druk op de knop om verder te gaan.';
   return 'Klaar! Druk op de knop voor de volgende vraag. Tussendoor de stand laten zien? Kies “Scorebord” bij “Meer opties”.';
 }
+/** Welke ronde hoort bij de volgende vraag, en staat de intro daarvan al op tv? */
+function nextRoundIntro(v) {
+  if (!v.nextQuestionId) return null;
+  const r = v.rounds.find(r => (r.questions || []).some(q => q.id === v.nextQuestionId));
+  if (!r) return null;
+  const curRound = v.question ? v.rounds.find(x => (x.questions || []).some(q => q.id === v.question.id))?.id : null;
+  if (r.id === curRound) return null;
+  if (v.live.screen === 'round_intro' && v.live.round?.id === r.id) return null;
+  return r;
+}
+function endAction(v) {
+  if (v.envelope?.filled && !v.envelope.opened) return ['envelopes_open', '✉️ Enveloppen openen op tv'];
+  if (v.live.screen !== 'finale') return ['screen_finale', '🏆 Definitieve eindstand op tv'];
+  return null;
+}
 function primaryAction(v) {
-  const p = v.live.phase;
+  const p = v.live.phase; const q = v.question;
+  const idle = p === 'idle' || p === 'scored' || (p === 'closed' && ['shot', 'envelope'].includes(q?.type));
+  if (idle && !v.nextQuestionId) return endAction(v);
+  const ri = idle ? nextRoundIntro(v) : null;
+  if (ri) return ['round_intro', `Ronde starten: ${ri.title}`, { roundId: ri.id }];
+  if (p === 'ready' && q?.pitch && !q.pitch.team) return ['pitch_team', '🎲 Loot wie er pitcht', { message: 'random' }];
+  if (p === 'open' && q?.career && !q.career.auto && q.career.clues.length < q.career.total) return ['clue_next', `Hint ${q.career.clues.length + 1} op tv`];
   if (p === 'closed' && v.question?.type === 'shot') return v.nextQuestionId ? ['next_question', 'Volgende shot klaarzetten'] : null;
   if (p === 'closed' && v.question?.type === 'envelope') return v.nextQuestionId ? ['next_question', 'Volgende vraag klaarzetten'] : null;
   if (p === 'ready') return ['open', 'Open vraag voor iedereen'];
@@ -213,16 +245,17 @@ function liveTab(v) {
       ${q ? `<p class="small muted" style="margin:0">${esc(L.round?.title || '')} · vraag ${q.number}/${q.of} · ${TYPE_LABEL[q.type]} · ${q.scope === 'team' ? 'team' : 'individueel'}${q.scoring === 'speed' ? ' · bliksem' : ''}</p>
         <h2 style="margin:6px 0">${esc(q.prompt ?? allQs.find(x => x.id === q.id)?.prompt ?? '(vraagtekst verborgen tot openen)')}</h2>
         ${qFull.options?.length ? `<ol type="A" class="small">${qFull.options.map(o => `<li>${esc(o)}</li>`).join('')}</ol>` : ''}` : ''}
-      ${v.currentKey ? `<p class="notice ok small">Antwoord: <b>${esc(fmtKey(qFull, v.currentKey))}</b>${v.currentKey.explanation ? ' — ' + esc(v.currentKey.explanation) : ''}</p>`
-        : q ? '<p class="small muted">Antwoordsleutel verschijnt na sluiten.</p>' : ''}
+      ${v.currentKey && (fmtKey(qFull, v.currentKey) || v.currentKey.explanation) ? `<p class="notice ok small">Antwoord: <b>${esc(fmtKey(qFull, v.currentKey))}</b>${v.currentKey.explanation ? ' — ' + esc(v.currentKey.explanation) : ''}</p>`
+        : q && !v.currentKey && !['envelope', 'invest', 'ranking', 'shot'].includes(q.type) ? '<p class="small muted">Antwoordsleutel verschijnt na sluiten.</p>' : ''}
       ${L.message ? `<p class="notice warn small">${esc(L.message)}</p>` : ''}
-      ${pa ? `<button id="primary" class="btn primary primary-action" data-act="${pa[0]}">${pa[1]}</button>` : '<p class="muted">Geen volgende vraag. Toon het scorebord of de finale.</p>'}
+      ${pa ? `<button id="primary" class="btn primary primary-action" data-act="${pa[0]}" data-extra="${esc(JSON.stringify(pa[2] || {}))}">${esc(pa[1])}</button>` : ''}
       <div class="row" style="margin-top:12px">
         ${v.prevQuestionId ? `<button class="btn ghost small" data-act="prev_question" ${L.phase === 'open' ? 'disabled' : ''}>← Vorige vraag</button>` : ''}
         <a class="btn ghost small" href="${tvHref(v)}" target="_blank" rel="noopener">TV-scherm openen</a>
         <span class="small muted">Spelcode <b class="code">${esc(v.event.joinCode)}</b></span>
       </div>
     </div>
+    ${subs.some(x => x.verdict === 'review') ? `<div class="card" style="border-color:var(--warn)"><h3>Beoordelen (${subs.filter(x => x.verdict === 'review').length})</h3>${subsTable(v, qFull, subs)}</div>` : ''}
     ${pitchCard(v)}
     ${careerCard(v)}
     ${hostInvestCard(v)}
@@ -244,7 +277,7 @@ function liveTab(v) {
     ${(v.shotRounds || []).filter(r => r.id === L.round?.id || (r.locked === r.total && !r.revealed)).map(r => `<div class="card"><h3>${esc(r.title)}</h3><p class="small">${r.locked}/${r.total} shots gespeeld${r.revealed ? ' · onthuld' : ''}.</p>
       <button class="btn copper" data-shotreveal="${r.id}" ${r.locked < r.total || L.phase === 'open' ? 'disabled' : ''}>Shotonthulling${r.revealed ? ' opnieuw tonen' : ''}</button>
       ${r.locked < r.total ? '<p class="small muted" style="margin:8px 0 0">Kan pas als alle shots gespeeld zijn.</p>' : ''}</div>`).join('')}
-    ${subs.length || q ? `<div class="card"><h3>Inzendingen (${subs.length})</h3>${subsTable(v, qFull, subs)}</div>` : ''}
+    ${(subs.length || q) && !subs.some(x => x.verdict === 'review') ? `<div class="card"><h3>Inzendingen (${subs.length})</h3>${subsTable(v, qFull, subs)}</div>` : ''}
   </section>
   <section>
     <details class="card more" data-keep="liveQs"><summary>Alle vragen (overslaan of terugspringen)</summary><ul class="list qlist">${allQs.map(x => `<li class="${x.id === q?.id ? 'current' : ''}">
@@ -262,6 +295,7 @@ function liveTab(v) {
       return act(b, () => live('void', { reason }), 'Vraag vervallen.');
     }
     if (a === 'next_question') return act(b, () => live('next_question'));
+    if (b.dataset.extra) return act(b, () => live(a, JSON.parse(b.dataset.extra)));
     if (a === 'prev_question') return act(b, () => live('prev_question'));
     act(b, () => live(a));
   });
@@ -282,6 +316,7 @@ function envelopeCard(v) {
   const E = v.envelope; if (!E) return '';
   const q = v.question; const L = v.live;
   const playing = q?.id === E.id && ['open', 'closed'].includes(L.phase) && !E.opened && L.screen !== 'envelopes';
+  if (!playing && !E.opened && v.nextQuestionId) return ''; // tussendoor niet tonen: dan open je ze niet per ongeluk te vroeg
   const hostName = v.event.settings?.rouletteHost?.name || 'Rinus';
   if (playing && envDraft?.qid !== E.id) envDraft = { qid: E.id, order: v.teams.map(() => '') };
   const hostForm = playing ? `<details data-keep="envHost" style="margin-top:10px" ${E.hostDone ? '' : 'open'}><summary class="small"><b>Jouw eigen envelop</b> (voor de lol, geen punten) ${E.hostDone ? '<span class="pill ok">ingevuld</span>' : ''}</summary>
@@ -405,7 +440,7 @@ function bindRoulette(v) {
 }
 
 function fmtKey(q, k) {
-  if (!q || k.correct == null) return '— (geen sleutel)';
+  if (!q || k.correct == null) return q?.type === 'open' ? 'Geen vast antwoord: jij beoordeelt (✓/✗ bij de inzendingen)' : '';
   if ((q.type === 'mc' || q.type === 'tf') && q.options) return [].concat(k.correct).map(i => `${LETTERS[i]}. ${q.options[i]}`).join(' / ');
   if (q.type === 'open') return [k.correct, ...k.accepted].join(' / ');
   if (q.type === 'order' && q.options) return k.correct.map(i => q.options[i]).join(' → ');
@@ -415,10 +450,15 @@ function fmtKey(q, k) {
 function subsTable(v, q, subs) {
   if (!subs.length) return '<p class="muted small">Nog niets binnen.</p>';
   const showAns = subs.some(s => s.answer !== undefined);
-  const fmtA = a => q && (q.type === 'mc' || q.type === 'tf') && q.options ? `${LETTERS[a]}. ${q.options[a] ?? ''}` : Array.isArray(a) ? a.join(', ') : a;
+  const nameOf = id => v.teams.flatMap(t => t.members).concat(v.unassigned || []).find(m => m.id === id)?.name || v.teams.find(t => t.id === id)?.name || id;
+  const fmtA = a => q && (q.type === 'mc' || q.type === 'tf') && q.options ? `${LETTERS[a]}. ${q.options[a] ?? ''}`
+    : q?.type === 'ranking' ? [].concat(a).map(nameOf).join(', ')
+    : Array.isArray(a) ? (q?.type === 'envelope' ? a.map(nameOf).join(' > ') : q?.type === 'order' && q.options ? a.map(i => q.options[i]).join(' → ') : a.join(', '))
+    : a && typeof a === 'object' ? (a.amount != null ? '€' + Number(a.amount).toLocaleString('nl-NL') : a.place != null ? `plek ${a.place + 1}${a.pledge ? ' · belofte: ' + a.pledge : ''}` : a.pick ? `${nameOf(a.pick)} (hint ${a.clue})` : JSON.stringify(a))
+    : q?.type === 'envelope' && typeof a === 'number' ? `plek ${a + 1}` : a;
   return `<table class="subs"><thead><tr><th>Wie</th><th>Tijd</th>${showAns ? '<th>Antwoord</th><th>Oordeel</th><th></th>' : ''}</tr></thead><tbody>
   ${subs.map(s => `<tr><td>${esc(s.team ? s.team + (q?.scope === 'individual' ? ' · ' + s.by : '') : s.by)}</td><td>${(s.elapsedMs / 1000).toFixed(2)}s${s.bet ? ` · inzet ${s.bet}` : ''}</td>
-    ${showAns ? `<td>${esc(fmtA(s.answer))}</td><td class="v-${s.verdict || ''}">${s.verdict === 'correct' ? 'Goed' : s.verdict === 'wrong' ? 'Fout' : s.verdict === 'review' ? 'Twijfel' : '—'}${s.manual ? ' (hand)' : ''}</td>
+    ${showAns ? `<td>${esc(fmtA(s.answer))}</td><td class="v-${s.verdict || ''}">${s.verdict === 'correct' ? 'Goed' : s.verdict === 'wrong' ? 'Fout' : s.verdict === 'review' ? 'Beoordelen' : '—'}${s.manual ? ' (hand)' : ''}</td>
     <td>${['closed', 'revealed', 'scored'].includes(v.live.phase) ? `<button class="btn ghost small" data-judge="${s.id}" data-v="correct" aria-label="Goed rekenen">✓</button> <button class="btn ghost small" data-judge="${s.id}" data-v="wrong" aria-label="Fout rekenen">✗</button>` : ''}</td>` : ''}</tr>`).join('')}
   </tbody></table>`;
 }
@@ -624,6 +664,14 @@ function peopleTab(v) {
 }
 
 // ---------- GEREEDHEID ----------
+function progressCard(v) {
+  const P = v.progress; if (!P?.people?.length) return '';
+  const mark = ok => ok ? '<span class="ok-text">✓</span>' : '<span class="copper-text">nog niet</span>';
+  return `<div class="card" style="margin-top:16px"><h3 style="margin:0 0 4px">Wie moet nog iets doen?</h3><p class="small muted" style="margin:0 0 10px">Alleen ja/nee, geen antwoorden. Handig om spelers even te porren.</p>
+    <table class="subs"><thead><tr><th>Speler</th><th>Duo</th><th>Aangemeld</th><th>Dossier</th><th>Ranking gestemd</th></tr></thead><tbody>
+    ${P.people.map(p => `<tr><td>${esc(p.name)}</td><td class="small muted">${esc(p.team || '—')}</td><td>${mark(p.joined)}</td><td>${mark(p.dossier)}</td><td>${mark(p.voted)}</td></tr>`).join('')}</tbody></table>
+    ${P.shots.length ? `<p class="small" style="margin:10px 0 0">Teamshot ingevuld: ${P.shots.map(s => `${esc(s.team)} ${s.done ? '✓' : '<span class="copper-text">nog niet</span>'}`).join(' · ')}</p>` : ''}</div>`;
+}
 function readyTab(v) {
   const r = v.readiness;
   const card = (n, label, bad) => `<div class="card"><div class="n ${bad ? 'copper-text' : ''}">${n}</div><div class="small muted">${label}</div></div>`;
@@ -636,11 +684,12 @@ function readyTab(v) {
     ${card(`${r.shotsSubmitted}/${r.teams}`, 'shots ingediend', r.shotsSubmitted < r.teams)}
     ${card(`${r.missionsDone}/${r.missions * r.teams || 0}`, 'missies afgevinkt')}
     ${card(r.questions, 'vragen' + (r.exampleQuestions ? ` · ${r.exampleQuestions} voorbeeld` : ''), r.exampleQuestions)}
-    ${card(r.questionsWithoutAnswer, 'vragen zonder juist antwoord', r.questionsWithoutAnswer)}
+    ${v.perms.content ? card(r.questionsWithoutAnswer, 'vragen zonder juist antwoord', r.questionsWithoutAnswer) : ''}
     ${card(r.missingMedia, 'ontbrekende media', r.missingMedia)}
   </div>
   <p class="small muted" style="margin-top:16px">Alleen tellingen: geen inhoud, antwoorden, stemmen of shotgegevens. Veilig voor wie zelf meespeelt.</p>
-  <div class="card"><h3>Planning</h3><ul class="list">${v.rounds.map(x => `<li><span class="grow">${esc(x.title)}</span><span class="muted small">${x.minutes} min</span></li>`).join('')}</ul>
+  ${progressCard(v)}
+  <div class="card" style="margin-top:16px"><h3>Planning</h3><ul class="list">${v.rounds.map(x => `<li><span class="grow">${esc(x.title)}</span><span class="muted small">${x.minutes} min</span></li>`).join('')}</ul>
   <p>Totaal <b>${v.plannedMinutes} min</b> (doel ${v.event.durationTarget}, max ${v.event.durationMax}).</p></div>`;
 }
 

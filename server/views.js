@@ -99,7 +99,8 @@ function counts(live, eventId, s) {
   const expected = q.scope === 'team'
     ? live.db.get('SELECT COUNT(*) AS n FROM teams WHERE event_id = ?', eventId).n
     : live.db.get('SELECT COUNT(*) AS n FROM participants WHERE event_id = ? AND joined_at IS NOT NULL', eventId).n;
-  return { submitted, expected };
+  const sitOut = q.type === 'invest' && q.settings.pitch && q.settings.pitchTeam ? 1 : 0; // het pitchende team biedt niet
+  return { submitted, expected: Math.max(0, expected - sitOut) };
 }
 
 function boardFor(live, eventId, { topTeams = 100, topPeople = 10, meId } = {}) {
@@ -175,6 +176,7 @@ export function staffView(live, { event, role, grant }, online, joinUrl, t = liv
     const list = qs.filter(q => q.round_id === r.id);
     r.questionCount = list.length;
     r.sealed = !!r.settings.sealed;
+    if (r.sealed && !full) r.instructions = null; // verzegeld: ook de uitleg blijft dicht voor wie geen inhoud mag zien
     if (full || host) {
       r.questions = list.map(q => {
         const base = { id: q.id, type: q.type, scope: q.scope, scoring: q.scoring, seconds: q.seconds, points: q.points, sort: q.sort, voided: !!q.voided_at, played: played.has(q.id), isExample: !!q.is_example, sealed: r.sealed };
@@ -186,12 +188,19 @@ export function staffView(live, { event, role, grant }, online, joinUrl, t = liv
     }
   }
   const view = {
-    kind: 'staff', role, roleLabel: grant.label, serverNow: t, event: { ...eventInfo(event), joinCode: event.join_code, joinUrl, settings: json(event.settings, {}) },
+    kind: 'staff', role, roleLabel: grant.label, serverNow: t, event: { ...eventInfo(event), joinCode: event.join_code, joinUrl, settings: (({ questionnaire, dossier, ...rest }) => full ? { ...rest, questionnaire, dossier } : rest)(json(event.settings, {})) },
     perms: { content: can(role, 'content.write'), answers: full, live: host, scores: can(role, 'scores.write'), people: can(role, 'people.write'), roles: can(role, 'roles.manage') },
     teams: teams.map(tm => ({ ...tm, members: tm.members })), unassigned,
     rounds, live: liveInfo(live, s, t), counts: counts(live, event.id, s),
     plannedMinutes: rounds.reduce((a, r) => a + (r.minutes || 0), 0),
     readiness: readiness(db, event.id, full),
+    // Wie moet nog iets doen? Alleen ja/nee per speler, nooit inhoud (ook veilig voor de spoilervrije organisator).
+    progress: can(role, 'progress.read') ? {
+      people: db.all(`SELECT p.name, t.name AS team, p.joined_at IS NOT NULL AS joined, COALESCE(json_extract(p.profile, '$.done'), 0) = 1 AS dossier,
+        EXISTS (SELECT 1 FROM ranking_votes v WHERE v.voter_id = p.id) AS voted FROM participants p LEFT JOIN memberships m ON m.participant_id = p.id LEFT JOIN teams t ON t.id = m.team_id
+        WHERE p.event_id = ? ORDER BY t.sort, p.name`, event.id).map(x => ({ name: x.name, team: x.team, joined: !!x.joined, dossier: !!x.dossier, voted: !!x.voted })),
+      shots: db.all(`SELECT t.name, EXISTS (SELECT 1 FROM shots s WHERE s.team_id = t.id AND COALESCE(s.name, '') <> '') AS done FROM teams t WHERE t.event_id = ? ORDER BY t.sort`, event.id).map(x => ({ team: x.name, done: !!x.done })),
+    } : null,
     nextQuestionId: host ? live.nextQuestionId(event.id) : null,
     prevQuestionId: host ? live.prevQuestionId(event.id) : null,
     scoreboard: boardFor(live, event.id, { topTeams: 100, topPeople: 100 }),
@@ -281,7 +290,8 @@ export function readiness(db, eventId, full) {
     questions: one('SELECT COUNT(*) AS n FROM questions WHERE event_id = ?', eventId),
     exampleQuestions: one('SELECT COUNT(*) AS n FROM questions WHERE event_id = ? AND is_example = 1', eventId),
     questionsWithoutAnswer: one(`SELECT COUNT(*) AS n FROM questions q LEFT JOIN answer_keys k ON k.question_id = q.id
-      WHERE q.event_id = ? AND q.type NOT IN ('ranking', 'shot', 'invest') AND COALESCE(json_extract(q.settings, '$.kompaan'), 0) <> 1 AND (k.correct IS NULL OR k.correct = 'null')`, eventId),
+      JOIN rounds r ON r.id = q.round_id
+      WHERE q.event_id = ? AND q.type NOT IN ('ranking', 'shot', 'invest', 'envelope') AND COALESCE(r.judging, '') = '' AND COALESCE(json_extract(q.settings, '$.kompaan'), 0) <> 1 AND (k.correct IS NULL OR k.correct = 'null')`, eventId),
     missingMedia: one(`SELECT COUNT(*) AS n FROM questions WHERE event_id = ? AND json_extract(settings, '$.needsMedia') = 1 AND media_id IS NULL`, eventId),
   };
   return r;

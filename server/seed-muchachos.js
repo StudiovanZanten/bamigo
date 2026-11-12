@@ -66,3 +66,26 @@ export function seedMuchachos(db, dir, { now = Date.now(), log = console.log } =
   log(`Startinhoud Muchacho's editie ingeladen: ${JSON.stringify(out)}`);
   return out;
 }
+
+/** Verzegelde rondes ("Versla Rinus!") die achter de Finale staan, schuiven naar vlak vóór de Finale. Eenmalig per avond; gespeelde rondes blijven staan. */
+export function sealedBeforeFinal(db, { log = console.log } = {}) {
+  const KEY2 = 'fix:sealed-before-final:v1';
+  if (db.get('SELECT 1 FROM kv WHERE key = ?', KEY2)) return 0;
+  let moved = 0;
+  db.tx(() => {
+    for (const ev of db.all('SELECT id FROM events WHERE is_demo = 0')) {
+      const rounds = db.all('SELECT * FROM rounds WHERE event_id = ? ORDER BY sort, id', ev.id).map(r => ({ ...r, settings: json(r.settings, {}) }));
+      const fin = rounds.find(r => r.kind === 'final'); if (!fin) continue;
+      const played = rid => db.get('SELECT 1 FROM submissions s JOIN questions q ON q.id = s.question_id WHERE q.round_id = ? LIMIT 1', rid);
+      const late = rounds.filter(r => r.settings.sealed && r.sort > fin.sort && !played(r.id));
+      if (!late.length || played(fin.id)) continue;
+      const order = rounds.filter(r => !late.includes(r));
+      order.splice(order.indexOf(fin), 0, ...late);
+      order.forEach((r, i) => db.run('UPDATE rounds SET sort = ? WHERE id = ?', (i + 1) * 10, r.id));
+      moved += late.length;
+    }
+    db.run('INSERT INTO kv (key, value) VALUES (?, ?)', KEY2, JSON.stringify({ moved }));
+  });
+  if (moved) log(`Verzegelde ronde vóór de Finale gezet (${moved}).`);
+  return moved;
+}
