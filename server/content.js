@@ -144,8 +144,19 @@ export function joinEvent(db, { code, name, teamId }) {
     }
     const hasTeam = db.get('SELECT 1 FROM memberships WHERE participant_id = ?', p.id);
     if (!hasTeam && teamId) setTeam(db, ev.id, p.id, teamId);
+    claimCaptainIfAbsent(db, p.id);
     return { token, participantId: p.id, eventId: ev.id };
   });
+}
+
+/** Is de captain van mijn team nog nooit aangemeld? Dan word ik captain, zodat het team kan antwoorden. */
+export function claimCaptainIfAbsent(db, pid) {
+  const m = db.get('SELECT * FROM memberships WHERE participant_id = ?', pid);
+  if (!m || m.is_captain) return;
+  const cap = db.get('SELECT p.joined_at FROM memberships m JOIN participants p ON p.id = m.participant_id WHERE m.team_id = ? AND m.is_captain = 1', m.team_id);
+  if (cap && cap.joined_at) return;
+  db.run('UPDATE memberships SET is_captain = 0 WHERE team_id = ?', m.team_id);
+  db.run('UPDATE memberships SET is_captain = 1 WHERE participant_id = ?', pid);
 }
 
 export function markJoined(db, pid) {

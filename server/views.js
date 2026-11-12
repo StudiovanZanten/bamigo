@@ -174,6 +174,7 @@ export function staffView(live, { event, role, grant }, online, joinUrl, t = liv
     plannedMinutes: rounds.reduce((a, r) => a + (r.minutes || 0), 0),
     readiness: readiness(db, event.id, full),
     nextQuestionId: host ? live.nextQuestionId(event.id) : null,
+    prevQuestionId: host ? live.prevQuestionId(event.id) : null,
     scoreboard: boardFor(live, event.id, { topTeams: 100, topPeople: 100 }),
   };
   if (host || full) {

@@ -142,7 +142,7 @@ export async function buildApp({ dbFile = process.env.BAMIGO_DB || path.join(roo
     const p = player(req);
     if (json(p.event.settings, {}).selfTeam === false) deny('De organisatie deelt de teams in.');
     if (live.membership(p.participant.id)) deny('Je zit al in een team. Vraag de host om te wisselen.');
-    C.setTeam(db, p.event.id, p.participant.id, String(req.body?.teamId || ''));
+    C.setTeam(db, p.event.id, p.participant.id, String(req.body?.teamId || '')); C.claimCaptainIfAbsent(db, p.participant.id);
     touch(p.event.id); return { ok: true };
   });
 
@@ -204,6 +204,10 @@ export async function buildApp({ dbFile = process.env.BAMIGO_DB || path.join(roo
     if (body.action === 'next_question') {
       const qid = live.nextQuestionId(s.event.id); if (!qid) bad('Er is geen volgende vraag.');
       return { live: live.action(s.event.id, actorOf(s), { action: 'prepare', questionId: qid, seq: body.seq }) };
+    }
+    if (body.action === 'prev_question') {
+      const qid = live.prevQuestionId(s.event.id); if (!qid) bad('Er is geen vorige vraag.');
+      return { live: live.action(s.event.id, actorOf(s), { action: 'goto', questionId: qid, seq: body.seq }) };
     }
     return { live: live.action(s.event.id, actorOf(s), body) };
   });
@@ -340,7 +344,7 @@ export async function buildApp({ dbFile = process.env.BAMIGO_DB || path.join(roo
       sock.join('ev:' + eid);
       if (pid) {
         const m = online.get(eid) ?? new Map(); online.set(eid, m); m.set(pid, (m.get(pid) ?? 0) + 1);
-        C.markJoined(db, pid);
+        C.markJoined(db, pid); C.claimCaptainIfAbsent(db, pid);
       }
       live.notify(eid);
       const v = viewFor(sock); if (v) sock.emit('state', v);

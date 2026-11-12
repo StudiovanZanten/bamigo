@@ -136,6 +136,7 @@ function explain(v) {
   if (p === 'closed' && q?.type === 'shot') return 'Shots worden pas aan het eind van de ronde samen onthuld. Ga door naar de volgende shot.';
   if (p === 'closed') return 'De vraag is dicht. Druk op de knop om het goede antwoord op de tv te laten zien.';
   if (p === 'revealed') return 'Het antwoord staat op de tv. Druk op de knop om de punten bij te schrijven.';
+  if (p === 'scored' && v.nextQuestionId && v.question?.played) return 'Je kijkt terug naar een gespeelde vraag. Het antwoord staat op de tv; de punten tellen al. Druk op de knop om verder te gaan.';
   return 'Klaar! Druk op de knop voor de volgende vraag. Tussendoor de stand laten zien? Kies “Scorebord” bij “Meer opties”.';
 }
 function primaryAction(v) {
@@ -172,6 +173,7 @@ function liveTab(v) {
       ${L.message ? `<p class="notice warn small">${esc(L.message)}</p>` : ''}
       ${pa ? `<button id="primary" class="btn primary primary-action" data-act="${pa[0]}">${pa[1]}</button>` : '<p class="muted">Geen volgende vraag. Toon het scorebord of de finale.</p>'}
       <div class="row" style="margin-top:12px">
+        ${v.prevQuestionId ? `<button class="btn ghost small" data-act="prev_question" ${L.phase === 'open' ? 'disabled' : ''}>← Vorige vraag</button>` : ''}
         <a class="btn ghost small" href="${tvHref(v)}" target="_blank" rel="noopener">TV-scherm openen</a>
         <span class="small muted">Spelcode <b class="code">${esc(v.event.joinCode)}</b></span>
       </div>
@@ -198,7 +200,7 @@ function liveTab(v) {
     <details class="card more" data-keep="liveQs"><summary>Alle vragen (overslaan of terugspringen)</summary><ul class="list qlist">${allQs.map(x => `<li class="${x.id === q?.id ? 'current' : ''}">
       <span class="small muted">${esc(x.round.title.slice(0, 14))}</span><span class="t ${x.voided ? 'voided' : ''}">${esc(x.prompt || TYPE_LABEL[x.type])}</span>
       ${x.isExample ? '<span class="example-badge">vb</span>' : ''}
-      ${x.voided ? '<span class="small muted">vervallen</span>' : x.played ? '<span class="pill ok">gespeeld</span>' : `<button class="btn ghost small" data-prepare="${x.id}" ${L.phase === 'open' ? 'disabled' : ''}>Klaarzetten</button>`}</li>`).join('') || '<li class="muted">Nog geen vragen.</li>'}</ul></details>
+      ${x.voided ? '<span class="small muted">vervallen</span>' : `${x.played ? '<span class="pill ok">gespeeld</span>' : ''}<button class="btn ghost small" data-prepare="${x.id}" ${L.phase === 'open' ? 'disabled' : ''}>${x.played ? 'Terugkijken' : 'Klaarzetten'}</button>`}</li>`).join('') || '<li class="muted">Nog geen vragen.</li>'}</ul></details>
     <div class="card"><h3>Stand</h3><table class="board"><tbody>${v.scoreboard.teams.map(t => `<tr><td class="pos">${t.rank}</td><td>${esc(t.name)}</td><td class="pts">${t.points}</td></tr>`).join('')}</tbody></table></div>
     ${v.perms.scores ? adjustForm(v) : ''}
   </section></div>`;
@@ -210,11 +212,12 @@ function liveTab(v) {
       return act(b, () => live('void', { reason }), 'Vraag vervallen.');
     }
     if (a === 'next_question') return act(b, () => live('next_question'));
+    if (a === 'prev_question') return act(b, () => live('prev_question'));
     act(b, () => live(a));
   });
   $$('[data-shotreveal]').forEach(b => b.onclick = () => { if (confirm('Alle shots onthullen en punten toekennen?')) act(b, () => live('shots_reveal', { roundId: b.dataset.shotreveal }), 'VAMOSSS!'); });
   $('#introSel').onchange = e => { if (e.target.value) act(null, () => live('round_intro', { roundId: e.target.value })); };
-  $$('[data-prepare]').forEach(b => b.onclick = () => act(b, () => live('prepare', { questionId: b.dataset.prepare })));
+  $$('[data-prepare]').forEach(b => b.onclick = () => act(b, () => live('goto', { questionId: b.dataset.prepare })));
   $$('[data-judge]').forEach(b => b.onclick = () => act(b, () => A.post('/api/staff/judge', { submissionId: b.dataset.judge, verdict: b.dataset.v })));
   bindAdjust();
   tickLive();

@@ -105,6 +105,18 @@ export class Live {
           this.scoreQuestion(eventId, s.question_id, actor);
           return this.#set(eventId, { phase: 'scored' }, actor, action);
         }
+        case 'goto': {
+          // Terug naar een (eerder gespeelde) vraag. Gespeeld: opnieuw tonen met uitslag, zonder opnieuw te openen.
+          if (s.phase === 'open') conflict('Sluit eerst de open vraag.');
+          const q = this.db.get('SELECT id, round_id, type, voided_at, locked_at FROM questions WHERE id = ? AND event_id = ?', questionId, eventId) || notFound('Vraag niet gevonden');
+          if (q.voided_at) conflict('Deze vraag is ongeldig verklaard.');
+          const played = q.locked_at || this.db.get('SELECT 1 FROM submissions WHERE question_id = ? LIMIT 1', q.id);
+          if (!played) return this.#set(eventId, { screen: 'question', round_id: q.round_id, question_id: q.id, phase: 'ready', open_at: null, deadline: null, paused: 0, paused_at: null }, actor, action);
+          const scored = this.db.get('SELECT 1 FROM score_events WHERE question_id = ? AND voided_at IS NULL LIMIT 1', q.id);
+          const phase = q.type === 'shot' ? 'closed' : scored ? 'scored' : 'revealed';
+          if (phase === 'revealed') this.autoJudge(q.id);
+          return this.#set(eventId, { screen: 'question', round_id: q.round_id, question_id: q.id, phase, open_at: null, deadline: null, paused: 0, paused_at: null }, actor, action);
+        }
         case 'shots_reveal': {
           if (s.phase === 'open') conflict('Sluit eerst de open vraag.');
           const rid = roundId || s.round_id;
@@ -152,6 +164,15 @@ export class Live {
       FROM questions q JOIN rounds r ON r.id = q.round_id WHERE q.event_id = ? ORDER BY r.sort, r.id, q.sort, q.id`, eventId);
     const i = s.question_id ? list.findIndex(x => x.id === s.question_id) : -1;
     return list.slice(i + 1).find(x => !x.voided_at && !x.played)?.id ?? null;
+  }
+
+  /** Vorige (niet-vervallen) vraag vóór de huidige, of null. */
+  prevQuestionId(eventId) {
+    const s = this.state(eventId);
+    if (!s.question_id) return null;
+    const list = this.db.all(`SELECT q.id, q.voided_at FROM questions q JOIN rounds r ON r.id = q.round_id WHERE q.event_id = ? ORDER BY r.sort, r.id, q.sort, q.id`, eventId);
+    const i = list.findIndex(x => x.id === s.question_id);
+    return list.slice(0, Math.max(0, i)).reverse().find(x => !x.voided_at)?.id ?? null;
   }
 
   // ---------- timers ----------

@@ -1,5 +1,7 @@
-.who { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 18px; flex-wrap: wrap; }
+.who { display: flex; align-items: center; gap: 12px; margin: 4px 0 18px; padding: 10px 12px; background: var(--raised); border: 1px solid var(--line); border-radius: 12px; }
+.who .grow { flex: 1; min-width: 0; }
 .who .name { font-weight: 700; font-size: 1.05rem; }
+.avatar { width: 40px; height: 40px; border-radius: 50%; background: var(--copper); color: var(--ivory); display: grid; place-items: center; font-family: var(--display); font-size: 1.3rem; flex: none; }
 .badge-captain { background: var(--champagne); color: #151515; font-size: .7rem; font-weight: 700; letter-spacing: .12em; padding: 2px 8px; border-radius: 3px; text-transform: uppercase; }
 .qprompt { font-family: var(--display); font-size: clamp(1.7rem, 7vw, 2.3rem); line-height: 1.1; margin: 10px 0 16px; }
 .countdown { font-family: var(--display); font-size: 6rem; text-align: center; color: var(--copper-text); line-height: 1; margin: 30px 0; }
@@ -18,3 +20,28 @@
 .order-item { display: flex; gap: 10px; align-items: center; }
 .order-item .choice { flex: 1; }
 .order-item .mv { min-width: 48px; }
+
+/* Voorbereiding als takenlijst */
+#prep { padding-bottom: 40px; }
+.prep-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 28px; }
+.prep-head h2 { margin: 0; }
+.task { background: var(--raised); border: 1px solid var(--line); border-radius: 12px; margin-bottom: 10px; }
+.task > summary { list-style: none; display: flex; align-items: center; gap: 12px; padding: 14px; cursor: pointer; min-height: 60px; }
+.task > summary::-webkit-details-marker { display: none; }
+.task > summary b { display: block; }
+.task > summary .grow { flex: 1; min-width: 0; }
+.task .tick { width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--line); display: grid; place-items: center; font-weight: 700; flex: none; }
+.task .tick.ok { background: var(--ok); border-color: var(--ok); color: #151515; }
+.task .chev { font-size: 1.5rem; color: var(--muted); transition: transform var(--t-fast); }
+.task[open] .chev { transform: rotate(90deg); }
+.task-body { padding: 0 14px 16px; border-top: 1px solid var(--line); padding-top: 12px; }
+.mission { border-top: 1px solid var(--line); padding-top: 12px; margin-top: 12px; }
+.mission h4 { margin: 0 0 4px; }
+/* Antwoordtegels */
+.choice .letter { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 8px; background: var(--raised-2); color: var(--copper-text); flex: none; }
+.choice[aria-pressed="true"] .letter { background: var(--ivory); color: var(--copper-deep); }
+.choice:not([disabled]):active { transform: scale(.98); }
+.choice { background: var(--raised); border-color: var(--line); border-radius: 12px; }
+.choice:not([disabled]):hover { border-color: var(--champagne); }
+.choice[aria-pressed="true"] { background: var(--copper-deep); border-color: var(--copper); }
+.choice.correct { border-color: var(--ok); }

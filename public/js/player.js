@@ -104,9 +104,10 @@ function render() {
   const focusId = document.activeElement?.id;
   lastKey = key;
 
-  const head = `<div class="who"><div><div class="name">${esc(v.me.name)} ${v.me.isCaptain ? '<span class="badge-captain">Captain</span>' : ''}</div>
-    <div class="small muted">${v.me.teamName ? 'Team ' + esc(v.me.teamName) : 'Nog geen team'}${v.event.isDemo ? ' · <span class="demo-badge">Demo</span>' : ''}</div></div>
-    <div class="small muted" style="text-align:right">${esc(v.event.name)}</div></div>`;
+  const head = `<div class="who"><span class="avatar" aria-hidden="true">${esc((v.me.name || '?').slice(0, 1).toUpperCase())}</span>
+    <div class="grow"><div class="name">${esc(v.me.name)}</div>
+    <div class="small muted">${v.me.teamName ? esc(v.me.teamName) : 'Nog geen team'}</div></div>
+    ${v.me.isCaptain ? '<span class="badge-captain">Captain</span>' : ''}${v.event.isDemo ? '<span class="demo-badge">Demo</span>' : ''}</div>`;
   let body = '';
   if (L.screen === 'question' && q) body = questionScreen(v, q);
   else if (L.screen === 'round_intro') body = `<div class="center stack"><span class="tag">${esc(ROUND_LABEL[L.round?.kind] || 'Ronde')}</span><h1>${esc(L.round?.title || '')}</h1>
@@ -124,11 +125,11 @@ function render() {
 function lobbyScreen(v) {
   const t = v.team;
   return `<div class="center stack" style="margin:10px 0 20px"><div class="host-mascot" style="margin:0 auto">${mascot('welkom')}</div>
-    <h2>Je bent binnen.</h2><p class="muted">Kijk naar de tv. De host start zo.</p></div>
+    <h2>Je bent binnen</h2><p class="muted">Kijk naar de tv. De quiz begint zo.</p></div>
     ${t ? `<section class="card"><h3>${esc(t.name)}</h3><ul class="list team-list">${t.members.map(m => `<li><span class="dot ${m.online ? 'on' : ''}" aria-hidden="true"></span>
       <span>${esc(m.name)}</span>${m.isCaptain ? '<span class="badge-captain">Captain</span>' : ''}<span class="small muted" style="margin-left:auto">${m.online ? 'online' : 'offline'}</span>
       ${v.me.isCaptain && !m.isCaptain ? `<button class="btn ghost small" data-captain="${m.id}">Maak captain</button>` : ''}</li>`).join('')}</ul>
-      <p class="small muted" style="margin:10px 0 0">Bij teamvragen stuurt alleen de captain het definitieve antwoord in.</p></section>` : `<p class="notice">Je bent nog niet ingedeeld. De host zet je in een team.</p>`}`;
+      <p class="small muted" style="margin:10px 0 0">Bij teamvragen tikt de captain het antwoord in.</p></section>` : `<p class="notice">Je bent nog niet ingedeeld. De host zet je in een team.</p>`}`;
 }
 
 function timerHtml(L) {
@@ -170,7 +171,7 @@ function questionScreen(v, q) {
     out += `<div class="choices" role="group" aria-label="Antwoorden">${q.options.map((o, i) => {
       const cls = revealed ? (correct.includes(i) ? 'correct' : chosen === i ? 'wrong' : '') : '';
       const mark = revealed && correct.includes(i) ? '✓ Juist' : chosen === i ? (mine ? '✓ Ingestuurd' : '● Gekozen') : '';
-      return `<button class="choice ${cls}" data-choice="${i}" aria-pressed="${chosen === i}" ${canAnswer ? '' : 'disabled'}><span class="letter">${LETTERS[i]}.</span><span>${esc(o)}</span><span class="mark">${mark}</span></button>`;
+      return `<button class="choice ${cls}" data-choice="${i}" aria-pressed="${chosen === i}" ${canAnswer ? '' : 'disabled'}><span class="letter">${LETTERS[i]}</span><span>${esc(o)}</span><span class="mark">${mark}</span></button>`;
     }).join('')}</div>`;
   } else if (q.type === 'open' || q.type === 'number') {
     const val = mine ? mine.answer : draft.text;
@@ -345,6 +346,7 @@ function shotsRevealScreen(v) {
 
 // ---------- voorbereiding: vragenlijst, ranking, teamshot, buitentas ----------
 let prepKey = '', prepDirty = false;
+const prepOpen = new Set();
 function renderPrep(v) {
   const el = $('#prep');
   const show = ['lobby', 'break'].includes(v.live.screen) && v.prep;
@@ -359,27 +361,36 @@ function renderPrep(v) {
   prepKey = k; prepDirty = false;
   const P = v.prep; const pr = P.profile;
   const openVotes = P.ranking.filter(r => !r.closed);
-  el.innerHTML = `<h2 style="margin-top:28px">Voorbereiding</h2>
-  <p class="muted small">Ongeveer vijf minuten. Alles mag je overslaan.</p>
-  ${openVotes.length ? `<section class="card"><h3>Ranking de Boys</h3><p class="small muted">Stem anoniem. Tijdens de quiz voorspellen de teams wie het vaakst gekozen is. Alleen totalen worden getoond.</p>
+  const votesDone = openVotes.length && openVotes.every(r => r.voted);
+  const shotDone = P.shot && P.shot.name && P.shot.allergens;
+  const missDone = P.missions.filter(m => m.closed || m.mine?.value || m.mine?.hasPhoto).length;
+  const tasks = [openVotes.length && votesDone, pr.done, P.shot && shotDone, P.missions.length && missDone === P.missions.length];
+  const total = [openVotes.length, 1, P.shot, P.missions.length].filter(Boolean).length;
+  const done = tasks.filter(Boolean).length;
+  const task = (key, title, ok, sub, inner) => `<details class="task" data-task="${key}" ${prepOpen.has(key) ? 'open' : ''}><summary><span class="tick ${ok ? 'ok' : ''}" aria-hidden="true">${ok ? '✓' : ''}</span>
+    <span class="grow"><b>${title}</b><span class="small muted">${sub}</span></span><span class="chev" aria-hidden="true">›</span></summary><div class="task-body">${inner}</div></details>`;
+  el.innerHTML = `<div class="prep-head"><h2>Voor het weekend</h2><span class="pill ${done === total ? 'ok' : ''}">${done} van ${total} klaar</span></div>
+  <p class="muted small" style="margin:0 0 12px">Een paar minuutjes. Alles mag je overslaan.</p>
+  ${openVotes.length ? task('vote', 'Ranking de Boys', votesDone, votesDone ? 'Gestemd, geheim' : `${openVotes.length} korte stemmen`, `<p class="small muted">Je stem is anoniem. Alleen totalen worden getoond.</p>
     ${openVotes.map(r => `<div class="field"><label for="rv_${r.id}">${esc(r.prompt)}</label><select id="rv_${r.id}" data-vote="${r.id}">
-      <option value="" ${!r.voted ? 'selected' : ''}>— nog niet gestemd —</option><option value="skip" ${r.voted && !r.choiceId ? 'selected' : ''}>Overslaan</option>
-      ${P.candidates.map(c => `<option value="${c.id}" ${r.choiceId === c.id ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select></div>`).join('')}</section>` : ''}
-  <form class="card" id="profForm"><h3>Over jou</h3>
-    <div class="field"><label for="pStory">Een eigen verhaal dat de quizmasters mogen gebruiken (optioneel)</label><textarea id="pStory" maxlength="1000">${esc(pr.story)}</textarea></div>
-    <div class="field"><label for="pLim">Waar moet de humor bij jou wegblijven? (optioneel, alleen voor de quizmasters)</label><input id="pLim" maxlength="500" value="${esc(pr.limits)}"></div>
-    <button class="btn copper">${pr.done ? 'Bijwerken' : 'Opslaan'}</button> ${pr.done ? '<span class="pill ok"><span class="dot"></span>Ingevuld</span>' : ''}</form>
-  ${P.shot ? `<form class="card" id="shotForm"><h3>Jullie geheime shot</h3><p class="small muted">Eén inzending per team; alleen jullie team ziet dit. ${P.shot.updated_by ? `Laatst bewerkt door ${esc(P.shot.updated_by)}.` : ''}</p>
-    ${[['name', 'Naam / merk'], ['flavor', 'Hoofdsmaak'], ['base', 'Basisdrank (of “geen alcohol”)'], ['ingredients', 'Ingrediënten'], ['allergens', 'Allergenen (verplicht; “geen” als er geen zijn)'], ['amount', 'Hoeveelheid (bijv. 1 fles 0,7 l)']]
+      <option value="" ${!r.voted ? 'selected' : ''}>Kies…</option><option value="skip" ${r.voted && !r.choiceId ? 'selected' : ''}>Overslaan</option>
+      ${P.candidates.map(c => `<option value="${c.id}" ${r.choiceId === c.id ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select></div>`).join('')}`) : ''}
+  ${task('prof', 'Over jou', pr.done, pr.done ? 'Ingevuld' : 'Optioneel, voor de quizmasters', `<form id="profForm">
+    <div class="field"><label for="pStory">Een verhaal dat we mogen gebruiken</label><textarea id="pStory" maxlength="1000">${esc(pr.story)}</textarea></div>
+    <div class="field"><label for="pLim">Waar moet de humor bij jou wegblijven?</label><input id="pLim" maxlength="500" value="${esc(pr.limits)}"></div>
+    <button class="btn copper">${pr.done ? 'Bijwerken' : 'Opslaan'}</button></form>`)}
+  ${P.shot ? task('shot', 'Jullie geheime shot', shotDone, shotDone ? esc(P.shot.name) : 'Eén per team, alleen jullie zien dit', `<form id="shotForm">${P.shot.updated_by ? `<p class="small muted">Laatst bewerkt door ${esc(P.shot.updated_by)}.</p>` : ''}
+    ${[['name', 'Naam of merk'], ['flavor', 'Hoofdsmaak'], ['base', 'Basisdrank (of “geen alcohol”)'], ['ingredients', 'Ingrediënten'], ['allergens', 'Allergenen (verplicht, “geen” mag)'], ['amount', 'Hoeveelheid (bijv. 1 fles 0,7 l)']]
       .map(([f, l]) => `<div class="field"><label for="sh_${f}">${l}</label><input id="sh_${f}" data-shot="${f}" maxlength="300" value="${esc(P.shot[f] || '')}"></div>`).join('')}
-    <div class="field"><label for="sh_story">Kort verhaal (wordt pas na het laatste shot onthuld)</label><textarea id="sh_story" data-shot="story" maxlength="500">${esc(P.shot.story || '')}</textarea></div>
-    <button class="btn copper">Shot opslaan</button></form>` : ''}
-  ${P.missions.length ? `<section class="card"><h3>BAMIGO Buitentas</h3><p class="small muted">Verzamel vooraf, lever de fysieke tas in bij de BAMIGO Douane. Bewijsmateriaal. Geen verdere vragen.</p>
-    ${P.missions.map(m => `<form class="card" style="background:var(--bg)" data-mission="${m.id}"><h3 style="font-size:1.1rem">${esc(m.title)}</h3>${m.description ? `<p class="small">${esc(m.description)}</p>` : ''}
-      ${m.closed ? `<p class="pill ok"><span class="dot"></span>Beoordeeld</p>` : `<div class="row"><div class="grow"><label for="mv_${m.id}">${m.kind === 'closest' ? `Jullie waarde${m.unit ? ' (' + esc(m.unit) + ')' : ''}` : 'Wat hebben jullie?'}</label><input id="mv_${m.id}" name="value" maxlength="100" value="${esc(m.mine?.value || '')}"></div></div>
-      <div class="field" style="margin-top:8px"><label for="mn_${m.id}">Toelichting</label><input id="mn_${m.id}" name="note" maxlength="500" value="${esc(m.mine?.note || '')}"></div>
+    <div class="field"><label for="sh_story">Kort verhaal (pas aan het eind onthuld)</label><textarea id="sh_story" data-shot="story" maxlength="500">${esc(P.shot.story || '')}</textarea></div>
+    <button class="btn copper">Shot opslaan</button></form>`) : ''}
+  ${P.missions.length ? task('miss', 'BAMIGO Buitentas', missDone === P.missions.length, `${missDone} van ${P.missions.length} opdrachten`, `<p class="small muted">Verzamel vooraf en lever de tas in bij de BAMIGO Douane.</p>
+    ${P.missions.map(m => `<form class="mission" data-mission="${m.id}"><h4>${esc(m.title)}</h4>${m.description ? `<p class="small muted">${esc(m.description)}</p>` : ''}
+      ${m.closed ? `<p class="pill ok"><span class="dot"></span>Beoordeeld</p>` : `<div class="field"><label for="mv_${m.id}">${m.kind === 'closest' ? `Jullie waarde${m.unit ? ' (' + esc(m.unit) + ')' : ''}` : 'Wat hebben jullie?'}</label><input id="mv_${m.id}" name="value" maxlength="100" value="${esc(m.mine?.value || '')}"></div>
+      <div class="field"><label for="mn_${m.id}">Toelichting</label><input id="mn_${m.id}" name="note" maxlength="500" value="${esc(m.mine?.note || '')}"></div>
       <div class="row"><button class="btn copper small">Opslaan</button><label class="btn ghost small" style="margin:0;color:var(--ivory)">${m.mine?.hasPhoto ? 'Foto vervangen' : 'Foto toevoegen'}<input type="file" accept="image/*" capture="environment" data-photo="${m.id}" hidden></label>
-      ${m.mine?.value || m.mine?.hasPhoto ? '<span class="pill ok"><span class="dot"></span>Ingeleverd</span>' : ''}</div>`}</form>`).join('')}</section>` : ''}`;
+      ${m.mine?.value || m.mine?.hasPhoto ? '<span class="pill ok"><span class="dot"></span>Ingeleverd</span>' : ''}</div>`}</form>`).join('')}`) : ''}`;
+  $$('details[data-task]', el).forEach(d => d.ontoggle = () => { d.open ? prepOpen.add(d.dataset.task) : prepOpen.delete(d.dataset.task); });
   const A = api({ 'x-player-token': token });
   el.oninput = () => { prepDirty = true; };
   $$('[data-vote]', el).forEach(s => s.onchange = async () => {

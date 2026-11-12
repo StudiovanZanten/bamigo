@@ -149,3 +149,35 @@ test('Buitentas: kassabon dichtst bij 12:00 en 250 gram, gelijke afwijking deelt
   assert.equal(pts().C, 6);
   assert.throws(() => M.saveEvidence(db, E, T.B, bon, { value: '12:00' }, 'x'), /al beoordeeld/);
 });
+
+test('captain: wie zich aanmeldt neemt het over van een vooraf ingevoerde captain die nooit is aangemeld', () => {
+  const db = openDb(':memory:');
+  const { event } = C.createEvent(db, { name: 'Cap' });
+  const tid = C.upsertTeam(db, event.id, { name: 'Lobbers' });
+  C.upsertParticipant(db, event.id, { name: 'Bas', teamId: tid });
+  C.upsertParticipant(db, event.id, { name: 'Joris', teamId: tid });
+  const capName = () => db.get('SELECT p.name FROM memberships m JOIN participants p ON p.id = m.participant_id WHERE m.team_id = ? AND m.is_captain = 1', tid).name;
+  assert.equal(capName(), 'Bas');
+  C.joinEvent(db, { code: event.join_code, name: 'Reno', teamId: tid });
+  assert.equal(capName(), 'Reno');
+  C.joinEvent(db, { code: event.join_code, name: 'Joris' });
+  assert.equal(capName(), 'Reno', 'een aangemelde captain blijft captain');
+});
+
+test('vorige vraag: terugkijken toont de uitslag zonder opnieuw te openen of dubbel te scoren', () => {
+  const { db, live, E, P, run, pts } = setup();
+  const r = C.upsertRound(db, E, { kind: 'quiz', title: 'Q' });
+  const q1 = C.upsertQuestion(db, E, { roundId: r, type: 'mc', prompt: 'een', options: ['a', 'b'], seconds: 30, points: 1, key: { correct: 0 } });
+  const q2 = C.upsertQuestion(db, E, { roundId: r, type: 'mc', prompt: 'twee', options: ['a', 'b'], seconds: 30, points: 1, key: { correct: 0 } });
+  run('prepare', { questionId: q1 }); run('open'); live.submit(E, P.a1, { questionId: q1, answer: 0 }); run('close'); run('reveal'); run('score');
+  run('prepare', { questionId: q2 });
+  assert.equal(live.prevQuestionId(E), q1);
+  run('goto', { questionId: q1 });
+  assert.equal(live.state(E).question_id, q1);
+  assert.equal(live.state(E).phase, 'scored');
+  assert.throws(() => run('open'));
+  assert.equal(pts().A, 1);
+  assert.equal(live.nextQuestionId(E), q2);
+  run('goto', { questionId: q2 });
+  assert.equal(live.state(E).phase, 'ready');
+});
