@@ -59,6 +59,7 @@ export function emergencyPack(db, eventId) {
   let qn = 0;
   const body = rounds.map(r => {
     const qs = db.all('SELECT q.*, k.correct, k.accepted FROM questions q LEFT JOIN answer_keys k ON k.question_id = q.id WHERE q.round_id = ? AND q.voided_at IS NULL ORDER BY q.sort', r.id);
+    if (json(r.settings, {}).sealed) { const from = qn + 1; qn += qs.length; return `<h2>${esc(r.title)} <small>verzegeld</small></h2><p class="i">Vragen ${from}–${qn}: inhoud verborgen (verzegelde ronde).</p>`; }
     return `<h2>${esc(r.title)} <small>${r.minutes} min</small></h2>${r.instructions ? `<p class="i">${esc(r.instructions)}</p>` : ''}
       <ol start="${qn + 1}">${qs.map(q => { qn++; const opts = json(q.options, []); const c = json(q.correct);
         const ans = q.type === 'mc' || q.type === 'tf' ? [].concat(c).map(i => `${L[i]}. ${opts[i] ?? ''}`).join(' / ') : q.type === 'open' ? [c, ...json(q.accepted, [])].filter(Boolean).join(' / ') : c != null ? JSON.stringify(c) : '—';

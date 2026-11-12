@@ -65,3 +65,5 @@ details.card.more { padding: 14px 18px; }
 .roulette-card { border-color: var(--copper); }
 .rl-ex { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 4px 12px; margin-top: 8px; }
 .rl-ex .check { margin: 0; }
+.hi-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.hi-grid span { font-size: .85rem; color: var(--champagne); display: block; margin-bottom: 4px; }

@@ -5,7 +5,9 @@ import { openDb } from '../server/db.js';
 import { Live } from '../server/live.js';
 import * as C from '../server/content.js';
 import * as M from '../server/modules.js';
-import { playerView, displayView } from '../server/views.js';
+import { playerView, displayView, staffView } from '../server/views.js';
+import { createGrant, staffByToken } from '../server/auth.js';
+import { importPack, emergencyPack } from '../server/exporting.js';
 
 function setup() {
   const db = openDb(':memory:');
@@ -288,4 +290,54 @@ test('shot-roulette: alleen aangemelde spelers, uitsluiten werkt, nooit twee kee
   assert.equal(live.roulette(E, 'test', { exclude: one }).winner.id, P.b1.id); // enige kandidaat mag wel opnieuw
   live.rouletteClose(E, 'test');
   assert.equal(live.state(E).roulette, null);
+});
+
+test('quizmaster doet mee: roulette (0.0-variant), Dragons-investering, zonder team in individuele ranglijst, verzegelde ronde', () => {
+  const { db, live, E, T, P, run, pts, ev, clock } = setup();
+  // Roulette: alleen de quizmaster over → hij wint, met de 0.0-variant
+  const all = Object.values(P).map(p => p.id);
+  const r = live.roulette(E, 'test', { task: 'Neem een shotje!', exclude: all, host: { on: true, name: 'Rinus' } });
+  assert.equal(r.winner.id, 'host'); assert.equal(r.winner.name, 'Rinus'); assert.match(r.task, /0\.0/);
+  // Rinus meldt zich aan als speler zonder team: telt één keer mee in de roulette
+  const rin = C.joinEvent(db, { code: ev().join_code, name: 'Rinus' });
+  const r2 = live.roulette(E, 'test', { exclude: [], host: { on: true, name: 'Rinus' } });
+  assert.equal(r2.names.filter(n => n === 'Rinus').length, 1);
+  live.roulette(E, 'test', { exclude: [], host: { on: false, name: 'Rinus' } });
+  for (let i = 0; i < 20; i++) assert.notEqual(live.roulette(E, 'test', {}).winner.name, 'Rinus');
+
+  // Dragons: quizmaster investeert €10.000 en telt mee in de totalen
+  const dr = C.upsertRound(db, E, { title: 'Dragons', kind: 'dragons' });
+  const q = C.upsertQuestion(db, E, { roundId: dr, type: 'invest', prompt: 'Verdeel', seconds: 60 });
+  assert.throws(() => live.hostInvest(E, 'test', { [T.A]: 10000 }), /Dragons/);
+  run('prepare', { questionId: q }); run('open'); clock.add(10);
+  assert.throws(() => live.hostInvest(E, 'test', { [T.A]: 9000 }), /precies/);
+  live.hostInvest(E, 'test', { [T.A]: 5000, [T.B]: 5000 });
+  live.hostInvest(E, 'test', { [T.E]: 10000 }); // aanpassen mag
+  live.submit(E, P.a1, { questionId: q, answer: { [T.B]: 10000 } });
+  const sv = staffView(live, { event: ev(), role: 'owner', grant: { label: 'Eigenaar' } }, new Set(), 'x');
+  assert.equal(sv.counts.submitted, 1);
+  assert.equal(sv.submissions.find(x => x.owner === 'host').by, 'Quizmaster');
+  run('close'); run('reveal');
+  assert.throws(() => live.hostInvest(E, 'test', { [T.A]: 10000 }), /onthuld/);
+  run('score');
+  assert.equal(pts().E, 5); assert.equal(pts().B, 5); // gelijk: allebei €10.000
+
+  // Verzegelde bliksemronde: eigenaar ziet geen vragen/antwoorden, live starten werkt, Rinus speelt individueel mee
+  importPack(db, E, { format: 'bamigo-pack@1', rounds: [{ kind: 'lightning', title: 'Versla Rinus', settings: { sealed: true },
+    questions: [{ type: 'mc', scope: 'individual', scoring: 'speed', prompt: 'GEHEIME-VRAAG', options: ['x', 'GEHEIM-JUIST'], seconds: 15, points: 3, key: { correct: 1 } }] }] });
+  const owner = () => staffView(live, { event: ev(), role: 'owner', grant: { label: 'Eigenaar' } }, new Set(), 'x');
+  assert.ok(!JSON.stringify(owner()).includes('GEHEIM'));
+  assert.ok(!emergencyPack(db, E).includes('GEHEIM'));
+  const sq = owner().rounds.find(x => x.title === 'Versla Rinus');
+  assert.ok(sq.sealed && sq.questions[0].sealed);
+  run('prepare', { questionId: sq.questions[0].id });
+  assert.ok(!JSON.stringify(owner()).includes('GEHEIM'), 'ook niet als hij klaarstaat');
+  run('open'); clock.add(10);
+  const rinus = db.get('SELECT * FROM participants WHERE id = ?', rin.participantId);
+  live.submit(E, rinus, { questionId: sq.questions[0].id, answer: 1 });
+  run('close');
+  assert.ok(!JSON.stringify(owner().currentKey || {}).includes('1') || owner().currentKey == null, 'sleutel pas na onthullen');
+  run('reveal'); run('score');
+  const ind = live.scoreboard(E).individuals;
+  assert.equal(ind[0].name, 'Rinus'); assert.ok(ind[0].points > 0);
 });

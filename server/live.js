@@ -320,21 +320,27 @@ export class Live {
    * Shot-roulette: kies op de server één willekeurige aangemelde speler (niet uitgesloten,
    * niet twee keer achter elkaar dezelfde). Geen punten; alleen eer en een shotje.
    */
-  roulette(eventId, actor, { task, exclude } = {}) {
+  roulette(eventId, actor, { task, exclude, host } = {}) {
     const out = this.db.tx(() => {
       const ev = this.db.get('SELECT settings FROM events WHERE id = ?', eventId);
       const settings = json(ev.settings, {});
       const ex = Array.isArray(exclude) ? exclude.map(String).slice(0, 200) : settings.rouletteExclude || [];
-      if (Array.isArray(exclude)) this.db.run('UPDATE events SET settings = ? WHERE id = ?', JSON.stringify({ ...settings, rouletteExclude: ex }), eventId);
+      const hs = host && typeof host === 'object' ? { on: !!host.on, name: String(host.name || '').trim().slice(0, 40) || 'Quizmaster' } : settings.rouletteHost || { on: false, name: 'Rinus' };
+      if (Array.isArray(exclude) || host) this.db.run('UPDATE events SET settings = ? WHERE id = ?', JSON.stringify({ ...settings, rouletteExclude: ex, rouletteHost: hs }), eventId);
+      const hostName = hs.name.toLowerCase();
       let pool = this.db.all(`SELECT p.id, p.name, t.name AS team FROM participants p LEFT JOIN memberships m ON m.participant_id = p.id LEFT JOIN teams t ON t.id = m.team_id
-        WHERE p.event_id = ? AND p.joined_at IS NOT NULL ORDER BY p.name`, eventId).filter(p => !ex.includes(p.id));
+        WHERE p.event_id = ? AND p.joined_at IS NOT NULL ORDER BY p.name`, eventId).filter(p => !ex.includes(p.id) && p.name.toLowerCase() !== hostName);
+      // De quizmaster telt één keer mee (ook als hij zich als speler heeft aangemeld onder dezelfde naam).
+      if (hs.on) pool.push({ id: 'host', name: hs.name, team: 'Quizmaster' });
       if (!pool.length) bad('Er is niemand om te kiezen. Zijn er spelers aangemeld (en niet allemaal uitgesloten)?');
       const prev = json(this.state(eventId).roulette, null)?.winner?.id;
       const candidates = pool.length > 1 ? pool.filter(p => p.id !== prev) : pool;
       const w = candidates[randomInt(candidates.length)];
       const names = pool.map(p => p.name);
       for (let i = names.length - 1; i > 0; i--) { const j = randomInt(i + 1); [names[i], names[j]] = [names[j], names[i]]; }
-      const r = { id: id('r_'), at: this.clock() + 400, task: String(task || '').trim().slice(0, 80) || ROULETTE_TASKS[0], names, winner: { id: w.id, name: w.name, team: w.team || null } };
+      const chosen = String(task || '').trim().slice(0, 80) || ROULETTE_TASKS[0];
+      // Wint de quizmaster? Dan de 0.0-variant: hij moet scherp blijven.
+      const r = { id: id('r_'), at: this.clock() + 400, task: w.id === 'host' ? ROULETTE_TASKS[2] : chosen, names, winner: { id: w.id, name: w.name, team: w.team || null } };
       const s = this.state(eventId);
       this.db.run('UPDATE live_state SET roulette = ?, seq = ?, updated_at = ? WHERE event_id = ?', JSON.stringify(r), s.seq + 1, this.clock(), eventId);
       this.audit(eventId, actor, 'roulette', { winner: w.name, task: r.task });
@@ -342,6 +348,21 @@ export class Live {
     });
     this.notify(eventId);
     return out;
+  }
+
+  /** Dragons: de quizmaster als extra investeerder. Telt mee in de totalen, niet in teampunten van een eigen team. */
+  hostInvest(eventId, actor, answer) {
+    this.db.tx(() => {
+      const s = this.state(eventId);
+      const q = s.question_id ? this.question(s.question_id) : null;
+      if (!q || q.type !== 'invest') bad('Er staat geen Dragons-vraag klaar.');
+      if (!['open', 'closed'].includes(s.phase)) conflict('Investeren kan alleen terwijl de Dragons-vraag open of gesloten (nog niet onthuld) is.');
+      const clean = M.validateModuleAnswer(this.db, q, answer, eventId, null);
+      this.db.run(`INSERT INTO submissions (id, event_id, question_id, owner_key, participant_id, team_id, answer, received_at) VALUES (?,?,?,?,?,?,?,?)
+        ON CONFLICT(question_id, owner_key) DO UPDATE SET answer = excluded.answer, received_at = excluded.received_at`, id('s_'), eventId, q.id, 'host', null, null, JSON.stringify(clean), this.clock());
+      this.audit(eventId, actor, 'host_invest', clean);
+    });
+    this.notify(eventId);
   }
 
   rouletteClose(eventId, actor) {

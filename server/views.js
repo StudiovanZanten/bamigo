@@ -84,7 +84,7 @@ function teamsWithMembers(db, eventId, online) {
 function counts(live, eventId, s) {
   if (!s.question_id) return null;
   const q = live.question(s.question_id);
-  const submitted = live.db.get('SELECT COUNT(*) AS n FROM submissions WHERE question_id = ?', s.question_id).n;
+  const submitted = live.db.get("SELECT COUNT(*) AS n FROM submissions WHERE question_id = ? AND owner_key != 'host'", s.question_id).n;
   const expected = q.scope === 'team'
     ? live.db.get('SELECT COUNT(*) AS n FROM teams WHERE event_id = ?', eventId).n
     : live.db.get('SELECT COUNT(*) AS n FROM participants WHERE event_id = ? AND joined_at IS NOT NULL', eventId).n;
@@ -162,10 +162,11 @@ export function staffView(live, { event, role, grant }, online, joinUrl, t = liv
   for (const r of rounds) {
     const list = qs.filter(q => q.round_id === r.id);
     r.questionCount = list.length;
+    r.sealed = !!r.settings.sealed;
     if (full || host) {
       r.questions = list.map(q => {
-        const base = { id: q.id, type: q.type, scope: q.scope, scoring: q.scoring, seconds: q.seconds, points: q.points, sort: q.sort, voided: !!q.voided_at, played: played.has(q.id), isExample: !!q.is_example };
-        if (!full && !can(role, 'live.prompts')) return base;
+        const base = { id: q.id, type: q.type, scope: q.scope, scoring: q.scoring, seconds: q.seconds, points: q.points, sort: q.sort, voided: !!q.voided_at, played: played.has(q.id), isExample: !!q.is_example, sealed: r.sealed };
+        if (r.sealed || (!full && !can(role, 'live.prompts'))) return base;
         Object.assign(base, { prompt: q.prompt, quote: q.quote, context: q.context, options: json(q.options, []), allowBet: !!q.allow_bet, mediaId: q.media_id, settings: json(q.settings, {}) });
         if (full) { const k = keys.get(q.id); base.key = k ? { correct: json(k.correct), accepted: json(k.accepted, []), explanation: k.explanation, tolerance: k.tolerance } : null; }
         return base;
@@ -183,18 +184,20 @@ export function staffView(live, { event, role, grant }, online, joinUrl, t = liv
     prevQuestionId: host ? live.prevQuestionId(event.id) : null,
     scoreboard: boardFor(live, event.id, { topTeams: 100, topPeople: 100 }),
   };
+  const sealedNow = s.question_id ? !!json(db.get('SELECT r.settings FROM questions q JOIN rounds r ON r.id = q.round_id WHERE q.id = ?', s.question_id)?.settings, {}).sealed : false;
   if (host || full) {
     view.question = publicQuestion(live, s, t);
+    view.sealed = sealedNow;
     // Host ziet de sleutel van de actieve vraag pas na sluiten; inhoudsbeheer altijd.
-    if (s.question_id && (full || (host && AFTER_CLOSE.includes(s.phase)))) {
+    if (s.question_id && (sealedNow ? REVEALED.includes(s.phase) : (full || (host && AFTER_CLOSE.includes(s.phase))))) {
       const k = live.answerKey(s.question_id);
       view.currentKey = { correct: k.correct, accepted: k.accepted, explanation: k.explanation, tolerance: k.tolerance };
     }
     if (s.question_id) {
       const subs = db.all(`SELECT s.*, p.name AS by_name, tm.name AS team_name FROM submissions s LEFT JOIN participants p ON p.id = s.participant_id
         LEFT JOIN teams tm ON tm.id = s.team_id WHERE s.question_id = ? ORDER BY s.received_at`, s.question_id);
-      const showAnswers = full || AFTER_CLOSE.includes(s.phase);
-      view.submissions = subs.map(x => ({ id: x.id, owner: x.owner_key, by: x.by_name, team: x.team_name, elapsedMs: x.elapsed_ms, bet: x.bet,
+      const showAnswers = sealedNow ? AFTER_CLOSE.includes(s.phase) : full || AFTER_CLOSE.includes(s.phase);
+      view.submissions = subs.map(x => ({ id: x.id, owner: x.owner_key, by: x.owner_key === 'host' ? 'Quizmaster' : x.by_name, team: x.team_name, elapsedMs: x.elapsed_ms, bet: x.bet,
         answer: showAnswers ? json(x.answer) : undefined, verdict: showAnswers ? x.verdict : undefined, manual: !!x.judged_by }));
     }
     view.result = revealInfo(live, s);

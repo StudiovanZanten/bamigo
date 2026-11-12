@@ -180,6 +180,7 @@ function liveTab(v) {
         <span class="small muted">Spelcode <b class="code">${esc(v.event.joinCode)}</b></span>
       </div>
     </div>
+    ${hostInvestCard(v)}
     ${rouletteCard(v)}
     <details class="card more" data-keep="liveMore"><summary>Meer opties (scorebord, pauze, vraag schrappen)</summary>
       <p class="small muted" style="margin:12px 0 6px">Wat staat er op de tv?</p><div class="row">
@@ -224,24 +225,58 @@ function liveTab(v) {
   $$('[data-judge]').forEach(b => b.onclick = () => act(b, () => A.post('/api/staff/judge', { submissionId: b.dataset.judge, verdict: b.dataset.v })));
   bindAdjust();
   bindRoulette(v);
+  bindHostInvest(v);
   tickLive();
 }
 
+// ---------- DRAGONS: QUIZMASTER INVESTEERT ----------
+let hiDraft = null; // { qid, amounts }
+function hostInvestCard(v) {
+  const q = v.question;
+  if (!q || q.type !== 'invest' || !['open', 'closed'].includes(v.live.phase)) return '';
+  const mine = (v.submissions || []).find(s => s.owner === 'host');
+  const budget = q.budget || 10000, step = q.step || 500;
+  if (hiDraft?.qid !== q.id) hiDraft = { qid: q.id, amounts: { ...(mine?.answer || {}) } };
+  const sum = Object.values(hiDraft.amounts).reduce((a, b) => a + (+b || 0), 0);
+  const eur = n => '€' + n.toLocaleString('nl-NL');
+  return `<div class="card roulette-card"><div class="row" style="justify-content:space-between;align-items:baseline"><h3 style="margin:0">Jouw investering als Dragon</h3>${mine ? '<span class="pill ok"><span class="dot"></span>ingestuurd</span>' : ''}</div>
+    <p class="small muted" style="margin:6px 0 12px">Verdeel ${eur(budget)} over de teams, in stappen van ${eur(step)}. Telt mee in de totalen. Aanpassen kan tot je het antwoord onthult.</p>
+    <div class="hi-grid">${v.teams.map(t => `<label class="field" style="margin:0"><span>${esc(t.name)}</span><input id="hi_${t.id}" type="number" min="0" step="${step}" max="${budget}" data-hi="${t.id}" value="${hiDraft.amounts[t.id] || ''}" placeholder="0" inputmode="numeric"></label>`).join('')}</div>
+    <div class="row" style="margin-top:10px;align-items:center"><span id="hiSum" class="pill ${sum === budget ? 'ok' : ''}">${eur(sum)} van ${eur(budget)}</span>
+      <button class="btn copper" id="hiGo">${mine ? 'Investering bijwerken' : 'Investering insturen'}</button></div></div>`;
+}
+function bindHostInvest(v) {
+  if (!$('#hiGo')) return;
+  const q = v.question; const budget = q.budget || 10000;
+  $$('[data-hi]').forEach(i => i.oninput = () => {
+    hiDraft.amounts[i.dataset.hi] = +i.value || 0;
+    const sum = Object.values(hiDraft.amounts).reduce((a, b) => a + (+b || 0), 0);
+    $('#hiSum').textContent = `€${sum.toLocaleString('nl-NL')} van €${budget.toLocaleString('nl-NL')}`; $('#hiSum').className = 'pill ' + (sum === budget ? 'ok' : '');
+  });
+  $('#hiGo').onclick = e => {
+    const answer = Object.fromEntries(Object.entries(hiDraft.amounts).filter(([, a]) => +a > 0).map(([k, a]) => [k, +a]));
+    act(e.target, () => A.post('/api/staff/live', { action: 'host_invest', answer }), 'Investering vastgelegd. Dragon!');
+  };
+}
+
 // ---------- SHOT-ROULETTE ----------
-let rlEx = null; // lokale keuze 'doet niet mee' (overleeft verversen van het scherm)
+let rlEx = null, rlHost = null; // lokale keuze 'doet niet mee' (overleeft verversen van het scherm)
 const RL_TASKS = ['Neem een shotje!', 'Neem 3 slokken!', 'Neem een 0.0-shotje!'];
 function rouletteCard(v) {
   const r = v.live.roulette; const ex = rlEx ?? v.event.settings?.rouletteExclude ?? [];
   const people = [...v.teams.flatMap(t => t.members), ...(v.unassigned || [])].filter(m => m.joined).sort((a, b) => a.name.localeCompare(b.name));
   const pick = prefs.get('rlTask', RL_TASKS[0]);
   const custom = !RL_TASKS.includes(pick);
+  const hs = rlHost ?? v.event.settings?.rouletteHost ?? { on: false, name: 'Rinus' };
   const active = r && v.serverNow - r.at < 40000;
   return `<div class="card roulette-card"><div class="row" style="justify-content:space-between;align-items:baseline"><h3 style="margin:0">BAMIGO Shot-roulette</h3><span class="small muted">tussen de rondes · geen punten</span></div>
     <p class="small muted" style="margin:6px 0 12px">BAMIGO kiest willekeurig één speler. Op tv en telefoons: “BAMIGOOO SHOTSS, wie is de Lul!?”, aftellen, en dan de winnaar.</p>
     <div class="row"><select id="rlTask" style="width:auto;min-width:200px">${RL_TASKS.map(t => `<option ${t === pick ? 'selected' : ''}>${t}</option>`).join('')}<option value="__eigen" ${custom ? 'selected' : ''}>Zelf typen…</option></select>
       <input id="rlCustom" maxlength="80" placeholder="Bijv. Zing het Wilhelmus" value="${custom ? esc(pick) : ''}" ${custom ? '' : 'hidden'} style="width:auto;flex:1;min-width:180px">
-      <button class="btn copper" id="rlGo" ${people.length - ex.filter(id => people.some(p => p.id === id)).length ? '' : 'disabled'}>Draai de shot-roulette!</button></div>
+      <button class="btn copper" id="rlGo">Draai de shot-roulette!</button></div>
     ${r ? `<p class="small" style="margin:12px 0 0">${active ? 'Nu op tv' : 'Laatste winnaar'}: <b>${esc(r.winner.name)}</b> · ${esc(r.task)} ${active ? '<button class="btn ghost small" id="rlClose">Weghalen van tv</button>' : ''}</p>` : ''}
+    <div class="row" style="margin-top:10px;align-items:center"><label class="check" style="margin:0"><input type="checkbox" id="rlHostOn" ${hs.on ? 'checked' : ''}> Quizmaster doet ook mee als</label>
+      <input id="rlHostName" maxlength="40" value="${esc(hs.name)}" style="width:140px"><span class="small muted">(wint hij, dan een 0.0-shotje)</span></div>
     <details data-keep="rlEx" style="margin-top:10px"><summary class="small">Wie doet niet mee? ${ex.length ? `(${ex.length} uitgesloten)` : ''}</summary>
       ${people.length ? `<div class="rl-ex">${people.map(p => `<label class="check"><input type="checkbox" data-rlex="${p.id}" ${ex.includes(p.id) ? 'checked' : ''}> ${esc(p.name)}</label>`).join('')}</div>
       <p class="small muted" style="margin:6px 0 0">Aangevinkt = wordt nooit gekozen (bijv. wie niet drinkt). Wordt bewaard bij de volgende draai.</p>` : '<p class="small muted">Nog niemand aangemeld.</p>'}</details>
@@ -251,11 +286,13 @@ function bindRoulette(v) {
   const sel = $('#rlTask'); if (!sel) return;
   sel.onchange = () => { const c = sel.value === '__eigen'; $('#rlCustom').hidden = !c; if (c) $('#rlCustom').focus(); else prefs.set('rlTask', sel.value); };
   $('#rlCustom').onchange = e => prefs.set('rlTask', e.target.value.trim() || RL_TASKS[0]);
+  const keepHost = () => { rlHost = { on: $('#rlHostOn').checked, name: $('#rlHostName').value }; };
+  $('#rlHostOn').onchange = keepHost; $('#rlHostName').oninput = keepHost;
   $$('[data-rlex]').forEach(c => c.onchange = () => { rlEx = $$('[data-rlex]').filter(x => x.checked).map(x => x.dataset.rlex); });
   $('#rlGo').onclick = e => {
     const task = sel.value === '__eigen' ? ($('#rlCustom').value.trim() || RL_TASKS[0]) : sel.value;
     const exclude = $$('[data-rlex]').filter(c => c.checked).map(c => c.dataset.rlex);
-    act(e.target, () => A.post('/api/staff/live', { action: 'roulette', task, exclude }), 'BAMIGOOO SHOTSS!');
+    act(e.target, () => A.post('/api/staff/live', { action: 'roulette', task, exclude, host: { on: $('#rlHostOn').checked, name: $('#rlHostName').value } }), 'BAMIGOOO SHOTSS!');
   };
   if ($('#rlClose')) $('#rlClose').onclick = e => act(e.target, () => A.post('/api/staff/live', { action: 'roulette_close' }));
 }
@@ -330,10 +367,11 @@ function planTab(v) {
       <button class="btn ghost small" data-redit="${r.id}">Bewerken</button><button class="btn ghost small" data-qadd="${r.id}">+ Vraag</button>
       <button class="btn danger small" data-rdel="${r.id}" aria-label="Ronde verwijderen">Verwijder</button>` : ''}</header>
     ${r.instructions ? `<p class="small muted" style="padding:8px 14px 0;margin:0">${esc(r.instructions)}</p>` : ''}
-    ${r.questions ? `<ul>${r.questions.map((q, j) => `<li><span class="small muted">${j + 1}.</span><span class="t ${q.voided ? 'voided' : ''}">${esc(q.prompt || '')}
+    ${r.sealed ? `<p class="notice small" style="margin:10px 14px">🔒 Verzegeld: inhoud verborgen. Ook voor jou, zodat je zelf kunt meespelen. Starten gaat gewoon via ▶ Quiz spelen.</p>` : ''}
+    ${r.questions ? `<ul>${r.questions.map((q, j) => `<li><span class="small muted">${j + 1}.</span><span class="t ${q.voided ? 'voided' : ''}">${q.sealed ? '🔒 Verzegelde vraag' : esc(q.prompt || '')}
         <span class="small muted"> · ${TYPE_LABEL[q.type]} · ${q.scope === 'team' ? 'team' : 'individueel'} · ${q.seconds}s · ${q.scoring === 'speed' ? 'bliksem' : q.scoring === 'closest' ? 'dichtstbij' : q.points + ' pt'}</span>
-        ${q.isExample ? '<span class="example-badge">voorbeeld</span>' : ''}${v.perms.answers && (!q.key || q.key.correct == null) && q.type !== 'ranking' ? ' <span class="pill bad">geen antwoord</span>' : ''}</span>
-      ${canEdit ? `<button class="btn ghost small" data-qup="${r.id}:${j}" aria-label="Vraag omhoog" ${j === 0 ? 'disabled' : ''}>↑</button><button class="btn ghost small" data-qedit="${q.id}">Bewerken</button>
+        ${q.isExample ? '<span class="example-badge">voorbeeld</span>' : ''}${v.perms.answers && !q.sealed && (!q.key || q.key.correct == null) && q.type !== 'ranking' ? ' <span class="pill bad">geen antwoord</span>' : ''}</span>
+      ${canEdit && !q.sealed ? `<button class="btn ghost small" data-qup="${r.id}:${j}" aria-label="Vraag omhoog" ${j === 0 ? 'disabled' : ''}>↑</button><button class="btn ghost small" data-qedit="${q.id}">Bewerken</button>
         <button class="btn danger small" data-qdel="${q.id}" aria-label="Vraag verwijderen">×</button>` : ''}</li>`).join('')}</ul>` : ''}
   </section>`).join('')}`;
   if (!canEdit) return;
