@@ -43,7 +43,7 @@ function uniqueCode(db) {
 export function cleanQuestionnaire(list) {
   if (!Array.isArray(list)) return [];
   const seen = new Set();
-  return list.map(x => ({ id: String(x?.id || '').replace(/[^a-z0-9_]/gi, '').slice(0, 20) || id('v'), q: String(x?.q || '').trim().slice(0, 200) }))
+  return list.map(x => ({ id: String(x?.id || '').replace(/[^a-z0-9_-]/gi, '').slice(0, 20) || id('v'), q: String(x?.q || '').trim().slice(0, 200) }))
     .filter(x => x.q && !seen.has(x.id) && seen.add(x.id)).slice(0, 15);
 }
 
