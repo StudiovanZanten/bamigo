@@ -1,11 +1,11 @@
-# Voorbeeld voor Fly.io (1 machine + volume). Hernoem naar fly.toml en pas app-naam aan.
-app = "bamigo-quiz"
+# Fly.io: 1 machine + volume (SQLite). Deploy gaat automatisch via GitHub Actions.
+app = "bamigo-muchachos"
 primary_region = "ams"
 
 [build]
 
 [env]
-  PUBLIC_URL = "https://bamigo-quiz.fly.dev"
+  PUBLIC_URL = "https://bamigo-muchachos.fly.dev"
 
 [mounts]
   source = "bamigo_data"
@@ -20,3 +20,10 @@ primary_region = "ams"
 [[vm]]
   size = "shared-cpu-1x"
   memory = "512mb"
+
+[[http_service.checks]]
+  grace_period = "10s"
+  interval = "30s"
+  timeout = "5s"
+  method = "GET"
+  path = "/api/health"

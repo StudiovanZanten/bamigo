@@ -1,0 +1,50 @@
+name: Test en deploy naar Fly
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    env:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      ADMIN_PW: ${{ secrets.BAMIGO_ADMIN_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - name: Deploy
+        run: |
+          if [ -z "$FLY_API_TOKEN" ]; then
+            echo "::warning::Geheim FLY_API_TOKEN ontbreekt nog; deploy overgeslagen."
+            exit 0
+          fi
+          APP=$(sed -n 's/^app = "\(.*\)"/\1/p' fly.toml)
+          # App en volume eenmalig aanmaken als ze nog niet bestaan
+          flyctl apps list --json | grep -q "\"$APP\"" || flyctl apps create "$APP" --org personal
+          flyctl volumes list --app "$APP" --json | grep -q bamigo_data \
+            || flyctl volumes create bamigo_data --app "$APP" --region ams --size 1 --yes
+          if [ -n "$ADMIN_PW" ]; then
+            flyctl secrets set BAMIGO_ADMIN_PASSWORD="$ADMIN_PW" --app "$APP" --stage
+          else
+            echo "::warning::Geheim BAMIGO_ADMIN_PASSWORD ontbreekt; de server maakt dan bij elke start een tijdelijk wachtwoord aan (zie flyctl logs)."
+          fi
+          # Precies 1 machine: SQLite staat op het volume
+          flyctl deploy --app "$APP" --remote-only --ha=false

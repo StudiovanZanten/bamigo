@@ -39,14 +39,14 @@ Spelers op hetzelfde wifi-netwerk kunnen meedoen via het IP-adres van de laptop 
 
 ## Online zetten
 
-Eén kleine server met blijvende opslag is genoeg. Advies: **Fly.io** (zie `fly.toml.example` en `Dockerfile`) of Railway / een eigen VPS. Vercel past niet: dat ondersteunt geen langlopende realtime verbindingen.
+Eén kleine server met blijvende opslag is genoeg: **Fly.io** (`fly.toml` + `Dockerfile`). Vercel past niet: dat ondersteunt geen langlopende realtime verbindingen.
 
-```bash
-fly launch --no-deploy        # gebruik fly.toml.example als basis
-fly volumes create bamigo_data --size 1 --region ams
-fly secrets set BAMIGO_ADMIN_PASSWORD=...
-fly deploy
-```
+Deploy gaat automatisch via GitHub Actions (`.github/workflows/deploy.yml`): bij elke push naar `main` draaien eerst de tests, daarna gaat de app naar Fly. De eerste keer maakt de workflow zelf de app en het volume `bamigo_data` aan. Nodig in GitHub → Settings → Secrets and variables → Actions:
+
+- `FLY_API_TOKEN`: een org-token uit het Fly-dashboard (Tokens).
+- `BAMIGO_ADMIN_PASSWORD`: het beheerwachtwoord voor het aanmaken van avonden.
+
+De app draait bewust op precies één machine (`--ha=false`), omdat SQLite op het volume staat.
 
 Back-up: het bestand `/data/bamigo.db` (+ map `/data/media`).
 
