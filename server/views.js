@@ -141,7 +141,7 @@ export function playerView(live, { participant, event }, online, t = live.clock(
     live: liveInfo(live, s, t), question: q, mine, result, advice,
     scoreboard: showBoard ? boardFor(live, event.id, { topTeams: 100, topPeople: 5, meId: participant.id }) : null,
     shotsReveal: s.screen === 'shots_reveal' ? M.shotsRevealData(db, event.id, s.round_id) : null,
-    messages: MSG.playerMessages(db, event.id),
+    messages: MSG.playerMessages(db, event.id, participant.id),
     pitchStatus: q?.pitch && m ? M.pitchStatus(db, live.question(q.id), 't:' + m.team_id, m.team_id) : null,
     ownShot: q?.type === 'shot' && team ? !!db.get('SELECT 1 FROM shots WHERE team_id = ? AND number = ?', team.id, q.shotNumber) : false,
     kompaan: q?.kompaan && team ? { pair: M.kompaanPair(db, { ...live.question(q.id), event_id: event.id }, team.id).map(p => ({ id: p.id, name: p.name })) } : null,
@@ -195,12 +195,7 @@ export function staffView(live, { event, role, grant }, online, joinUrl, t = liv
     plannedMinutes: rounds.reduce((a, r) => a + (r.minutes || 0), 0),
     readiness: readiness(db, event.id, full),
     // Wie moet nog iets doen? Alleen ja/nee per speler, nooit inhoud (ook veilig voor de spoilervrije organisator).
-    progress: can(role, 'progress.read') ? {
-      people: db.all(`SELECT p.name, t.name AS team, p.joined_at IS NOT NULL AS joined, COALESCE(json_extract(p.profile, '$.done'), 0) = 1 AS dossier,
-        EXISTS (SELECT 1 FROM ranking_votes v WHERE v.voter_id = p.id) AS voted FROM participants p LEFT JOIN memberships m ON m.participant_id = p.id LEFT JOIN teams t ON t.id = m.team_id
-        WHERE p.event_id = ? ORDER BY t.sort, p.name`, event.id).map(x => ({ name: x.name, team: x.team, joined: !!x.joined, dossier: !!x.dossier, voted: !!x.voted })),
-      shots: db.all(`SELECT t.name, EXISTS (SELECT 1 FROM shots s WHERE s.team_id = t.id AND COALESCE(s.name, '') <> '') AS done FROM teams t WHERE t.event_id = ? ORDER BY t.sort`, event.id).map(x => ({ team: x.name, done: !!x.done })),
-    } : null,
+    progress: can(role, 'progress.read') ? { people: MSG.playerTodo(db, event.id).map(({ id, ...r }) => (can(role, 'people.write') ? { id, ...r } : r)) } : null,
     nextQuestionId: host ? live.nextQuestionId(event.id) : null,
     prevQuestionId: host ? live.prevQuestionId(event.id) : null,
     scoreboard: boardFor(live, event.id, { topTeams: 100, topPeople: 100 }),

@@ -88,12 +88,15 @@ function render() {
     $$('[data-tab]').forEach(b => b.onclick = () => { tab = b.dataset.tab; prefs.set('beheerTab2', tab); editing = null; lastTabs = ''; render(); });
   }
   if (editing && (tab === 'plan' || tab === 'extra' || tab === 'msgs')) return; // formulier niet overschrijven tijdens bewerken
+  const qf = document.getElementById('qmForm');
+  if (tab === 'home' && qf && (qf.contains(document.activeElement) || $('#qmTitle').value || $('#qmBody').value)) return; // bericht in de maak
   const scrollY = window.scrollY;
   const focusId = document.activeElement?.id;
   ({ home: homeTab, live: liveTab, plan: planTab, people: peopleTab, ready: readyTab, scores: scoresTab, event: eventTab, extra: extraTab, msgs: msgsTab }[tab])(v);
   $$('details[data-keep]').forEach(d => { if (openDetails.has(d.dataset.keep)) d.open = true; d.ontoggle = () => { d.open ? openDetails.add(d.dataset.keep) : openDetails.delete(d.dataset.keep); }; });
   $$('[data-goto]').forEach(b => b.onclick = () => goTab(b.dataset.goto));
   if (tab === 'home' && v.perms.roles) bindTodo(v);
+  if (tab === 'home' || tab === 'ready') bindJongens(v);
   if (focusId && document.getElementById(focusId)) document.getElementById(focusId).focus();
   window.scrollTo(0, scrollY);
 }
@@ -143,7 +146,8 @@ function homeTab(v) {
   const item = (go, title, sub, extra = '') => `<button class="home-item" data-goto="${go}"><span class="grow"><b>${title}</b><span class="small muted">${sub}</span></span>${extra}<span class="arrow" aria-hidden="true">›</span></button>`;
   main.innerHTML = `<div class="home">
     ${v.perms.roles ? todoCard(v) : ''}
-    <h1 class="home-title">Wat wil je doen?</h1>
+    ${v.perms.people ? progressCard(v, { compact: true }) + quickMsgCard(v) : ''}
+    <h1 class="home-title" style="margin-top:22px">Wat wil je doen?</h1>
     <div class="home-grid">
       <section class="home-step"><span class="home-num">1</span><h2>Voorbereiden</h2><p class="muted">Vooraf, rustig thuis.</p>
         ${v.perms.people ? item('people', 'Teams en spelers', `${n(r.teams, 'team', 'teams')} · ${n(r.participants, 'speler', 'spelers')}`) : ''}
@@ -664,13 +668,46 @@ function peopleTab(v) {
 }
 
 // ---------- GEREEDHEID ----------
-function progressCard(v) {
+// Voornaam; bij dubbele voornamen (twee Kevins) met de eerste letter van de achternaam erbij.
+let _names = [];
+const firstName = n => { const [f, l] = String(n || '').split(' '); return _names.filter(x => x.split(' ')[0] === f).length > 1 && l ? `${f} ${l[0]}` : f; };
+const listNl = a => a.length > 1 ? a.slice(0, -1).join(', ') + ' en ' + a.at(-1) : a[0] || '';
+function progressCard(v, { compact = false } = {}) {
   const P = v.progress; if (!P?.people?.length) return '';
-  const mark = ok => ok ? '<span class="ok-text">✓</span>' : '<span class="copper-text">nog niet</span>';
-  return `<div class="card" style="margin-top:16px"><h3 style="margin:0 0 4px">Wie moet nog iets doen?</h3><p class="small muted" style="margin:0 0 10px">Alleen ja/nee, geen antwoorden. Handig om spelers even te porren.</p>
-    <table class="subs"><thead><tr><th>Speler</th><th>Duo</th><th>Aangemeld</th><th>Dossier</th><th>Ranking gestemd</th></tr></thead><tbody>
-    ${P.people.map(p => `<tr><td>${esc(p.name)}</td><td class="small muted">${esc(p.team || '—')}</td><td>${mark(p.joined)}</td><td>${mark(p.dossier)}</td><td>${mark(p.voted)}</td></tr>`).join('')}</tbody></table>
-    ${P.shots.length ? `<p class="small" style="margin:10px 0 0">Teamshot ingevuld: ${P.shots.map(s => `${esc(s.team)} ${s.done ? '✓' : '<span class="copper-text">nog niet</span>'}`).join(' · ')}</p>` : ''}</div>`;
+  _names = P.people.map(p => p.name);
+  const canAct = v.perms.people; const link = v.event.joinUrl;
+  const mark = x => x == null ? '<span class="muted">—</span>' : x === true ? '<span class="ok-text" aria-label="klaar">✓</span>' : '<span class="copper-text">nog niet</span>';
+  const lag = P.people.filter(p => p.missing.length);
+  const showMis = P.people.some(p => p.missions != null);
+  const groupText = `BAMIGO-check! Nog even regelen vóór 23 januari:\n${lag.map(p => `• ${firstName(p.name)}: ${listNl(p.missing.map(m => m.label))}`).join('\n')}\n\nLink: ${link}`;
+  const personal = p => !p.joined ? `Hoi ${firstName(p.name)}! Meld je even aan voor BAMIGO (23 januari): ${link} en tik je naam aan. Duurt 10 seconden.`
+    : `Hoi ${firstName(p.name)}! Voor BAMIGO moet je nog ${listNl(p.missing.map(m => m.label))}. Hier: ${link}`;
+  return `<div class="card jongens" style="margin-top:16px"><div class="row" style="justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px">
+      <div><h3 style="margin:0">De jongens</h3><p class="small muted" style="margin:2px 0 0">${lag.length ? `${lag.length} van de ${P.people.length} moeten nog iets doen.` : 'Iedereen is bij. Lekker!'} Alleen ja/nee, nooit antwoorden.</p></div>
+      ${canAct && lag.length ? `<div class="row" style="gap:8px"><button class="btn primary" id="remindAll">📣 Herinner iedereen die nog iets moet</button>
+        <a class="btn ghost" href="${waHref(groupText)}" target="_blank" rel="noopener">WhatsApp-lijstje</a></div>` : ''}</div>
+    <div class="table-wrap"><table class="subs jongens-t"><thead><tr><th>Speler</th>${compact ? '' : '<th>Duo</th>'}<th>Aangemeld</th><th>Dossier</th><th>Ranking</th><th>Teamshot</th>${showMis ? '<th>Opdrachten</th>' : ''}${canAct ? '<th></th>' : ''}</tr></thead><tbody>
+    ${P.people.map(p => `<tr><td><b>${esc(p.name)}</b></td>${compact ? '' : `<td class="small muted">${esc(p.team || '—')}</td>`}<td>${mark(p.joined)}</td><td>${mark(p.dossier)}</td><td>${mark(p.voted)}</td><td>${mark(p.shot)}</td>
+      ${showMis ? `<td>${p.missions == null ? '<span class="muted">—</span>' : p.missionsDone ? `<span class="ok-text">${p.missions}</span>` : `<span class="copper-text">${p.missions}</span>`}</td>` : ''}
+      ${canAct ? `<td class="nowrap">${p.missing.length ? `${p.joined ? `<button class="btn ghost small" data-remind="${p.id}" title="Melding op zijn telefoon">Seintje</button> ` : ''}<a class="btn ghost small" href="${waHref(personal(p))}" target="_blank" rel="noopener" title="WhatsApp-bericht klaarzetten">WhatsApp</a>` : ''}</td>` : ''}</tr>`).join('')}</tbody></table></div>
+    ${canAct ? `<p class="small muted" style="margin:10px 0 0">“Seintje” stuurt een melding naar zijn telefoon (als hij meldingen aan heeft) en zet het in zijn berichten in de app. Nog niet aangemeld? Dan werkt alleen WhatsApp.</p>` : ''}
+  </div>`;
+}
+function quickMsgCard(v) {
+  if (!v.perms.content || !v.progress?.people) return '';
+  const joined = v.progress.people.filter(p => p.joined);
+  return `<details class="card" data-keep="quickMsg" style="margin-top:16px"><summary><b>✉️ Zelf een bericht sturen</b> <span class="small muted">aan iedereen of aan één speler, meteen</span></summary>
+    <form id="qmForm" style="margin-top:12px">
+      <div class="field"><label for="qmTo">Aan</label><select id="qmTo"><option value="">Iedereen</option>${joined.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join('')}</select></div>
+      <div class="field"><label for="qmTitle">Titel</label><input id="qmTitle" maxlength="120" required placeholder="Bijv. Morgen laatste kans!"></div>
+      <div class="field"><label for="qmBody">Bericht</label><textarea id="qmBody" maxlength="1500" rows="3" placeholder="Wat wil je zeggen?"></textarea></div>
+      <div class="row"><button class="btn primary">Nu versturen</button><span class="small muted">Komt als melding op de telefoon en in de berichten in de app.</span></div></form></details>`;
+}
+function bindJongens(v) {
+  const ra = $('#remindAll'); if (ra) ra.onclick = () => act(ra, async () => { const r = await A.post('/api/staff/remind', {}); toast(`${r.sent} ${r.sent === 1 ? 'seintje' : 'seintjes'} verstuurd.${r.notJoined.length ? ` Nog niet aangemeld: ${r.notJoined.map(firstName).join(', ')} (stuur die via WhatsApp).` : ''}`); });
+  $$('[data-remind]').forEach(b => b.onclick = () => act(b, () => A.post('/api/staff/remind', { participantId: b.dataset.remind }), 'Seintje verstuurd.'));
+  const f = $('#qmForm'); if (f) f.onsubmit = e => { e.preventDefault(); const to = $('#qmTo').value;
+    act(e.submitter, async () => { await A.post('/api/staff/messages', { title: $('#qmTitle').value, body: $('#qmBody').value, to: to ? [to] : null }); f.reset(); }, 'Verstuurd!'); };
 }
 function readyTab(v) {
   const r = v.readiness;
@@ -801,7 +838,7 @@ function msgsTab(v) {
         : '<p class="small muted">Nog niets ingepland.</p>'}
     </section>
     <section class="card"><h3>Verstuurd (${sent.length})</h3>
-      ${sent.length ? `<ul class="list msg-list">${sent.map(m => `<li><div class="grow"><b>${esc(m.title)}</b><div class="small muted">${new Date(m.sentAt).toLocaleString('nl-NL', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} · ${m.pushCount ?? 0} meldingen bezorgd</div></div></li>`).join('')}</ul>`
+      ${sent.length ? `<ul class="list msg-list">${sent.map(m => `<li><div class="grow"><b>${esc(m.title)}</b><div class="small muted">${new Date(m.sentAt).toLocaleString('nl-NL', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} · ${m.to ? 'aan ' + esc(m.to.join(', ')) + ' · ' : ''}${m.pushCount ?? 0} meldingen bezorgd</div></div></li>`).join('')}</ul>`
         : '<p class="small muted">Nog niets verstuurd.</p>'}
     </section>
     <details class="card" data-keep="msgImport"><summary><b>Meerdere berichten tegelijk toevoegen</b> <span class="small muted">(plak een lijst)</span></summary>

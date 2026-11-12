@@ -30,17 +30,24 @@ function clean(b) {
   const link = LINKS.includes(b.link) ? b.link : null;
   return { title, body: String(b.body ?? '').trim().slice(0, 1500), link, send_at: b.sendAt ? localToEpoch(b.sendAt) : Date.now() };
 }
+/** Ontvangers: lijst deelnemer-id's van deze avond, of null = iedereen. */
+function cleanTo(db, eventId, to) {
+  if (!Array.isArray(to) || !to.length) return null;
+  const ids = [...new Set(to.map(String))].filter(pid => db.get('SELECT 1 FROM participants WHERE id = ? AND event_id = ?', pid, eventId));
+  if (!ids.length) bad('Kies een speler.');
+  return JSON.stringify(ids);
+}
 
 export function upsertMessage(db, eventId, b) {
   const c = clean(b || {});
   if (b.id) {
     const m = db.get('SELECT * FROM messages WHERE id = ? AND event_id = ?', b.id, eventId) || notFound('Bericht niet gevonden');
     if (m.sent_at) bad('Dit bericht is al verstuurd.');
-    db.run('UPDATE messages SET title = ?, body = ?, link = ?, send_at = ? WHERE id = ?', c.title, c.body, c.link, c.send_at, m.id);
+    db.run('UPDATE messages SET title = ?, body = ?, link = ?, send_at = ?, to_ids = ? WHERE id = ?', c.title, c.body, c.link, c.send_at, cleanTo(db, eventId, b.to), m.id);
     return m.id;
   }
   const mid = id('m_');
-  db.run('INSERT INTO messages (id, event_id, send_at, title, body, link, created_at) VALUES (?,?,?,?,?,?,?)', mid, eventId, c.send_at, c.title, c.body, c.link, Date.now());
+  db.run('INSERT INTO messages (id, event_id, send_at, title, body, link, to_ids, created_at) VALUES (?,?,?,?,?,?,?,?)', mid, eventId, c.send_at, c.title, c.body, c.link, cleanTo(db, eventId, b.to), Date.now());
   return mid;
 }
 
@@ -67,13 +74,16 @@ export function staffMessages(db, eventId) {
   return {
     pushPlayers: subs,
     list: db.all('SELECT * FROM messages WHERE event_id = ? ORDER BY send_at', eventId)
-      .map(m => ({ id: m.id, title: m.title, body: m.body, link: m.link, sendAt: epochToLocal(m.send_at), sentAt: m.sent_at, pushCount: m.push_count })),
+      .map(m => { const to = m.to_ids ? JSON.parse(m.to_ids) : null;
+        return { id: m.id, title: m.title, body: m.body, link: m.link, sendAt: epochToLocal(m.send_at), sentAt: m.sent_at, pushCount: m.push_count,
+          to: to ? to.map(pid => db.get('SELECT name FROM participants WHERE id = ?', pid)?.name ?? '?') : null }; }),
   };
 }
 
 /** Verstuurde berichten voor een speler (nieuwste eerst). */
-export function playerMessages(db, eventId) {
-  return db.all('SELECT id, title, body, link, sent_at FROM messages WHERE event_id = ? AND sent_at IS NOT NULL ORDER BY sent_at DESC LIMIT 50', eventId)
+export function playerMessages(db, eventId, pid) {
+  return db.all('SELECT id, title, body, link, sent_at, to_ids FROM messages WHERE event_id = ? AND sent_at IS NOT NULL ORDER BY sent_at DESC LIMIT 80', eventId)
+    .filter(m => !m.to_ids || JSON.parse(m.to_ids).includes(pid)).slice(0, 50)
     .map(m => ({ id: m.id, title: m.title, body: m.body, link: m.link, sentAt: m.sent_at }));
 }
 
@@ -117,11 +127,54 @@ export async function deliverDue(db, now = Date.now(), { push = true, baseUrl = 
     if (!push || !vapid) continue;
     const payload = JSON.stringify({ title: m.title, body: m.body.slice(0, 300), url: baseUrl + '/speel' + (m.link ? '#taak=' + m.link : ''), tag: m.id });
     let ok = 0;
-    for (const row of db.all('SELECT * FROM push_subs WHERE event_id = ?', m.event_id)) {
+    const to = m.to_ids ? JSON.parse(m.to_ids) : null;
+    for (const row of db.all('SELECT * FROM push_subs WHERE event_id = ?', m.event_id).filter(r => !to || to.includes(r.participant_id))) {
       try { await webpush.sendNotification(JSON.parse(row.sub), payload, { TTL: 60 * 60 * 24 }); ok++; }
       catch (e) { if (e.statusCode === 404 || e.statusCode === 410) db.run('DELETE FROM push_subs WHERE endpoint = ?', row.endpoint); }
     }
     db.run('UPDATE messages SET push_count = ? WHERE id = ?', ok, m.id);
   }
   return [...events];
+}
+
+// ---------- de jongens: wie moet nog wat doen? ----------
+/** Per speler: aangemeld, dossier, rankingstem, teamshot, opdrachten (team). Alleen ja/nee, nooit inhoud. */
+export function playerTodo(db, eventId) {
+  const ev = db.get('SELECT settings FROM events WHERE id = ?', eventId);
+  const st = ev ? JSON.parse(ev.settings || '{}') : {};
+  const hasDossier = (st.questionnaire || []).some(q => q.type !== 'section');
+  const openRanking = db.all("SELECT q.id FROM questions q WHERE q.event_id = ? AND q.type = 'ranking' AND q.locked_at IS NULL AND q.voided_at IS NULL AND NOT EXISTS (SELECT 1 FROM submissions s WHERE s.question_id = q.id)", eventId).map(r => r.id);
+  const missions = db.all('SELECT id FROM missions WHERE event_id = ?', eventId).map(r => r.id);
+  const people = db.all(`SELECT p.id, p.name, p.joined_at, p.profile, m.team_id, t.name AS team FROM participants p LEFT JOIN memberships m ON m.participant_id = p.id
+    LEFT JOIN teams t ON t.id = m.team_id WHERE p.event_id = ? ORDER BY t.sort, p.name`, eventId);
+  const anyTeam = people.some(p => p.team_id);
+  return people.filter(p => !anyTeam || p.team_id).map(p => { // spelers zonder team (bijv. de quizmaster) tellen niet mee
+    const prof = p.profile ? JSON.parse(p.profile) : {};
+    const voted = openRanking.length ? db.get(`SELECT COUNT(DISTINCT question_id) AS n FROM ranking_votes WHERE voter_id = ? AND question_id IN (${openRanking.map(() => '?').join(',')})`, p.id, ...openRanking).n >= openRanking.length : null;
+    const shot = p.team_id ? !!db.get("SELECT 1 FROM shots WHERE team_id = ? AND COALESCE(name, '') <> ''", p.team_id) : null;
+    const done = p.team_id && missions.length ? db.get("SELECT COUNT(DISTINCT mission_id) AS n FROM evidence WHERE team_id = ? AND mission_id IS NOT NULL AND (COALESCE(value, '') <> '' OR media_id IS NOT NULL)", p.team_id).n : 0;
+    const r = { id: p.id, name: p.name, team: p.team, joined: !!p.joined_at, dossier: hasDossier ? !!prof.done : null, voted, shot, missions: p.team_id && missions.length ? `${done}/${missions.length}` : null, missionsDone: !missions.length || !p.team_id || done >= missions.length };
+    r.missing = [];
+    if (!r.joined) r.missing.push({ key: 'join', label: 'aanmelden' });
+    if (r.dossier === false) r.missing.push({ key: 'vragenlijst', label: 'het spelersdossier invullen' });
+    if (r.voted === false) r.missing.push({ key: 'ranking', label: 'stemmen bij Ranking de Boys' });
+    if (r.shot === false) r.missing.push({ key: 'shot', label: 'jullie teamshot invullen' });
+    if (!r.missionsDone) r.missing.push({ key: 'buitentas', label: 'de Buitentas-opdrachten afvinken' });
+    return r;
+  });
+}
+
+/** Herinnering (melding + inbox) aan wie nog iets moet doen. Alleen aangemelde spelers zijn bereikbaar via de app. */
+export function remindLaggards(db, eventId, { participantId } = {}) {
+  const list = playerTodo(db, eventId).filter(p => p.missing.length && (!participantId || p.id === participantId));
+  let sent = 0; const notJoined = [];
+  for (const p of list) {
+    if (!p.joined) { notJoined.push(p.name); continue; }
+    const first = p.name.split(' ')[0] === 'Kevin' ? p.name.split(' ').slice(0, 2).join(' ').replace(/^(Kevin \w).*/, '$1') : p.name.split(' ')[0];
+    const todo = p.missing.map(m => m.label);
+    const body = `Hoi ${first}, je moet nog: ${todo.length > 1 ? todo.slice(0, -1).join(', ') + ' en ' + todo.at(-1) : todo[0]}. Tik hier en het is zo gedaan. VAMOSSS!`;
+    upsertMessage(db, eventId, { title: 'Even een seintje van BAMIGO', body, link: LINKS.includes(p.missing[0].key) ? p.missing[0].key : null, to: [p.id] });
+    sent++;
+  }
+  return { sent, notJoined };
 }

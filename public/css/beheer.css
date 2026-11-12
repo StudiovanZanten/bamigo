@@ -74,3 +74,8 @@ details.card.more { padding: 14px 18px; }
 .todo-step { display: flex; gap: 14px; align-items: flex-start; padding: 12px 0; border-top: 1px solid var(--line); }
 .todo-step .home-num { position: static; flex: none; transform: none; }
 .todo-step.done .home-num { background: var(--ok); color: #151515; }
+
+/* De jongens */
+.jongens .table-wrap { overflow-x: auto; margin-top: 12px; }
+.jongens-t td, .jongens-t th { white-space: nowrap; }
+.jongens-t .nowrap { text-align: right; }

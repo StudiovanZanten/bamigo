@@ -289,6 +289,7 @@ export async function buildApp({ dbFile = process.env.BAMIGO_DB || path.join(roo
   app.post('/api/player/push', async req => { const p = player(req); MSG.saveSubscription(db, { ...p.participant, event_id: p.event.id }, req.body?.subscription); return { ok: true }; });
   app.post('/api/player/push/off', async req => { const p = player(req); MSG.removeSubscription(db, p.participant, req.body?.endpoint); return { ok: true }; });
   app.post('/api/staff/messages', async req => { const s = staff(req, 'content.write'); const mid = MSG.upsertMessage(db, s.event.id, req.body || {}); touch(s.event.id); kick(); return { id: mid }; });
+  app.post('/api/staff/remind', async req => { const s = staff(req, 'people.write'); const r = MSG.remindLaggards(db, s.event.id, { participantId: req.body?.participantId }); touch(s.event.id); kick(); return r; });
   app.post('/api/staff/messages/import', async req => { const s = staff(req, 'content.write'); const n = MSG.importMessages(db, s.event.id, req.body); touch(s.event.id); kick(); return { imported: n }; });
   app.post('/api/staff/messages/:id/send', async req => { const s = staff(req, 'content.write'); MSG.sendNow(db, s.event.id, req.params.id); await deliver(); return { ok: true }; });
   app.delete('/api/staff/messages/:id', async req => { const s = staff(req, 'content.write'); MSG.deleteMessage(db, s.event.id, req.params.id); touch(s.event.id); return { ok: true }; });

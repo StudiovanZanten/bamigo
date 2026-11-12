@@ -56,3 +56,27 @@ test('Verzegelde ronde schuift vóór de Finale', () => {
   assert.equal(rs.at(-1).kind, 'final'); assert.ok(json(rs.at(-2).settings, {}).sealed);
   assert.equal(sealedBeforeFinal(db, quiet), 0);
 });
+
+test('De jongens: wie moet nog wat, seintjes alleen naar wie het moet, bericht aan één speler', async () => {
+  const MSG = await import('../server/messages.js');
+  const db = openDb(':memory:');
+  const r = seedMuchachos(db, dir, { now: Date.UTC(2026, 10, 12), ...quiet });
+  const ev = db.get('SELECT * FROM events WHERE id = ?', r.event);
+  const a = C.joinEvent(db, { code: ev.join_code, name: 'Peter Laros' });
+  const b = C.joinEvent(db, { code: ev.join_code, name: 'Milan Dellenman' });
+  db.run('UPDATE participants SET profile = ? WHERE id = ?', JSON.stringify({ done: true }), b.participantId);
+  const todo = MSG.playerTodo(db, r.event);
+  const peter = todo.find(p => p.name === 'Peter Laros'), milan = todo.find(p => p.name === 'Milan Dellenman'), erik = todo.find(p => p.name === 'Erik Thus');
+  assert.ok(peter.joined && peter.dossier === false && peter.voted === false);
+  assert.ok(milan.dossier === true && !milan.missing.some(m => m.key === 'vragenlijst'));
+  assert.equal(erik.missing[0].key, 'join');
+  const res = MSG.remindLaggards(db, r.event);
+  assert.equal(res.sent, 2); assert.equal(res.notJoined.length, 8);
+  await MSG.deliverDue(db, Date.now() + 1000, { push: false });
+  assert.ok(MSG.playerMessages(db, r.event, a.participantId).some(m => /Hoi Peter, je moet nog: het spelersdossier invullen/.test(m.body)));
+  assert.ok(!MSG.playerMessages(db, r.event, b.participantId).some(m => /Hoi Peter/.test(m.body)));
+  MSG.upsertMessage(db, r.event, { title: 'Alleen voor Milan', body: 'x', to: [b.participantId] });
+  await MSG.deliverDue(db, Date.now() + 1000, { push: false });
+  assert.ok(MSG.playerMessages(db, r.event, b.participantId).some(m => m.title === 'Alleen voor Milan'));
+  assert.ok(!MSG.playerMessages(db, r.event, a.participantId).some(m => m.title === 'Alleen voor Milan'));
+});
