@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BAMIGO — Beheer</title>
+<link rel="stylesheet" href="/css/bamigo.css">
+<link rel="stylesheet" href="/css/beheer.css">
+<script src="/socket.io/socket.io.min.js" defer></script>
+<script type="module" src="/js/beheer.js"></script>
+</head>
+<body>
+<header class="topbar">
+  <div class="row"><span class="brand sm">BAMIGO</span><span id="evName" class="muted small"></span></div>
+  <div class="row"><span id="roleBadge" class="pill"></span><span id="status" class="pill"><span class="dot"></span>…</span></div>
+</header>
+<nav id="tabs" class="tabs" role="tablist" aria-label="Beheeronderdelen"></nav>
+<main id="main" class="wrap wide"></main>
+</body>
+</html>

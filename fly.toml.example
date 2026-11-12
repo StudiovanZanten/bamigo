@@ -1,0 +1,22 @@
+# Voorbeeld voor Fly.io (1 machine + volume). Hernoem naar fly.toml en pas app-naam aan.
+app = "bamigo-quiz"
+primary_region = "ams"
+
+[build]
+
+[env]
+  PUBLIC_URL = "https://bamigo-quiz.fly.dev"
+
+[mounts]
+  source = "bamigo_data"
+  destination = "/data"
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = "off"   # tijdens de avond niet in slaap vallen
+  min_machines_running = 1
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

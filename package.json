@@ -1,0 +1,33 @@
+{
+  "name": "bamigo",
+  "version": "0.1.0",
+  "description": "BAMIGO — quizzen & spelavonden",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning server/index.js",
+    "dev": "node --disable-warning=ExperimentalWarning --watch server/index.js",
+    "test": "node --disable-warning=ExperimentalWarning --test --test-concurrency=1 \"test/**/*.test.js\"",
+    "demo": "node --disable-warning=ExperimentalWarning server/seed-demo.js",
+    "load": "node --disable-warning=ExperimentalWarning test/load.js"
+  },
+  "author": "",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "@fastify/multipart": "^10.1.8",
+    "@fastify/rate-limit": "^11.2.2",
+    "@fastify/static": "^10.1.10",
+    "@fontsource/anton": "^5.3.0",
+    "@fontsource/inter": "^5.3.0",
+    "fastify": "^5.12.8",
+    "qrcode": "^1.5.4",
+    "socket.io": "^4.8.4"
+  },
+  "devDependencies": {
+    "socket.io-client": "^4.8.4"
+  },
+  "type": "module",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "private": true
+}

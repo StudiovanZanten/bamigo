@@ -1,0 +1,50 @@
+/* TV: ontworpen voor 1920×1080, schaalt met vw. Grote tekst, één hoofdactie tegelijk. */
+body.tv { overflow: hidden; cursor: default; }
+.stage { width: 100vw; height: 100dvh; padding: 3.5vw 5vw 2.5vw; display: flex; flex-direction: column; }
+.stage-head { display: flex; justify-content: space-between; align-items: center; }
+.stage-head .brand { font-size: 2.6vw; }
+.stage-body { flex: 1; display: flex; flex-direction: column; justify-content: center; min-height: 0; }
+.stage-foot { display: flex; align-items: center; gap: 2vw; color: var(--ivory); font-size: 1vw; letter-spacing: .4em; text-transform: uppercase; font-weight: 600; }
+.stage-foot::before, .stage-foot::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+.tv .tag { font-size: 1.2vw; padding: .3em 1.4em; }
+.tv h1.q { font-size: 5.2vw; line-height: 1.02; margin: 1.6vw 0; max-width: 85%; }
+.tv .quote { font-size: 2.8vw; max-width: 60%; padding: 1.4vw 2vw; }
+.tv .timer { font-size: 7vw; }
+.q-row { display: flex; align-items: center; gap: 3vw; }
+.q-row .divider { width: 2px; align-self: stretch; background: var(--copper); }
+.tv-options { display: grid; grid-template-columns: 1fr 1fr; gap: 1.2vw; margin-top: 2vw; }
+.tv-opt { border: 2px solid var(--ivory); border-radius: 6px; padding: 1vw 1.4vw; font-size: 2.2vw; font-weight: 600; display: flex; gap: 1vw; align-items: center; position: relative; overflow: hidden; }
+.tv-opt .letter { font-family: var(--display); color: var(--copper-text); }
+.tv-opt.correct { border-color: var(--ok); background: color-mix(in srgb, var(--ok) 18%, transparent); }
+.tv-opt.correct::after { content: '✓ JUIST'; margin-left: auto; font-size: 1.1vw; letter-spacing: .15em; color: var(--ok); }
+.tv-opt.dim { opacity: .45; }
+.tv-opt .bar { position: absolute; left: 0; bottom: 0; height: 5px; background: var(--copper); }
+.tv-opt .cnt { margin-left: auto; font-family: var(--display); font-size: 1.8vw; color: var(--champagne); }
+.lobby { display: grid; grid-template-columns: 1.1fr 1fr; gap: 4vw; align-items: center; }
+.lobby .qr { background: var(--ivory); padding: 1vw; border-radius: 8px; width: 21vw; height: 21vw; }
+.lobby .qr img { width: 100%; height: 100%; display: block; }
+.lobby .code { font-family: var(--display); font-size: 6vw; letter-spacing: .12em; line-height: 1; }
+.lobby .url { font-size: 1.3vw; color: var(--champagne); }
+.teams-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(16vw, 1fr)); gap: 1vw; margin-top: 2vw; }
+.team-card { background: var(--raised); border: 1px solid var(--line); border-radius: 8px; padding: 1vw 1.2vw; }
+.team-card h3 { font-size: 1.7vw; margin: 0 0 .3vw; }
+.team-card .m { font-size: 1.05vw; color: var(--muted); }
+.team-card .m b { color: var(--ivory); font-weight: 600; }
+.tv .board td { font-size: 2vw; padding: .9vw 1.2vw; }
+.tv .board td.pos, .tv .board td.pts { font-size: 2.6vw; }
+.tv .board tr:first-child td { color: var(--ivory); }
+.tv .host-mascot { width: 16vw; height: 16vw; }
+.tv .speech { font-size: 3vw; }
+.counter { font-size: 1.4vw; color: var(--champagne); letter-spacing: .1em; }
+.tv-controls { position: fixed; right: 20px; bottom: 20px; z-index: 30; }
+.tv-paused { position: fixed; inset: 0; background: #151515ee; display: grid; place-items: center; z-index: 20; }
+.tv-paused h1 { font-size: 8vw; }
+.intro-title { font-size: 8vw; margin: 1vw 0; }
+.intro-sub { font-size: 2vw; max-width: 70%; color: var(--champagne); }
+.fade-in { animation: fadein var(--t) ease-out; }
+@keyframes fadein { from { opacity: 0; transform: translateY(1vw); } to { opacity: 1; transform: none; } }
+.stage-body { justify-content: safe center; overflow: hidden; gap: .4vw; }
+.tv h1.q.long { font-size: 4vw; }
+.tv h1.q.xlong { font-size: 3.2vw; }
+.tv .revealed h1.q { font-size: 3.4vw; margin: 1vw 0; }
+.tv .revealed .tv-opt { padding: .7vw 1.2vw; font-size: 1.9vw; }

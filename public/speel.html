@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#151515">
+<title>BAMIGO — Speel mee</title>
+<link rel="stylesheet" href="/css/bamigo.css">
+<link rel="stylesheet" href="/css/speel.css">
+<script src="/socket.io/socket.io.min.js" defer></script>
+<script type="module" src="/js/player.js"></script>
+</head>
+<body>
+<header class="topbar">
+  <span class="brand sm" aria-label="BAMIGO">BAMIGO</span>
+  <div class="row" style="gap:8px">
+    <span id="status" class="pill" aria-live="polite"><span class="dot"></span>Verbinden…</span>
+    <button id="menuBtn" class="btn ghost small" aria-expanded="false" aria-controls="menu">Menu</button>
+  </div>
+</header>
+<div id="menu" class="card wrap" hidden>
+  <div class="check"><input type="checkbox" id="prefFx"><label for="prefFx" style="margin:0;color:inherit">Geluidseffecten</label></div>
+  <div class="check"><input type="checkbox" id="prefMotion"><label for="prefMotion" style="margin:0;color:inherit">Minder beweging</label></div>
+  <p class="small muted" id="clockInfo"></p>
+  <button id="logout" class="btn danger small">Afmelden op dit apparaat</button>
+</div>
+<main id="app" class="wrap" tabindex="-1"></main>
+</body>
+</html>

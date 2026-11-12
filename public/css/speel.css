@@ -1,0 +1,20 @@
+.who { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 18px; flex-wrap: wrap; }
+.who .name { font-weight: 700; font-size: 1.05rem; }
+.badge-captain { background: var(--champagne); color: #151515; font-size: .7rem; font-weight: 700; letter-spacing: .12em; padding: 2px 8px; border-radius: 3px; text-transform: uppercase; }
+.qprompt { font-family: var(--display); font-size: clamp(1.7rem, 7vw, 2.3rem); line-height: 1.1; margin: 10px 0 16px; }
+.countdown { font-family: var(--display); font-size: 6rem; text-align: center; color: var(--copper-text); line-height: 1; margin: 30px 0; }
+.receipt { display: flex; gap: 10px; align-items: center; padding: 14px 16px; border-radius: var(--r); background: var(--raised); border: 2px solid var(--ok); font-weight: 600; }
+.receipt.pending { border-color: var(--warn); }
+.receipt.err { border-color: var(--bad); }
+.verdict { font-family: var(--display); font-size: 2.6rem; }
+.verdict.ok { color: var(--ok); } .verdict.no { color: var(--bad); }
+.bets { display: flex; gap: 8px; }
+.bets .choice { justify-content: center; min-height: 52px; }
+.team-list li .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--line); }
+.team-list li .dot.on { background: var(--ok); }
+.paused { position: fixed; inset: 0; background: #151515ee; display: grid; place-items: center; z-index: 40; text-align: center; padding: 20px; }
+.timer-row { display: flex; align-items: center; gap: 14px; }
+.timer-row .timerbar { flex: 1; }
+.order-item { display: flex; gap: 10px; align-items: center; }
+.order-item .choice { flex: 1; }
+.order-item .mv { min-width: 48px; }
