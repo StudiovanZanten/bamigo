@@ -51,18 +51,23 @@ async function lookup(code) {
       <div class="center"><div class="eyebrow">Welkom bij</div><h1 style="margin-top:8px">${esc(info.name)}</h1>
       ${info.isDemo ? '<span class="demo-badge">Demo</span>' : ''}<p class="muted">${esc(info.subtitle || '')}</p></div>
       <form id="joinForm" class="card">
+        ${info.expectedNames.length ? `<div class="field" id="pickWrap"><label>Wie ben jij?</label>
+          <div class="choices cand-grid" role="group" aria-label="Kies je naam">${info.expectedNames.map(n => `<button type="button" class="choice" data-name="${esc(n)}"><span class="grow">${esc(n)}</span><span class="mark"></span></button>`).join('')}</div>
+          <button type="button" class="btn ghost small" id="notListed" style="margin-top:10px">Mijn naam staat er niet bij</button></div>` : ''}
+        <div id="freeWrap" ${info.expectedNames.length ? 'hidden' : ''}>
         <div class="field"><label for="name">Je naam</label>
-          <input id="name" required maxlength="40" autocomplete="given-name" list="names">
+          <input id="name" maxlength="40" autocomplete="given-name" list="names">
           <datalist id="names">${info.expectedNames.map(n => `<option value="${esc(n)}">`).join('')}</datalist>
           ${info.expectedNames.length ? '<p class="small muted" style="margin:6px 0 0">Staat je naam al klaar? Kies hem uit de lijst.</p>' : ''}</div>
         ${info.mode === 'teams' && info.selfTeam && info.teams.length ? `<div class="field"><label for="team">Team</label>
           <select id="team"><option value="">Kies later / host deelt in</option>${info.teams.map(t => `<option value="${t.id}">${esc(t.name)}</option>`).join('')}</select>
-          <p class="small muted" style="margin:6px 0 0">Al ingedeeld door de organisatie? Dan geldt die indeling.</p></div>` : ''}
+          <p class="small muted" style="margin:6px 0 0">Al ingedeeld door de organisatie? Dan geldt die indeling.</p></div>` : ''}</div>
         <p id="joinErr" class="notice bad" role="alert" hidden></p>
         <button class="btn primary block big">Meedoen</button>
       </form>`;
     $('#joinForm').onsubmit = async e => {
       e.preventDefault();
+      if (!$('#name').value.trim()) { $('#joinErr').hidden = false; $('#joinErr').textContent = info.expectedNames.length ? 'Tik eerst je naam aan.' : 'Vul je naam in.'; return; }
       const btn = e.submitter; btn.disabled = true; btn.textContent = 'Bezig…';
       try {
         const r = await api().post('/api/join', { code, name: $('#name').value, teamId: $('#team')?.value || null });
@@ -71,7 +76,12 @@ async function lookup(code) {
         sound.unlock(); start();
       } catch (err) { $('#joinErr').hidden = false; $('#joinErr').textContent = err.message; btn.disabled = false; btn.textContent = 'Meedoen'; }
     };
-    $('#name').focus();
+    $$('[data-name]').forEach(b => b.onclick = () => {
+      $('#name').value = b.dataset.name; if ($('#team')) $('#team').value = '';
+      $$('[data-name]').forEach(x => { const on = x === b; x.setAttribute('aria-pressed', on); x.querySelector('.mark').textContent = on ? '✓' : ''; });
+    });
+    const nl = $('#notListed'); if (nl) nl.onclick = () => { $('#name').value = ''; $$('[data-name]').forEach(x => { x.setAttribute('aria-pressed', false); x.querySelector('.mark').textContent = ''; }); $('#freeWrap').hidden = false; $('#name').focus(); };
+    if (!info.expectedNames.length) $('#name').focus();
   } catch (e) { joinScreen(e.message); }
 }
 

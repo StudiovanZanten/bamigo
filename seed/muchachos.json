@@ -1,0 +1,1625 @@
+{
+ "version": 1,
+ "event": {
+  "name": "BAMIGO · Muchacho's editie",
+  "startsAt": "2027-01-23T20:00"
+ },
+ "teams": [
+  [
+   "Peter & Milan",
+   [
+    "Peter Laros",
+    "Milan Dellenman"
+   ]
+  ],
+  [
+   "Kevin C & Jelle",
+   [
+    "Kevin Christen",
+    "Jelle van der Lee"
+   ]
+  ],
+  [
+   "Jasper & Kevin B",
+   [
+    "Jasper van Alphen",
+    "Kevin Bloem"
+   ]
+  ],
+  [
+   "Erik & Mattijs",
+   [
+    "Erik Thus",
+    "Mattijs Claassen"
+   ]
+  ],
+  [
+   "Robin & Job",
+   [
+    "Robin Butsers",
+    "Job van Zoggel"
+   ]
+  ]
+ ],
+ "pack": {
+  "format": "bamigo-pack@1",
+  "rounds": [
+   {
+    "kind": "intro",
+    "title": "De BAMIGO Envelop",
+    "minutes": 2,
+    "instructions": "Voorspel waar jullie duo vanavond eindigt. Rinus stopt zijn eigen voorspelling ook in de envelop. Aan het eind gaan alle enveloppen open op tv.",
+    "questions": [
+     {
+      "type": "envelope",
+      "scope": "team",
+      "prompt": "Op welke plek eindigen jullie vanavond?",
+      "seconds": 60,
+      "settings": {
+       "bonus": 2,
+       "pledge": true
+      }
+     }
+    ]
+   },
+   {
+    "kind": "quiz",
+    "title": "Algemene kennis",
+    "minutes": 10,
+    "instructions": "Tien vragen door elkaar: eten, film, muziek, ondeugend, politiek en Nederland.",
+    "questions": [
+     {
+      "type": "mc",
+      "scope": "team",
+      "scoring": "fixed",
+      "prompt": "Wat betekent \"bami\" letterlijk?",
+      "options": [
+       "Vleesnoedels",
+       "Gebakken rijst",
+       "Feestmaal",
+       "Gele pasta"
+      ],
+      "points": 1,
+      "seconds": 30,
+      "key": {
+       "correct": 0,
+       "explanation": "Uit het Hokkien-Chinees: bah = vlees, mi = noedels."
+      }
+     },
+     {
+      "type": "mc",
+      "scope": "team",
+      "scoring": "fixed",
+      "prompt": "Welke Nederlandse film won in 1987 de Oscar voor beste buitenlandse film?",
+      "options": [
+       "Turks Fruit",
+       "De Aanslag",
+       "Spetters",
+       "Soldaat van Oranje"
+      ],
+      "points": 1,
+      "seconds": 30,
+      "key": {
+       "correct": 1,
+       "explanation": ""
+      }
+     },
+     {
+      "type": "open",
+      "scope": "team",
+      "scoring": "fixed",
+      "prompt": "In welke film roept Jack Nicholson \"Here's Johnny!\"?",
+      "points": 1,
+      "seconds": 45,
+      "key": {
+       "correct": "The Shining",
+       "accepted": [
+        "Shining"
+       ],
+       "explanation": ""
+      }
+     },
+     {
+      "type": "mc",
+      "scope": "team",
+      "scoring": "fixed",
+      "prompt": "Wie zong \"Het is een nacht\"?",
+      "options": [
+       "Marco Borsato",
+       "Guus Meeuwis",
+       "André Hazes",
+       "Jan Smit"
+      ],
+      "points": 1,
+      "seconds": 30,
+      "key": {
+       "correct": 1,
+       "explanation": ""
+      }
+     },
+     {
+      "type": "tf",
+      "scope": "team",
+      "scoring": "fixed",
+      "prompt": "Viagra werd oorspronkelijk ontwikkeld als medicijn tegen hartklachten.",
+      "options": [
+       "Waar",
+       "Niet waar"
+      ],
+      "points": 1,
+      "seconds": 25,
+      "key": {
+       "correct": 0,
+       "explanation": "Het werd getest tegen angina pectoris; de bijwerking bleek interessanter."
+      }
+     },
+     {
+      "type": "mc",
+      "scope": "team",
+      "scoring": "fixed",
+      "prompt": "\"Vanille\" komt van het Spaanse \"vainilla\". Wat betekent dat letterlijk?",
+      "options": [
+       "Zoet boontje",
+       "Klein schedetje",
+       "Zwart goud",
+       "Bloemknop"
+      ],
+      "points": 1,
+      "seconds": 30,
+      "key": {
+       "correct": 1,
+       "explanation": "Vaina = schede, van het Latijnse vagina."
+      }
+     },
+     {
+      "type": "mc",
+      "scope": "team",
+      "scoring": "fixed",
+      "prompt": "Wie is de langstzittende premier van Nederland ooit?",
+      "options": [
+       "Ruud Lubbers",
+       "Wim Kok",
+       "Mark Rutte",
+       "Willem Drees"
+      ],
+      "points": 1,
+      "seconds": 30,
+      "key": {
+       "correct": 2,
+       "explanation": "2010–2024."
+      }
+     },
+     {
+      "type": "number",
+      "scope": "team",
+      "scoring": "closest",
+      "prompt": "In welk jaar werd de Afsluitdijk gesloten?",
+      "points": 2,
+      "seconds": 40,
+      "key": {
+       "correct": 1932,
+       "explanation": "28 mei 1932."
+      }
+     },
+     {
+      "type": "mc",
+      "scope": "team",
+      "scoring": "fixed",
+      "prompt": "Wat is de langste brug van Nederland?",
+      "options": [
+       "Erasmusbrug",
+       "Zeelandbrug",
+       "Moerdijkbrug",
+       "Van Brienenoordbrug"
+      ],
+      "points": 1,
+      "seconds": 30,
+      "key": {
+       "correct": 1,
+       "explanation": "Ruim 5 kilometer."
+      }
+     },
+     {
+      "type": "mc",
+      "scope": "team",
+      "scoring": "fixed",
+      "prompt": "In welk land is padel uitgevonden?",
+      "options": [
+       "Spanje",
+       "Argentinië",
+       "Mexico",
+       "Italië"
+      ],
+      "points": 1,
+      "seconds": 30,
+      "key": {
+       "correct": 2,
+       "explanation": "Acapulco, 1969."
+      }
+     }
+    ]
+   },
+   {
+    "kind": "brocode",
+    "title": "De Bro Code — Wie appte dit?",
+    "minutes": 15,
+    "instructions": "Hoe goed lees jij de groepsapp? Echte berichten uit Brocode.",
+    "questions": [
+     {
+      "type": "mc",
+      "scope": "team",
+      "scoring": "fixed",
+      "prompt": "Wie appte dit?",
+      "options": [
+       "Robin",
+       "Jasper",
+       "Job",
+       "Peter"
+      ],
+      "points": 1,
+      "seconds": 30,
+      "key": {
+       "correct": 0,
+       "explanation": ""
+      },
+      "quote": "Gvd al 3 dagen nuchter, zweet aanvallen, trilhandjes. Valt niet mee na de kerstvakantie",
+      "context": "Januari 2020"
+     },
+     {
+      "type": "mc",
+      "scope": "team",
+      "scoring": "fixed",
+      "prompt": "Wie appte dit?",
+      "options": [
+       "Milan",
+       "Kevin C",
+       "Jelle",
+       "Erik"
+      ],
+      "points": 1,
+      "seconds": 30,
+      "key": {
+       "correct": 0,
+       "explanation": ""
+      },
+      "quote": "Ho ho 375. En die gaat 31 km/h inclusief cruise control en discolampen 😎",
+      "context": "Over een e-step, februari 2022"
+     },
+     {
+      "type": "mc",
+      "scope": "team",
+      "scoring": "fixed",
+      "prompt": "Wie appte dit?",
+      "options": [
+       "Mattijs",
+       "Robin",
+       "Jasper",
+       "Peter"
+      ],
+      "points": 1,
+      "seconds": 30,
+      "key": {
+       "correct": 0,
+       "explanation": ""
+      },
+      "quote": "Feel the room bloem. Niet bij iedereen wordt een glazen pui ingemeten in de ochtend",
+      "context": "Februari 2022"
+     },
+     {
+      "type": "mc",
+      "scope": "team",
+      "scoring": "fixed",
+      "prompt": "Wie appte dit, de dag dat Rinus bij de groep kwam?",
+      "options": [
+       "Robin",
+       "Job",
+       "Erik",
+       "Kevin B"
+      ],
+      "points": 1,
+      "seconds": 30,
+      "key": {
+       "correct": 0,
+       "explanation": ""
+      },
+      "quote": "Moeten nieuwe leden niet een vuurdoop doorstaan of zoiets?",
+      "context": "30 juli 2019"
+     },
+     {
+      "type": "mc",
+      "scope": "team",
+      "scoring": "fixed",
+      "prompt": "Wie appte dit, de ochtend na een feestje?",
+      "options": [
+       "Rinus 0.0",
+       "Jelle",
+       "Bloempie",
+       "Thus"
+      ],
+      "points": 1,
+      "seconds": 30,
+      "key": {
+       "correct": 0,
+       "explanation": ""
+      },
+      "quote": "Haha zoo zeg, er zat dus toch alcohol in. Nu weet ik het zeker",
+      "context": "Februari 2022"
+     },
+     {
+      "type": "open",
+      "scope": "team",
+      "scoring": "fixed",
+      "prompt": "Maak af: in september 2019 werd de groepsnaam \"Job koopt alleen ……\"",
+      "points": 1,
+      "seconds": 45,
+      "key": {
+       "correct": "paprika",
+       "accepted": [
+        "paprikas",
+        "paprika's"
+       ],
+       "explanation": ""
+      }
+     },
+     {
+      "type": "open",
+      "scope": "team",
+      "scoring": "fixed",
+      "prompt": "Maak af: \"Ik heb inmiddels mijn naam weten te veranderen naar ……\"",
+      "points": 1,
+      "seconds": 45,
+      "key": {
+       "correct": "Rinus 0.0",
+       "accepted": [
+        "Rinus",
+        "Rinus 00",
+        "Rinus nul nul"
+       ],
+       "explanation": ""
+      },
+      "context": "Reno, september 2020"
+     },
+     {
+      "type": "open",
+      "scope": "team",
+      "scoring": "fixed",
+      "prompt": "Maak af: \"Milano gefeliciteerd met deze prachtige overwinning. Eindstand 4-3. ……\"",
+      "points": 1,
+      "seconds": 45,
+      "key": {
+       "correct": "Klootzak",
+       "accepted": [
+        "klootzak"
+       ],
+       "explanation": ""
+      },
+      "context": "Reno over de finale van de kamelenrace, juli 2022"
+     },
+     {
+      "type": "mc",
+      "scope": "team",
+      "scoring": "fixed",
+      "prompt": "Wie appte dit?",
+      "options": [
+       "Kevin C",
+       "Erik",
+       "Job",
+       "Peter"
+      ],
+      "points": 1,
+      "seconds": 30,
+      "key": {
+       "correct": 0,
+       "explanation": ""
+      },
+      "quote": "Die kunnen niet van Milan zijn, hij krijgt nooit geen kaarten",
+      "context": "Juli 2023"
+     },
+     {
+      "type": "mc",
+      "scope": "team",
+      "scoring": "fixed",
+      "prompt": "Wie appte dit?",
+      "options": [
+       "Jasper",
+       "Jelle",
+       "Kevin B",
+       "Mattijs"
+      ],
+      "points": 1,
+      "seconds": 30,
+      "key": {
+       "correct": 1,
+       "explanation": ""
+      },
+      "quote": "Ik voel me ook altijd grappiger met Reno erbij 😂👍🏻",
+      "context": "November 2020"
+     },
+     {
+      "type": "mc",
+      "scope": "team",
+      "scoring": "fixed",
+      "prompt": "Wie appte dit?",
+      "options": [
+       "Erik",
+       "Robin",
+       "Jasper",
+       "Kevin C"
+      ],
+      "points": 1,
+      "seconds": 30,
+      "key": {
+       "correct": 2,
+       "explanation": ""
+      },
+      "quote": "Zeeland hè, nog een inbelverbinding",
+      "context": "April 2020"
+     },
+     {
+      "type": "mc",
+      "scope": "team",
+      "scoring": "fixed",
+      "prompt": "Wie appte dit?",
+      "options": [
+       "Job",
+       "Mattijs",
+       "Peter",
+       "Milan"
+      ],
+      "points": 1,
+      "seconds": 30,
+      "key": {
+       "correct": 1,
+       "explanation": ""
+      },
+      "quote": "Heb die zalf ook op mn pens gesmeerd. Maar daar verandert niks...",
+      "context": "Juli 2020"
+     },
+     {
+      "type": "mc",
+      "scope": "team",
+      "scoring": "fixed",
+      "prompt": "Wie stuurde deze nieuwjaarswens?",
+      "options": [
+       "Jelle",
+       "Job",
+       "Robin",
+       "Milan"
+      ],
+      "points": 1,
+      "seconds": 30,
+      "key": {
+       "correct": 2,
+       "explanation": ""
+      },
+      "quote": "Faptastic 2021, dat iedereens natte droom waarheid mag worden 💦",
+      "context": "1 januari 2021"
+     },
+     {
+      "type": "mc",
+      "scope": "team",
+      "scoring": "fixed",
+      "prompt": "Wie appte dit?",
+      "options": [
+       "Kevin C",
+       "Erik",
+       "Milan",
+       "Robin"
+      ],
+      "points": 1,
+      "seconds": 30,
+      "key": {
+       "correct": 1,
+       "explanation": ""
+      },
+      "quote": "Laros moet meer risico durven nemen, zo werkt gokken nou eenmaal",
+      "context": "Oktober 2020"
+     },
+     {
+      "type": "mc",
+      "scope": "team",
+      "scoring": "fixed",
+      "prompt": "Februari 2022: een paar jongens doen alsof ze een bericht in de verkeerde app sturen. Wat stuurde Jelle?",
+      "options": [
+       "Schat, ik ben nog even bij de jongens",
+       "Ga maar vast klaarliggen. Kom er zo aan.",
+       "Ik heb de pillen opgehaald",
+       "Doe die rode string maar aan"
+      ],
+      "points": 1,
+      "seconds": 30,
+      "key": {
+       "correct": 1,
+       "explanation": "Gevolgd door: \"Ho verkeerde\"."
+      }
+     },
+     {
+      "type": "open",
+      "scope": "team",
+      "scoring": "fixed",
+      "prompt": "Maak af. Milan, na de WK-finale: \"Niemand wint die WK-poule, ik heb de poule ongeldig verklaard wegens ……\"",
+      "points": 1,
+      "seconds": 45,
+      "key": {
+       "correct": "corruptie",
+       "accepted": [
+        "corrupt"
+       ],
+       "explanation": ""
+      },
+      "context": "18 december 2022"
+     },
+     {
+      "type": "open",
+      "scope": "team",
+      "scoring": "fixed",
+      "prompt": "Maak af. Jelle over manieren van afvegen: \"De kijker, de niet-kijker, de vouwer, de propper, de schrobber, de zuinige enkel vel… En als laatste: ……\"",
+      "points": 1,
+      "seconds": 45,
+      "key": {
+       "correct": "De vrouw",
+       "accepted": [
+        "vrouw",
+        "de vrouwen"
+       ],
+       "explanation": ""
+      },
+      "context": "Juni 2026"
+     },
+     {
+      "type": "mc",
+      "scope": "team",
+      "scoring": "fixed",
+      "prompt": "Wie werd op 14 maart 2020, de dag dat de groep \"QuarantaineCode\" ging heten, uit de groep gegooid?",
+      "options": [
+       "Robin",
+       "Kevin C",
+       "Erik",
+       "Kevin B"
+      ],
+      "points": 1,
+      "seconds": 30,
+      "key": {
+       "correct": 1,
+       "explanation": "Door Jesseb. Gelukkig is hij terug."
+      }
+     },
+     {
+      "type": "mc",
+      "scope": "team",
+      "scoring": "fixed",
+      "prompt": "Wie appte dit?",
+      "options": [
+       "Robin",
+       "Jesse",
+       "David",
+       "Roy Schol"
+      ],
+      "points": 1,
+      "seconds": 30,
+      "key": {
+       "correct": 1,
+       "explanation": ""
+      },
+      "quote": "Je ligt lepeltje lepeltje met rinus onder de afzuigkap de beste kroketten van het centrum in het vet te gooien",
+      "context": "Oktober 2020"
+     },
+     {
+      "type": "mc",
+      "scope": "team",
+      "scoring": "fixed",
+      "prompt": "Wie appte dit?",
+      "options": [
+       "Jesse",
+       "Roy Schol",
+       "David",
+       "Erik"
+      ],
+      "points": 1,
+      "seconds": 30,
+      "key": {
+       "correct": 2,
+       "explanation": ""
+      },
+      "quote": "Kan iemand brouwer verwijderen uit deze groep, ik heb hem nooit gesproken of gezien, eigenlijk ken ik hem gewoon niet",
+      "context": "Oktober 2020"
+     },
+     {
+      "type": "mc",
+      "scope": "team",
+      "scoring": "fixed",
+      "prompt": "Wie appte dit, over een gratis döner?",
+      "options": [
+       "Roy Schol",
+       "Milan",
+       "Jesse",
+       "Job"
+      ],
+      "points": 1,
+      "seconds": 30,
+      "key": {
+       "correct": 0,
+       "explanation": ""
+      },
+      "quote": "Rolletje bestellen, vragen of je mag betalen, pinautomaat kapt ermee, zeggen dat je de rol in de toko wel opeet, 40 man loopt binnen, dan moet je je kans pakken",
+      "context": "April 2024"
+     },
+     {
+      "type": "mc",
+      "scope": "team",
+      "scoring": "fixed",
+      "prompt": "Wie won in 2022 de eerste editie van het \"Padellemann Open\"?",
+      "options": [
+       "Buddha",
+       "Milan",
+       "Jasper",
+       "Bloempie"
+      ],
+      "points": 1,
+      "seconds": 30,
+      "key": {
+       "correct": 0,
+       "explanation": ""
+      }
+     }
+    ]
+   },
+   {
+    "kind": "ranking",
+    "title": "Ranking de Boys",
+    "minutes": 10,
+    "instructions": "Iedereen heeft vooraf anoniem gestemd. Voorspel de top 3 in de goede volgorde: 2 punten per naam op de goede plek, 1 punt als hij wel in de top 3 staat.",
+    "questions": [
+     {
+      "type": "ranking",
+      "scope": "team",
+      "scoring": "fixed",
+      "prompt": "Wie belt zijn vrouw/vriendin het vaakst dit weekend?",
+      "points": 2,
+      "seconds": 45,
+      "settings": {
+       "top": 3
+      }
+     },
+     {
+      "type": "ranking",
+      "scope": "team",
+      "scoring": "fixed",
+      "prompt": "Wie danst het slechtst, maar denkt dat hij het best danst?",
+      "points": 2,
+      "seconds": 45,
+      "settings": {
+       "top": 3
+      }
+     },
+     {
+      "type": "ranking",
+      "scope": "team",
+      "scoring": "fixed",
+      "prompt": "Wie zou het snelst een tweede leven leiden zonder dat iemand het doorheeft?",
+      "points": 2,
+      "seconds": 45,
+      "settings": {
+       "top": 3
+      }
+     },
+     {
+      "type": "ranking",
+      "scope": "team",
+      "scoring": "fixed",
+      "prompt": "Wie is de grootste zeikerd als hij verliest met padel?",
+      "points": 2,
+      "seconds": 45,
+      "settings": {
+       "top": 3
+      }
+     },
+     {
+      "type": "ranking",
+      "scope": "team",
+      "scoring": "fixed",
+      "prompt": "Wie lacht het hardst om zijn eigen grappen?",
+      "points": 2,
+      "seconds": 45,
+      "settings": {
+       "top": 3
+      }
+     },
+     {
+      "type": "ranking",
+      "scope": "team",
+      "scoring": "fixed",
+      "prompt": "Wie wordt de eerste opa van de groep?",
+      "points": 2,
+      "seconds": 45,
+      "settings": {
+       "top": 3
+      }
+     }
+    ]
+   },
+   {
+    "kind": "brocode",
+    "title": "De Bro Code — Brocode in cijfers",
+    "minutes": 12,
+    "instructions": "Geteld door BAMIGO uit de groepsapp, 30-07-2019 t/m de export op 12-11-2026. Het blijft mensenwerk, dus kleine afwijkingen zijn voorbehouden.",
+    "questions": [
+     {
+      "type": "order",
+      "scope": "team",
+      "scoring": "fixed",
+      "prompt": "Top 5: wie van de spelers stuurde de MEESTE berichten? (meeste bovenaan)",
+      "options": [
+       "Robin",
+       "Mattijs",
+       "Job",
+       "Milan",
+       "Jasper"
+      ],
+      "points": 3,
+      "seconds": 45,
+      "key": {
+       "correct": [
+        1,
+        3,
+        4,
+        2,
+        0
+       ],
+       "explanation": "Mattijs 4.838 · Milan 3.206 (pas sinds 2022!) · Jasper 3.110 · Job 2.796 · Robin 2.541"
+      }
+     },
+     {
+      "type": "number",
+      "scope": "team",
+      "scoring": "closest",
+      "prompt": "Schatvraag: hoeveel berichten zijn er in Brocode gestuurd, van juli 2019 tot de export op 12 november 2026?",
+      "points": 2,
+      "seconds": 40,
+      "key": {
+       "correct": 53814,
+       "explanation": "53.814 berichten."
+      }
+     },
+     {
+      "type": "order",
+      "scope": "team",
+      "scoring": "fixed",
+      "prompt": "Top 3 vloekers van de hele groep (kut, gvd, fuck, shit…). Meeste bovenaan.",
+      "options": [
+       "Roy Schol",
+       "Milan",
+       "Jesse"
+      ],
+      "points": 2,
+      "seconds": 45,
+      "key": {
+       "correct": [
+        1,
+        2,
+        0
+       ],
+       "explanation": "Milan 201 · Jesse 188 · Roy 124."
+      }
+     },
+     {
+      "type": "number",
+      "scope": "team",
+      "scoring": "fixed",
+      "prompt": "Hoeveel Dumpert-filmpjes deelde Robin? Goed als je er maximaal 10 naast zit.",
+      "points": 2,
+      "seconds": 40,
+      "key": {
+       "correct": 83,
+       "tolerance": 10,
+       "explanation": "83. Jasper 31, de rest bijna niks."
+      }
+     },
+     {
+      "type": "mc",
+      "scope": "team",
+      "scoring": "fixed",
+      "prompt": "Wie zegt 58 keer \"Meetch\"?",
+      "options": [
+       "Job",
+       "Milan",
+       "Kevin C",
+       "Robin"
+      ],
+      "points": 1,
+      "seconds": 30,
+      "key": {
+       "correct": 1,
+       "explanation": "Kevin C staat tweede met 27."
+      }
+     },
+     {
+      "type": "mc",
+      "scope": "team",
+      "scoring": "fixed",
+      "prompt": "Welke speler schrijft 67 keer \"Boeddha\" in plaats van Buddha?",
+      "options": [
+       "Erik",
+       "Kevin B",
+       "Jasper",
+       "Jelle"
+      ],
+      "points": 1,
+      "seconds": 30,
+      "key": {
+       "correct": 2,
+       "explanation": "Alleen Roy Schol doet het nog vaker: 70 keer."
+      }
+     },
+     {
+      "type": "mc",
+      "scope": "team",
+      "scoring": "fixed",
+      "prompt": "Wiens stopwoordjes zijn \"jonge\", \"ekkes\" en \"zuiver\"?",
+      "options": [
+       "Peter",
+       "Robin",
+       "Jelle",
+       "Job"
+      ],
+      "points": 1,
+      "seconds": 30,
+      "key": {
+       "correct": 3,
+       "explanation": "Jonge 35x, ekkes 18x, zuiver 11x."
+      }
+     },
+     {
+      "type": "mc",
+      "scope": "team",
+      "scoring": "fixed",
+      "prompt": "Welke speler zegt het vaakst af (\"kan niet\", \"ben er niet\")?",
+      "options": [
+       "Kevin B",
+       "Job",
+       "Erik",
+       "Jasper"
+      ],
+      "points": 1,
+      "seconds": 30,
+      "key": {
+       "correct": 0,
+       "explanation": "Kevin B 66 · Job 33 · Erik 27."
+      }
+     },
+     {
+      "type": "mc",
+      "scope": "team",
+      "scoring": "fixed",
+      "prompt": "Welke speler is de grootste nachtbraker (berichten tussen 2 en 6 uur)?",
+      "options": [
+       "Mattijs",
+       "Jasper",
+       "Jelle",
+       "Milan"
+      ],
+      "points": 1,
+      "seconds": 30,
+      "key": {
+       "correct": 3,
+       "explanation": "Milan 48. Van de hele groep wint Roy Schol: 73."
+      }
+     },
+     {
+      "type": "mc",
+      "scope": "team",
+      "scoring": "fixed",
+      "prompt": "Wie stuurt gemiddeld de KORTSTE berichten?",
+      "options": [
+       "Peter",
+       "Mattijs",
+       "Job",
+       "Kevin B"
+      ],
+      "points": 1,
+      "seconds": 30,
+      "key": {
+       "correct": 1,
+       "explanation": "Gemiddeld 22 tekens: \"Okee\", \"Hahah\"."
+      }
+     },
+     {
+      "type": "mc",
+      "scope": "team",
+      "scoring": "fixed",
+      "prompt": "Wie stuurde de meeste spraakberichten?",
+      "options": [
+       "Robin",
+       "Mattijs",
+       "Jasper",
+       "Erik"
+      ],
+      "points": 1,
+      "seconds": 30,
+      "key": {
+       "correct": 0,
+       "explanation": "Robin 20, nummer twee Mattijs 5."
+      }
+     },
+     {
+      "type": "mc",
+      "scope": "team",
+      "scoring": "fixed",
+      "prompt": "Wie schreef 15 keer \"gefelicteerd\" (fout gespeld)?",
+      "options": [
+       "Erik",
+       "Kevin C",
+       "Peter",
+       "Kevin B"
+      ],
+      "points": 1,
+      "seconds": 30,
+      "key": {
+       "correct": 1,
+       "explanation": "En Milan schreef 27 keer \"gefeliteerd\"."
+      }
+     },
+     {
+      "type": "tf",
+      "scope": "team",
+      "scoring": "fixed",
+      "prompt": "Rinus heeft vaker \"gefeliciteerd\" gestuurd dan wie dan ook in de groep.",
+      "options": [
+       "Waar",
+       "Niet waar"
+      ],
+      "points": 1,
+      "seconds": 25,
+      "key": {
+       "correct": 0,
+       "explanation": "155 keer. Nummer twee David: 141."
+      }
+     },
+     {
+      "type": "mc",
+      "scope": "team",
+      "scoring": "fixed",
+      "prompt": "Op welke dag werden de meeste berichten gestuurd (580)?",
+      "options": [
+       "Oudjaar 2022",
+       "WK-finale Argentinië–Frankrijk",
+       "Begin eerste lockdown",
+       "PSV kampioen 2024"
+      ],
+      "points": 1,
+      "seconds": 30,
+      "key": {
+       "correct": 1,
+       "explanation": "18 december 2022."
+      }
+     },
+     {
+      "type": "mc",
+      "scope": "team",
+      "scoring": "fixed",
+      "prompt": "Wie stuurde van de HELE groep de meeste berichten?",
+      "options": [
+       "Roy Schol",
+       "Mattijs",
+       "Jesse",
+       "David"
+      ],
+      "points": 1,
+      "seconds": 30,
+      "key": {
+       "correct": 2,
+       "explanation": "Jesse 8.880, bijna twee keer zoveel als Mattijs. Roy Schol 5.145."
+      }
+     },
+     {
+      "type": "mc",
+      "scope": "team",
+      "scoring": "fixed",
+      "prompt": "Wie heeft de groep in 2016 aangemaakt?",
+      "options": [
+       "Jesse",
+       "David",
+       "Roy Schol",
+       "Rinus"
+      ],
+      "points": 1,
+      "seconds": 30,
+      "key": {
+       "correct": 0,
+       "explanation": "20 augustus 2016."
+      }
+     }
+    ]
+   },
+   {
+    "kind": "search",
+    "title": "Krantenjacht",
+    "minutes": 5,
+    "instructions": "Pak de krant van maandag 28 december. Je hebt 60 seconden per opdracht. Typ wat je vond en hou de krant klaar als bewijs. Goed = 1 punt; het snelste duo krijgt van Rinus 1 bonuspunt.",
+    "judging": "Handmatig: Rinus controleert de vondst in de krant.",
+    "questions": [
+     {
+      "type": "open",
+      "scope": "team",
+      "scoring": "fixed",
+      "prompt": "Vind een overlijdensadvertentie van iemand van 90 jaar of ouder. Typ de voornaam en de leeftijd.",
+      "points": 1,
+      "seconds": 60,
+      "key": {
+       "correct": null,
+       "explanation": "Handmatig beoordelen; laat de vondst zien in de krant."
+      }
+     },
+     {
+      "type": "open",
+      "scope": "team",
+      "scoring": "fixed",
+      "prompt": "Vind het weerbericht: welke maximumtemperatuur wordt er voor dinsdag 29 december voorspeld?",
+      "points": 1,
+      "seconds": 60,
+      "key": {
+       "correct": null,
+       "explanation": "Handmatig beoordelen; laat de vondst zien in de krant."
+      }
+     },
+     {
+      "type": "open",
+      "scope": "team",
+      "scoring": "fixed",
+      "prompt": "Vind een advertentie met een prijs die eindigt op ,99. Wat wordt er verkocht?",
+      "points": 1,
+      "seconds": 60,
+      "key": {
+       "correct": null,
+       "explanation": "Handmatig beoordelen; laat de vondst zien in de krant."
+      }
+     },
+     {
+      "type": "open",
+      "scope": "team",
+      "scoring": "fixed",
+      "prompt": "Vind een foto met een dier erop. Welk dier, en op welke pagina?",
+      "points": 1,
+      "seconds": 60,
+      "key": {
+       "correct": null,
+       "explanation": "Handmatig beoordelen; laat de vondst zien in de krant."
+      }
+     },
+     {
+      "type": "open",
+      "scope": "team",
+      "scoring": "fixed",
+      "prompt": "Vind een kop met een getal erin. Typ de kop over.",
+      "points": 1,
+      "seconds": 60,
+      "key": {
+       "correct": null,
+       "explanation": "Handmatig beoordelen; laat de vondst zien in de krant."
+      }
+     }
+    ]
+   },
+   {
+    "kind": "dragons",
+    "title": "BAMIGO Dragons",
+    "minutes": 12,
+    "instructions": "Rinus onthult de dingen één voor één. Het pitchende duo krijgt 1 minuut bedenktijd en 1 minuut pitch. Daarna bieden de andere duo's geheim uit hun €10.000 (stappen van €500, niet op jezelf, bij je laatste kans moet alles erin).",
+    "questions": [
+     {
+      "type": "invest",
+      "scope": "team",
+      "prompt": "De Batsbak-Blocker: een app die na 3 biertjes automatisch al je exen blokkeert. Ontwikkeld met ervaringsdeskundige Robin.",
+      "seconds": 90,
+      "settings": {
+       "pitch": true
+      }
+     },
+     {
+      "type": "invest",
+      "scope": "team",
+      "prompt": "Huur-een-Buddha: geen zin in een verjaardag? Mattijs gaat in jouw plaats, in boeddhahouding in de hoek. Per uur te huur.",
+      "seconds": 90,
+      "settings": {
+       "pitch": true
+      }
+     },
+     {
+      "type": "invest",
+      "scope": "team",
+      "prompt": "De B100 Padelbaan: een padelbaan in je eigen achtertuin, met pechgarantie van Milan.",
+      "seconds": 90,
+      "settings": {
+       "pitch": true
+      }
+     },
+     {
+      "type": "invest",
+      "scope": "team",
+      "prompt": "Snikkel Translate: de tolk die vertaalt wat er in de groepsapp écht bedoeld wordt. Voorgelezen met de stem van Peter.",
+      "seconds": 90,
+      "settings": {
+       "pitch": true
+      }
+     },
+     {
+      "type": "invest",
+      "scope": "team",
+      "prompt": "De P-Bezorgdienst: nachtkebab tot aan je bed, bezorgd door Kevin C. Duurt wat langer, maar dan heb je ook wat.",
+      "seconds": 90,
+      "settings": {
+       "pitch": true
+      }
+     }
+    ]
+   },
+   {
+    "kind": "lightning",
+    "title": "BAMIGO Bliksemronde",
+    "minutes": 8,
+    "instructions": "Iedereen op zijn eigen telefoon. Alleen goed telt, sneller goed = meer punten. Eerste antwoord telt.",
+    "questions": [
+     {
+      "type": "mc",
+      "scope": "individual",
+      "scoring": "speed",
+      "prompt": "Wat is de hoofdstad van Australië?",
+      "options": [
+       "Sydney",
+       "Melbourne",
+       "Canberra",
+       "Perth"
+      ],
+      "points": 1,
+      "seconds": 20,
+      "key": {
+       "correct": 2
+      }
+     },
+     {
+      "type": "mc",
+      "scope": "individual",
+      "scoring": "speed",
+      "prompt": "Hoeveel poten heeft een spin?",
+      "options": [
+       "6",
+       "8",
+       "10",
+       "12"
+      ],
+      "points": 1,
+      "seconds": 20,
+      "key": {
+       "correct": 1
+      }
+     },
+     {
+      "type": "mc",
+      "scope": "individual",
+      "scoring": "speed",
+      "prompt": "Wie schilderde De Nachtwacht?",
+      "options": [
+       "Vermeer",
+       "Van Gogh",
+       "Rembrandt",
+       "Frans Hals"
+      ],
+      "points": 1,
+      "seconds": 20,
+      "key": {
+       "correct": 2
+      }
+     },
+     {
+      "type": "mc",
+      "scope": "individual",
+      "scoring": "speed",
+      "prompt": "Wat is het scheikundige symbool van goud?",
+      "options": [
+       "Go",
+       "Gd",
+       "Au",
+       "Ag"
+      ],
+      "points": 1,
+      "seconds": 20,
+      "key": {
+       "correct": 2
+      }
+     },
+     {
+      "type": "mc",
+      "scope": "individual",
+      "scoring": "speed",
+      "prompt": "Welke planeet staat het dichtst bij de zon?",
+      "options": [
+       "Venus",
+       "Mercurius",
+       "Mars",
+       "Aarde"
+      ],
+      "points": 1,
+      "seconds": 20,
+      "key": {
+       "correct": 1
+      }
+     },
+     {
+      "type": "mc",
+      "scope": "individual",
+      "scoring": "speed",
+      "prompt": "Hoeveel kaarten zitten er in een spel zonder jokers?",
+      "options": [
+       "48",
+       "50",
+       "52",
+       "54"
+      ],
+      "points": 1,
+      "seconds": 20,
+      "key": {
+       "correct": 2
+      }
+     },
+     {
+      "type": "mc",
+      "scope": "individual",
+      "scoring": "speed",
+      "prompt": "Wat drinkt Rinus?",
+      "options": [
+       "Pils",
+       "0.0",
+       "Witte wijn",
+       "Jägermeister"
+      ],
+      "points": 1,
+      "seconds": 20,
+      "key": {
+       "correct": 1
+      }
+     },
+     {
+      "type": "mc",
+      "scope": "individual",
+      "scoring": "speed",
+      "prompt": "Hoe heet de groepsapp precies, inclusief emoji?",
+      "options": [
+       "👉📃Brocode📃👈",
+       "👉☕🍼Brocode🍺🥂👈",
+       "👉🍺🍼Brocode☕🥂👈",
+       "👉🤧Brocode😷👈"
+      ],
+      "points": 1,
+      "seconds": 20,
+      "key": {
+       "correct": 1
+      }
+     }
+    ]
+   },
+   {
+    "kind": "final",
+    "title": "Finale",
+    "minutes": 10,
+    "instructions": "Mix van alles. Bij de vragen met inzet mag je 1, 2 of 3 punten inzetten: goed = erbij, fout = eraf.",
+    "questions": [
+     {
+      "type": "mc",
+      "scope": "team",
+      "scoring": "fixed",
+      "prompt": "Welk land won het WK voetbal van 2022 (de drukste dag ooit in Brocode)?",
+      "options": [
+       "Frankrijk",
+       "Argentinië",
+       "Kroatië",
+       "Marokko"
+      ],
+      "points": 1,
+      "seconds": 30,
+      "key": {
+       "correct": 1,
+       "explanation": ""
+      },
+      "allowBet": true
+     },
+     {
+      "type": "mc",
+      "scope": "team",
+      "scoring": "fixed",
+      "prompt": "Wie zong \"Zij gelooft in mij\"?",
+      "options": [
+       "Frans Bauer",
+       "André Hazes",
+       "Jan Smit",
+       "René Froger"
+      ],
+      "points": 1,
+      "seconds": 30,
+      "key": {
+       "correct": 1,
+       "explanation": ""
+      },
+      "allowBet": true
+     },
+     {
+      "type": "mc",
+      "scope": "team",
+      "scoring": "fixed",
+      "prompt": "Over de quizmaster: wat is het stopwoordje van Rinus in de app (38 keer)?",
+      "options": [
+       "Jonge",
+       "Jezus",
+       "Ofso",
+       "Indd"
+      ],
+      "points": 1,
+      "seconds": 30,
+      "key": {
+       "correct": 1,
+       "explanation": "Milan zegt het ook vaak: 21 keer."
+      }
+     },
+     {
+      "type": "mc",
+      "scope": "team",
+      "scoring": "fixed",
+      "prompt": "Over de quizmaster: wie noemt Rinus het vaakst bij naam in de app?",
+      "options": [
+       "Jesse",
+       "Roy Schol",
+       "Robin",
+       "Erik"
+      ],
+      "points": 1,
+      "seconds": 30,
+      "key": {
+       "correct": 0,
+       "explanation": "122 keer. Daarna Roy Schol 59 en Robin 55."
+      }
+     },
+     {
+      "type": "tf",
+      "scope": "team",
+      "scoring": "fixed",
+      "prompt": "Over de quizmaster: Rinus stuurt meer berichten tussen 5 en 7 uur 's ochtends dan Job.",
+      "options": [
+       "Waar",
+       "Niet waar"
+      ],
+      "points": 1,
+      "seconds": 25,
+      "key": {
+       "correct": 0,
+       "explanation": "Rinus 31, Job 24. Alleen Jesse is nog vroeger wakker: 72."
+      }
+     },
+     {
+      "type": "mc",
+      "scope": "team",
+      "scoring": "fixed",
+      "prompt": "Welk dier heeft de langste penis in verhouding tot zijn lichaam?",
+      "options": [
+       "Olifant",
+       "Blauwe vinvis",
+       "Zeepok",
+       "Paard"
+      ],
+      "points": 1,
+      "seconds": 30,
+      "key": {
+       "correct": 2,
+       "explanation": "Tot zo'n 8 keer zijn eigen lichaamslengte."
+      },
+      "allowBet": true
+     },
+     {
+      "type": "ranking",
+      "scope": "team",
+      "scoring": "fixed",
+      "prompt": "Wie doet het meest alsof hij verstand heeft van wijn?",
+      "points": 2,
+      "seconds": 45,
+      "settings": {
+       "top": 3
+      }
+     },
+     {
+      "type": "ranking",
+      "scope": "team",
+      "scoring": "fixed",
+      "prompt": "Wie zou de groepsapp verlaten na één ruzie?",
+      "points": 2,
+      "seconds": 45,
+      "settings": {
+       "top": 3
+      }
+     },
+     {
+      "type": "number",
+      "scope": "team",
+      "scoring": "closest",
+      "prompt": "Slotvraag: hoeveel berichten stuurde Rinus zelf in Brocode?",
+      "points": 2,
+      "seconds": 40,
+      "key": {
+       "correct": 4339,
+       "explanation": "4.339, net minder dan Mattijs (4.838)."
+      }
+     }
+    ]
+   }
+  ]
+ },
+ "dossier": {
+  "intro": {
+   "title": "BAMIGO Spelersdossier",
+   "text": "Vertrouwelijk. Alleen de quizmasters lezen mee. Jouw antwoorden worden pas op 23 januari gebruikt, en nooit met je naam erbij tot de onthulling."
+  },
+  "outro": {
+   "title": "Dossier ontvangen",
+   "text": "Je staat op de lijst. Tot zaterdag 23 januari, 20:00."
+  },
+  "items": [
+   {
+    "type": "section",
+    "q": "Deel 1 · Profiel"
+   },
+   {
+    "id": "drie_woorden",
+    "type": "open",
+    "q": "Omschrijf jezelf in drie woorden, zoals je moeder dat zou doen."
+   },
+   {
+    "id": "talent",
+    "type": "open",
+    "q": "Welk talent heb je waar de groep niets van weet?"
+   },
+   {
+    "id": "opkomst",
+    "type": "open",
+    "q": "Je opkomstnummer: met welk nummer loop jij een stadion binnen?",
+    "help": "Artiest + titel"
+   },
+   {
+    "type": "section",
+    "q": "Deel 2 · Dossier"
+   },
+   {
+    "id": "fout",
+    "type": "open",
+    "q": "Wat is de duurste fout die je ooit hebt gemaakt? Omschrijf hem kort."
+   },
+   {
+    "id": "fout_euro",
+    "type": "number",
+    "q": "Hoeveel euro kostte die fout ongeveer?",
+    "unit": "€"
+   },
+   {
+    "id": "geweigerd",
+    "type": "open",
+    "q": "Waar ben je ooit uitgezet, weggestuurd of geweigerd, en waarom?"
+   },
+   {
+    "id": "leugen",
+    "type": "open",
+    "q": "Welke onschuldige leugen houd je al jaren vol?"
+   },
+   {
+    "type": "section",
+    "q": "Deel 3 · De groep"
+   },
+   {
+    "id": "beroemd",
+    "type": "muchacho",
+    "q": "Welke Muchacho wordt als eerste beroemd?",
+    "why": "En waarmee?"
+   },
+   {
+    "id": "eiland",
+    "type": "muchacho",
+    "q": "Je mag één Muchacho meenemen naar een onbewoond eiland. Wie?",
+    "why": "En waarom juist hij?"
+   },
+   {
+    "type": "section",
+    "q": "Deel 4 · Jouw carrière"
+   },
+   {
+    "id": "car_bijbaan",
+    "type": "open",
+    "q": "Wat was je allereerste bijbaantje?",
+    "help": "En waar, bijvoorbeeld: vakkenvuller bij de Jumbo in Gorinchem"
+   },
+   {
+    "id": "car_opleiding",
+    "type": "open",
+    "q": "Welke opleiding(en) heb je gedaan? Ook de opleidingen die je niet hebt afgemaakt.",
+    "help": "Bijvoorbeeld: mbo Marketing, half jaar hbo Bedrijfskunde, gestopt"
+   },
+   {
+    "id": "car_banen",
+    "type": "open",
+    "q": "Welke banen heb je daarna gehad, van eerste tot nu?",
+    "help": "Eén per regel, met jaartal als je het weet"
+   },
+   {
+    "id": "car_droom",
+    "type": "open",
+    "q": "Welke baan had je bijna gedaan, of wil je stiekem nog steeds?"
+   },
+   {
+    "type": "section",
+    "q": "Deel 5 · Zelfinschatting"
+   },
+   {
+    "id": "groepsapp",
+    "type": "scale",
+    "q": "Hoe goed ken jij de groepsapp? Geef jezelf een cijfer."
+   },
+   {
+    "id": "bedtijd",
+    "type": "time",
+    "q": "Hoe laat lig jij in de nacht van 23 op 24 januari in bed?"
+   }
+  ]
+ },
+ "messages": [
+  {
+   "sendAt": "2026-11-13T17:00",
+   "title": "BAMIGO. Maak er een avond van.",
+   "body": "Op 23 januari wordt jullie groepsapp een tv-quiz. Elk woord dat je ooit in Brocode typte kan tegen je gebruikt worden. Tip: zet deze site op je beginscherm en zet meldingen aan, dan mis je niks. VAMOSSS!"
+  },
+  {
+   "sendAt": "2026-11-20T17:00",
+   "title": "De duo's zijn bekend",
+   "body": "Peter & Milan · Kevin C & Jelle · Jasper & Kevin B · Erik & Mattijs · Robin & Job. Verzin samen een teamnaam. Een duo-outfit levert een bonuspunt op."
+  },
+  {
+   "sendAt": "2026-11-27T17:00",
+   "title": "Jouw Spelersdossier ligt klaar",
+   "body": "Vertrouwelijk dossier, 5 minuten. Vul het in vóór 10 januari: jouw antwoorden komen terug in de quiz. Alleen de quizmasters lezen mee.",
+   "link": "vragenlijst"
+  },
+  {
+   "sendAt": "2026-12-04T17:00",
+   "title": "Ranking de Boys",
+   "body": "Stem anoniem: wie danst het slechtst, wie wordt de eerste opa? Niemand ziet wat jij stemt… behalve de uitslag op tv.",
+   "link": "ranking"
+  },
+  {
+   "sendAt": "2026-12-11T17:00",
+   "title": "Weetje #1",
+   "body": "Iemand van jullie heeft 201 keer gevloekt in de groepsapp. Nummer twee kwam niet verder dan 62. Wie? Antwoord op 23 januari."
+  },
+  {
+   "sendAt": "2026-12-18T17:00",
+   "title": "Opdracht: het geheime shot",
+   "body": "Jullie team neemt een geheim shot mee met een eigen verhaal. Vul het hier in, andere teams zien niks.",
+   "link": "shot"
+  },
+  {
+   "sendAt": "2026-12-23T17:00",
+   "title": "Weetje #2 + krant-opdracht",
+   "body": "Eén van jullie stuurde 20 spraakberichten in de groepsapp. Nummer twee: 5. Wie? Opdracht: koop op maandag 28 december met je duo de krant van die dag en neem hem mee naar het weekend. Je hebt hem nodig! Fijne kerst. 🎄",
+   "link": "buitentas"
+  },
+  {
+   "sendAt": "2027-01-02T17:00",
+   "title": "Opdracht: de Buitentas",
+   "body": "Kassabon zo dicht mogelijk bij 12:00, een voorwerp van precies 250 gram, een mysterieus huishoudelijk voorwerp en de krant van 28 december. Vink af en voeg een foto toe.",
+   "link": "buitentas"
+  },
+  {
+   "sendAt": "2027-01-09T17:00",
+   "title": "Weetje #3",
+   "body": "Iemand in deze groep schreef 27 keer \"gefeliteerd\". Een ander 15 keer \"gefelicteerd\". De Taalunie is ingelicht. Nog niet gestemd of de vragenlijst gedaan? Laatste kans!",
+   "link": "vragenlijst"
+  },
+  {
+   "sendAt": "2027-01-16T17:00",
+   "title": "Nog 7 dagen",
+   "body": "Nog 7 dagen. Zaterdag 23 januari om 20:00 gaat het los. Vergeet de Buitentas niet: kassabon, 250 gram, mysterieus voorwerp en de krant. De vragen liggen klaar. Het bewijsmateriaal ook. Geen verdere vragen. VAMOSSS!"
+  }
+ ]
+}

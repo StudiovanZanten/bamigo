@@ -16,24 +16,37 @@ else {
 
 function setupScreen() {
   $('#tabs').hidden = true;
-  main.innerHTML = `<div class="wrap"><h1>Nieuwe avond</h1>
-    <form id="newEv" class="card">
-      <div class="field"><label for="pw">Beheerwachtwoord van deze server</label><input id="pw" type="password" required autocomplete="current-password"></div>
-      <div class="field"><label for="nm">Naam van de avond</label><input id="nm" required value="Muchacho’s — Vriendenweekend 2027"></div>
-      <div class="field"><label for="dt">Datum en aanvang (mag later)</label><input id="dt" type="datetime-local"></div>
-      <div class="row"><button class="btn primary" name="real">Avond aanmaken</button><button class="btn ghost" name="demo" type="submit">Demo-editie starten</button></div>
-      <p id="err" class="notice bad" hidden></p>
-    </form>
+  main.innerHTML = `<div class="wrap"><h1>Beheer</h1>
+    <div class="card"><div class="field"><label for="pw">Beheerwachtwoord van deze server</label><input id="pw" type="password" required autocomplete="current-password"></div>
+      <div class="row"><button class="btn primary" id="listEv">Mijn avonden openen</button></div>
+      <div id="evList"></div><p id="err" class="notice bad" hidden></p></div>
+    <details class="card" style="margin-top:14px"><summary><b>Nieuwe avond aanmaken</b></summary>
+      <form id="newEv" style="margin-top:12px">
+        <div class="field"><label for="nm">Naam van de avond</label><input id="nm" required value="Muchacho’s — Vriendenweekend 2027"></div>
+        <div class="field"><label for="dt">Datum en aanvang (mag later)</label><input id="dt" type="datetime-local"></div>
+        <div class="row"><button class="btn ghost" name="real">Avond aanmaken</button><button class="btn ghost" name="demo" type="submit">Demo-editie starten</button></div>
+      </form></details>
     <p class="small muted" style="margin-top:14px">Heb je al een beheerlink? Open die link; hij bevat je toegang.</p></div>`;
+  const err = m => { $('#err').hidden = !m; $('#err').textContent = m || ''; };
+  const go = r => { prefs.set('displayToken', r.displayToken); prefs.set('tvToken.' + r.eventId, r.displayToken); location.href = '/beheer#k=' + r.ownerToken; location.reload(); };
+  const P = () => api({ 'x-admin-password': $('#pw').value });
+  $('#pw').onkeydown = e => { if (e.key === 'Enter') $('#listEv').click(); };
+  $('#listEv').onclick = async () => {
+    if (!$('#pw').value) return err('Vul eerst het beheerwachtwoord in.');
+    try {
+      const list = await P().post('/api/admin/events'); err('');
+      $('#evList').innerHTML = list.length ? `<ul class="list" style="margin-top:12px">${list.map(e => `<li class="row" style="justify-content:space-between;align-items:center">
+        <span><b>${esc(e.name)}</b>${e.isDemo ? ' <span class="demo-badge">Demo</span>' : ''}<br><span class="small muted">${e.questions} vragen · ${e.participants} spelers${e.startsAt ? ' · ' + esc(e.startsAt.replace('T', ' ')) : ''}</span></span>
+        <button class="btn ${e.isDemo ? 'ghost' : 'primary'}" data-open="${e.id}">Openen</button></li>`).join('')}</ul>` : '<p class="muted" style="margin-top:12px">Nog geen avonden. Maak er hieronder een aan.</p>';
+      $$('[data-open]').forEach(b => b.onclick = async () => { try { go(await P().post(`/api/admin/events/${b.dataset.open}/open`)); } catch (e) { err(e.message); } });
+    } catch (e) { err(e.message); }
+  };
   $('#newEv').onsubmit = async e => {
     e.preventDefault();
+    if (!$('#pw').value) return err('Vul eerst het beheerwachtwoord in.');
     const demo = e.submitter?.name === 'demo';
-    const P = api({ 'x-admin-password': $('#pw').value });
-    try {
-      const r = demo ? await P.post('/api/demo') : await P.post('/api/events', { name: $('#nm').value, startsAt: $('#dt').value || null });
-      prefs.set('displayToken', r.displayToken); prefs.set('tvToken.' + r.eventId, r.displayToken);
-      location.href = '/beheer#k=' + r.ownerToken; location.reload();
-    } catch (err) { $('#err').hidden = false; $('#err').textContent = err.message; }
+    try { go(demo ? await P().post('/api/demo') : await P().post('/api/events', { name: $('#nm').value, startsAt: $('#dt').value || null })); }
+    catch (x) { err(x.message); }
   };
 }
 
@@ -80,6 +93,7 @@ function render() {
   ({ home: homeTab, live: liveTab, plan: planTab, people: peopleTab, ready: readyTab, scores: scoresTab, event: eventTab, extra: extraTab, msgs: msgsTab }[tab])(v);
   $$('details[data-keep]').forEach(d => { if (openDetails.has(d.dataset.keep)) d.open = true; d.ontoggle = () => { d.open ? openDetails.add(d.dataset.keep) : openDetails.delete(d.dataset.keep); }; });
   $$('[data-goto]').forEach(b => b.onclick = () => goTab(b.dataset.goto));
+  if (tab === 'home' && v.perms.roles) bindTodo(v);
   if (focusId && document.getElementById(focusId)) document.getElementById(focusId).focus();
   window.scrollTo(0, scrollY);
 }
@@ -96,12 +110,39 @@ const live = (action, extra = {}) => A.post('/api/staff/live', { action, seq: vi
 
 // ---------- START ----------
 function tvHref(v) { const t = prefs.get('tvToken.' + v.event.id, null); return t ? '/tv#k=' + encodeURIComponent(t) : '/tv'; }
+let jobLink = null;
+const waHref = t => 'https://wa.me/?text=' + encodeURIComponent(t);
+function todoCard(v) {
+  const joined = (v.teams || []).flatMap(t => t.members).filter(m => m.joined).length + (v.unassigned || []).filter(m => m.joined).length;
+  const total = (v.teams || []).flatMap(t => t.members).length;
+  const job = (v.grants || []).filter(g => g.role === 'spoilerfree' && !g.revoked);
+  if (total && joined >= total && job.length && !jobLink) return '';
+  const pText = `BAMIGO 23 januari: meld je aan via ${v.event.joinUrl} en kies je naam. Zet de site daarna op je beginscherm en zet meldingen aan. VAMOSSS!`;
+  return `<section class="card todo"><h2 style="margin:0 0 4px">Nog twee dingen</h2><p class="muted small" style="margin:0 0 14px">De vragen, het spelersdossier, de verzegelde ronde, de berichten en de duo's staan klaar.</p>
+    <div class="todo-step ${joined ? 'done' : ''}"><span class="home-num">1</span><div class="grow"><b>Deel de spelerslink met de 10 spelers</b>
+      <p class="small muted" style="margin:2px 0 8px">Privé of in een eigen groepje (niet in Brocode). Ze kiezen hun naam en komen vanzelf in hun duo. ${total ? `<b>${joined}/${total} aangemeld.</b>` : ''}</p>
+      <div class="row" style="gap:8px"><input readonly value="${esc(v.event.joinUrl)}" style="flex:1;min-width:200px" aria-label="Spelerslink">
+      <button class="btn ghost" data-copy="${esc(v.event.joinUrl)}">Kopieer</button><a class="btn primary" href="${waHref(pText)}" target="_blank" rel="noopener">Deel via WhatsApp</a></div></div></div>
+    <div class="todo-step ${job.length ? 'done' : ''}"><span class="home-num">2</span><div class="grow"><b>Link voor Job (spoilervrij)</b>
+      <p class="small muted" style="margin:2px 0 8px">Job ziet wie nog iets moet invullen, maar geen vragen, antwoorden of shots. Stuur hem de link privé.</p>
+      ${jobLink ? `<div class="row" style="gap:8px"><input readonly value="${esc(jobLink)}" style="flex:1;min-width:200px" aria-label="Link voor Job"><button class="btn ghost" data-copy="${esc(jobLink)}">Kopieer</button>
+        <a class="btn primary" href="${waHref('Job, hier is je BAMIGO-link als spoilervrije medequizmaster: ' + jobLink + ' . Je ziet wie nog iets moet invullen, maar geen vragen of antwoorden.')}" target="_blank" rel="noopener">Deel via WhatsApp</a></div>`
+        : `<button class="btn ${job.length ? 'ghost' : 'primary'}" id="mkJob">${job.length ? 'Nieuwe link maken (oude stopt)' : 'Maak Job’s link'}</button>${job.length ? ' <span class="pill ok"><span class="dot"></span>al gemaakt</span>' : ''}`}</div></div></section>`;
+}
+function bindTodo(v) {
+  $$('[data-copy]').forEach(b => b.onclick = async () => { try { await navigator.clipboard.writeText(b.dataset.copy); toast('Gekopieerd.'); } catch { b.previousElementSibling?.select?.(); toast('Selecteer en kopieer de link.'); } });
+  const mk = $('#mkJob'); if (mk) mk.onclick = () => act(mk, async () => {
+    for (const g of (v.grants || []).filter(g => g.role === 'spoilerfree' && !g.revoked)) await A.post(`/api/staff/grants/${g.id}/revoke`);
+    const r = await A.post('/api/staff/grants', { role: 'spoilerfree', label: 'Job' }); jobLink = r.url; render();
+  }, 'Link voor Job gemaakt.');
+}
 function homeTab(v) {
   const r = v.readiness || {};
   const n = (x, one, many) => `${x ?? 0} ${x === 1 ? one : many}`;
   const qWarn = r.exampleQuestions ? `<span class="pill warn">${n(r.exampleQuestions, 'voorbeeldvraag', 'voorbeeldvragen')}</span>` : r.questionsWithoutAnswer ? `<span class="pill bad">${n(r.questionsWithoutAnswer, 'vraag', 'vragen')} zonder antwoord</span>` : '';
   const item = (go, title, sub, extra = '') => `<button class="home-item" data-goto="${go}"><span class="grow"><b>${title}</b><span class="small muted">${sub}</span></span>${extra}<span class="arrow" aria-hidden="true">›</span></button>`;
   main.innerHTML = `<div class="home">
+    ${v.perms.roles ? todoCard(v) : ''}
     <h1 class="home-title">Wat wil je doen?</h1>
     <div class="home-grid">
       <section class="home-step"><span class="home-num">1</span><h2>Voorbereiden</h2><p class="muted">Vooraf, rustig thuis.</p>

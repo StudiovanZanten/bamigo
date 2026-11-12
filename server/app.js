@@ -16,6 +16,7 @@ import { Live } from './live.js';
 import { playerView, displayView, staffView } from './views.js';
 import { exportResults, exportPack, importPack, emergencyPack } from './exporting.js';
 import { seedDemo } from './seed-demo.js';
+import { seedMuchachos } from './seed-muchachos.js';
 import * as M from './modules.js';
 import * as MSG from './messages.js';
 
@@ -28,6 +29,8 @@ const MAX_UPLOAD = 15 * 1024 * 1024;
 export async function buildApp({ dbFile = process.env.BAMIGO_DB || path.join(root, 'data', 'bamigo.db'), mediaDir = process.env.BAMIGO_MEDIA || path.join(root, 'data', 'media'),
   adminPassword = process.env.BAMIGO_ADMIN_PASSWORD, publicUrl = process.env.PUBLIC_URL, logger = false, clock, timers = true } = {}) {
   const db = openDb(dbFile);
+  const seedDir = process.env.BAMIGO_SEED || (process.env.NODE_ENV === 'production' ? path.join(root, 'seed') : null);
+  if (seedDir) { try { seedMuchachos(db, seedDir); } catch (e) { console.error('Startinhoud niet ingeladen:', e.message); } }
   fs.mkdirSync(mediaDir, { recursive: true });
   if (!adminPassword) {
     adminPassword = crypto.randomBytes(9).toString('base64url');
@@ -121,6 +124,21 @@ export async function buildApp({ dbFile = process.env.BAMIGO_DB || path.join(roo
     checkAdmin(req);
     const r = C.createEvent(db, req.body || {});
     return { eventId: r.event.id, joinCode: r.event.join_code, ownerToken: r.ownerToken, displayToken: r.displayToken };
+  });
+  app.post('/api/admin/events', { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } }, async (req) => {
+    checkAdmin(req);
+    return db.all(`SELECT e.id, e.name, e.is_demo AS isDemo, e.starts_at AS startsAt, e.status, e.created_at AS createdAt,
+      (SELECT COUNT(*) FROM questions q WHERE q.event_id = e.id) AS questions, (SELECT COUNT(*) FROM participants p WHERE p.event_id = e.id) AS participants
+      FROM events e WHERE e.status != 'archived' ORDER BY e.is_demo, e.created_at DESC LIMIT 50`);
+  });
+  app.post('/api/admin/events/:id/open', { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } }, async (req) => {
+    checkAdmin(req);
+    const ev = db.get('SELECT id FROM events WHERE id = ?', req.params.id) || notFound('Avond niet gevonden');
+    // Nieuwe eigenaars- en tv-link (bijv. op een nieuw apparaat of als de oude link kwijt is). Oude links blijven werken.
+    const owner = createGrant(db, ev.id, 'owner', 'Eigenaar (via beheerwachtwoord)');
+    const display = createGrant(db, ev.id, 'display', 'TV-scherm');
+    live.audit(ev.id, 'admin', 'owner_link', null);
+    return { eventId: ev.id, ownerToken: owner.token, displayToken: display.token };
   });
   app.post('/api/demo', { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } }, async (req) => {
     checkAdmin(req);

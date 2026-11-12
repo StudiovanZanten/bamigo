@@ -4,6 +4,7 @@ COPY package*.json ./
 RUN npm ci --omit=dev
 COPY server ./server
 COPY public ./public
+COPY seed ./seed
 ENV NODE_ENV=production PORT=3000 BAMIGO_DB=/data/bamigo.db BAMIGO_MEDIA=/data/media
 EXPOSE 3000
 CMD ["node", "--disable-warning=ExperimentalWarning", "server/index.js"]

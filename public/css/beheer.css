@@ -68,3 +68,9 @@ details.card.more { padding: 14px 18px; }
 .hi-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
 .hi-grid span { font-size: .85rem; color: var(--champagne); display: block; margin-bottom: 4px; }
 .qn-list { margin: 0 0 8px; padding-left: 20px; } .qn-list li { margin: 2px 0; }
+
+/* Startscherm: nog twee dingen */
+.todo { border-color: var(--copper); margin-bottom: 22px; }
+.todo-step { display: flex; gap: 14px; align-items: flex-start; padding: 12px 0; border-top: 1px solid var(--line); }
+.todo-step .home-num { position: static; flex: none; transform: none; }
+.todo-step.done .home-num { background: var(--ok); color: #151515; }
