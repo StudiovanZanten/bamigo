@@ -13,7 +13,7 @@ const str = (v, max = 500) => (v == null ? null : String(v).trim().slice(0, max)
 const int = (v, min, max, dflt) => { const n = Number(v); return Number.isInteger(n) ? Math.min(max, Math.max(min, n)) : dflt; };
 
 export const ROUND_KINDS = ['quiz', 'brocode', 'ranking', 'kompaan', 'shots', 'missions', 'dragons', 'search', 'bluff', 'lightning', 'final', 'break', 'intro'];
-export const QUESTION_TYPES = ['mc', 'tf', 'open', 'number', 'order', 'match', 'ranking', 'shot', 'invest'];
+export const QUESTION_TYPES = ['mc', 'tf', 'open', 'number', 'order', 'match', 'ranking', 'shot', 'invest', 'envelope'];
 
 export const DEFAULT_SETTINGS = {
   theme: 'koper', countdownMs: 3000, humor: true, adultTopics: true, drinks: true, sound: true, oneliners: true,
@@ -217,7 +217,8 @@ export function upsertQuestion(db, eventId, body) {
   const settings = body.settings && typeof body.settings === 'object' ? { ...body.settings } : {};
   if (type === 'shot') { const n = Number(settings.shotNumber); if (!Number.isInteger(n) || n < 1 || n > 50) bad('Geef het shotnummer op (1, 2, 3…).'); settings.shotNumber = n; }
   if (type === 'invest') settings.budget = 10000;
-  if (['shot', 'invest'].includes(type) && scope !== 'team') bad('Deze spelvorm is een teamvraag.');
+  if (type === 'envelope') { const b = Number(settings.bonus ?? 2); settings.bonus = Number.isInteger(b) && b >= 0 && b <= 20 ? b : 2; }
+  if (['shot', 'invest', 'envelope'].includes(type) && scope !== 'team') bad('Deze spelvorm is een teamvraag.');
   if (settings.kompaan && scope !== 'individual') bad('Ken je kompaan: teamgenoten antwoorden ieder zelf (kies "Iedereen zelf").');
   if (settings.kompaan && !['mc', 'tf', 'open'].includes(type)) bad('Ken je kompaan werkt met meerkeuze, waar/niet waar of open.');
   return db.tx(() => {

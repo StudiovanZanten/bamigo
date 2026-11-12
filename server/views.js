@@ -36,7 +36,7 @@ export function publicQuestion(live, s, t) {
     prompt: visible ? q.prompt : null, quote: visible ? q.quote : null, context: visible ? q.context : null,
     seconds: q.seconds, points: q.points, allowBet: !!q.allow_bet, isExample: !!q.is_example,
     media: visible && q.media_id ? { id: q.media_id } : null,
-    options: visible ? q.options : null,
+    options: visible ? (q.type === 'envelope' ? envelopeOptions(live.db, q.event_id) : q.options) : null,
     right: visible && q.type === 'match' ? (q.settings.right || []) : null,
     kompaan: !!q.settings.kompaan,
     top: q.type === 'ranking' ? (q.settings.top || 1) : null,
@@ -68,9 +68,15 @@ function revealInfo(live, s) {
   return out;
 }
 
+function envelopeOptions(db, eventId) {
+  const n = db.get('SELECT COUNT(*) AS n FROM teams WHERE event_id = ?', eventId).n;
+  return Array.from({ length: n }, (_, i) => i === 0 ? 'Winnaar (1e plek)' : i === n - 1 ? `Laatste (${n}e plek)` : `${i + 1}e plek`);
+}
+
 function liveInfo(live, s, t) {
   return { screen: s.screen, phase: s.phase, paused: !!s.paused, seq: s.seq, openAt: s.open_at, deadline: s.deadline,
-    pausedAt: s.paused_at, message: s.message, round: roundInfo(live.db, s.round_id), banner: s.banner ? json(s.banner) : null, roulette: s.roulette ? json(s.roulette) : null };
+    pausedAt: s.paused_at, message: s.message, round: roundInfo(live.db, s.round_id), banner: s.banner ? json(s.banner) : null, roulette: s.roulette ? json(s.roulette) : null,
+    envelopes: s.screen === 'envelopes' && s.question_id ? (live.question(s.question_id)?.settings.envelopes ?? null) : null };
 }
 
 function teamsWithMembers(db, eventId, online) {
@@ -188,6 +194,10 @@ export function staffView(live, { event, role, grant }, online, joinUrl, t = liv
   if (host || full) {
     view.question = publicQuestion(live, s, t);
     view.sealed = sealedNow;
+    const env = db.get("SELECT id FROM questions WHERE event_id = ? AND type = 'envelope' AND voided_at IS NULL ORDER BY sort, id LIMIT 1", event.id);
+    if (env) { const eq = live.question(env.id); view.envelope = { id: eq.id, filled: !!eq.locked_at, opened: !!eq.settings.envelopes,
+      count: db.get("SELECT COUNT(*) AS n FROM submissions WHERE question_id = ? AND owner_key != 'host'", eq.id).n,
+      hostDone: !!db.get("SELECT 1 FROM submissions WHERE question_id = ? AND owner_key = 'host'", eq.id) }; }
     // Host ziet de sleutel van de actieve vraag pas na sluiten; inhoudsbeheer altijd.
     if (s.question_id && (sealedNow ? REVEALED.includes(s.phase) : (full || (host && AFTER_CLOSE.includes(s.phase))))) {
       const k = live.answerKey(s.question_id);
@@ -196,7 +206,9 @@ export function staffView(live, { event, role, grant }, online, joinUrl, t = liv
     if (s.question_id) {
       const subs = db.all(`SELECT s.*, p.name AS by_name, tm.name AS team_name FROM submissions s LEFT JOIN participants p ON p.id = s.participant_id
         LEFT JOIN teams tm ON tm.id = s.team_id WHERE s.question_id = ? ORDER BY s.received_at`, s.question_id);
-      const showAnswers = sealedNow ? AFTER_CLOSE.includes(s.phase) : full || AFTER_CLOSE.includes(s.phase);
+      const cq = live.question(s.question_id);
+      const envClosed = cq?.type === 'envelope' && !cq.settings.envelopes; // verzegeld, ook voor de host
+      const showAnswers = envClosed ? false : sealedNow ? AFTER_CLOSE.includes(s.phase) : full || AFTER_CLOSE.includes(s.phase);
       view.submissions = subs.map(x => ({ id: x.id, owner: x.owner_key, by: x.owner_key === 'host' ? 'Quizmaster' : x.by_name, team: x.team_name, elapsedMs: x.elapsed_ms, bet: x.bet,
         answer: showAnswers ? json(x.answer) : undefined, verdict: showAnswers ? x.verdict : undefined, manual: !!x.judged_by }));
     }

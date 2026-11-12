@@ -1,6 +1,7 @@
 // TV-/presentatiescherm. Krijgt alleen de display-view: nooit antwoorden vóór de onthulling.
 import { $, esc, LETTERS, tokenFromHash, connect, connBanner, fmtTime, mascot, sound, mediaUrl, ROUND_LABEL } from './common.js';
 import { rouletteDriver } from './roulette.js';
+import { envelopeKey, envelopeHtml, envelopeSound } from './envelope.js';
 
 const stage = $('#stage');
 const token = tokenFromHash('k', 'displayToken');
@@ -30,6 +31,7 @@ function render() {
   else if (L.screen === 'question' && q) body = question(v, q);
   else if (L.screen === 'scoreboard' || L.screen === 'finale') body = board(v);
   else if (L.screen === 'shots_reveal') body = shotsReveal(v);
+  else if (L.screen === 'envelopes') { body = '<div class="stage-body env-stage" data-env></div>'; envKey = ''; }
   else if (L.screen === 'break') body = `<div class="stage-body center fade-in"><div class="tag">Pauze</div><h1 class="intro-title">Even bijtanken.</h1><p class="intro-sub" style="margin:0 auto">${esc(L.message || 'Daarna gaan we verder. VAMOSSS!')}</p></div>`;
   else body = `<div class="stage-body center"><div class="brand xl">BAMIGO</div></div>`;
   const banner = L.banner?.type === 'captain' && L.screen === 'question' ? `<div class="tv-banner fade-in">${L.banner.changes.map(c => `<div><span class="tag">Kapitein overboord!</span><h2>${esc(c.to)} neemt het roer over</h2><p>${esc(c.team)} · ${esc(c.from)} had 3x op rij fout</p></div>`).join('')}</div>` : '';
@@ -79,6 +81,7 @@ function question(v, q) {
   const eur = n => '€' + Number(n).toLocaleString('nl-NL');
   if (q.type === 'shot') reveal = `<p class="intro-sub">Allergenen shot ${q.shotNumber}: <b>${esc(q.allergens)}</b> · Proeven is vrijwillig.</p>${L.phase === 'closed' ? '<p class="counter">Vastgezet. De onthulling volgt na het laatste shot.</p>' : ''}`;
   if (q.type === 'ranking' && !revealed) reveal = `<p class="intro-sub">${q.top > 1 ? `Teams voorspellen op de telefoon de top ${q.top} van de groep.` : 'Teams voorspellen op de telefoon wie de groep het vaakst koos.'}</p>`;
+  if (q.type === 'envelope') reveal = `<p class="intro-sub">Captains: op welke plek eindigt jullie team? Je voorspelling gaat verzegeld de envelop in. Pas bij de uitslag gaat hij open. Precies goed = bonuspunten.</p>${L.phase === 'closed' ? '<p class="counter">Verzegeld. Tot de uitslag!</p>' : ''}`;
   if (q.type === 'invest' && !revealed) reveal = `<p class="intro-sub">Verdeel ${eur(q.budget)} fictief over de andere teams. Alles blijft geheim tot de onthulling.</p>`;
   if (q.kompaan && !revealed) reveal = '<p class="intro-sub">Ken je kompaan: de aangewezen teamgenoten antwoorden ieder zelf. Niet overleggen!</p>';
   if (revealed && (r0.ranking || r0.invest || r0.kompaan)) {
@@ -112,7 +115,19 @@ function board(v) {
 }
 
 let lastSec = null;
+let envKey = '';
+function envTick() {
+  const v = view; const el = $('[data-env]');
+  if (!v || !el || !v.live.envelopes) return;
+  const k = envelopeKey(v.live.envelopes, conn.now() - v.live.envelopes.openedAt);
+  if (k === envKey) return;
+  if (envKey) envelopeSound(k);
+  envKey = k; el.innerHTML = envelopeHtml(v.live.envelopes, k);
+}
+setInterval(envTick, 200);
+
 function tick() {
+  envTick();
   if (!view || !conn) return;
   const L = view.live; const now = conn.now();
   const cd = $('[data-countdown]'); if (cd && L.openAt) { const s = Math.ceil((L.openAt - now) / 1000); cd.textContent = s > 0 ? s : '!'; }

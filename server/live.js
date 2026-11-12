@@ -8,7 +8,7 @@ import { randomInt } from 'node:crypto';
 
 export const ROULETTE_TASKS = ['Neem een shotje!', 'Neem 3 slokken!', 'Neem een 0.0-shotje!'];
 
-export const ADVICE_TYPES = ['mc', 'tf', 'open', 'number', 'ranking'];
+export const ADVICE_TYPES = ['mc', 'tf', 'open', 'number', 'ranking', 'envelope'];
 export const CAPTAIN_STREAK = 3;
 const conflict = (msg, code = 'conflict') => { throw new HttpError(409, msg, code); };
 
@@ -103,6 +103,7 @@ export class Live {
         case 'reveal': {
           if (s.phase !== 'closed') conflict('Sluit de vraag eerst.');
           if (this.question(s.question_id).type === 'shot') conflict('Shots worden samen onthuld nadat alle shots zijn vastgezet (knop “Shotonthulling”).');
+          if (this.question(s.question_id).type === 'envelope') conflict('De enveloppen blijven dicht tot de uitslag (knop “Enveloppen openen”).');
           this.autoJudge(s.question_id);
           return this.#set(eventId, { phase: 'revealed' }, actor, action);
         }
@@ -121,9 +122,19 @@ export class Live {
           const played = q.locked_at || this.db.get('SELECT 1 FROM submissions WHERE question_id = ? LIMIT 1', q.id);
           if (!played) return this.#set(eventId, { screen: 'question', round_id: q.round_id, question_id: q.id, phase: 'ready', open_at: null, deadline: null, paused: 0, paused_at: null }, actor, action);
           const scored = this.db.get('SELECT 1 FROM score_events WHERE question_id = ? AND voided_at IS NULL LIMIT 1', q.id);
-          const phase = q.type === 'shot' ? 'closed' : scored ? 'scored' : 'revealed';
+          const phase = q.type === 'shot' || q.type === 'envelope' ? 'closed' : scored ? 'scored' : 'revealed';
           if (phase === 'revealed') this.autoJudge(q.id);
           return this.#set(eventId, { screen: 'question', round_id: q.round_id, question_id: q.id, phase, open_at: null, deadline: null, paused: 0, paused_at: null }, actor, action);
+        }
+        case 'envelopes_open': {
+          if (s.phase === 'open') conflict('Sluit eerst de open vraag.');
+          const eq = questionId ? this.question(questionId)
+            : (() => { const r = this.db.get("SELECT id FROM questions WHERE event_id = ? AND type = 'envelope' AND voided_at IS NULL ORDER BY sort, id LIMIT 1", eventId); return r && this.question(r.id); })();
+          if (!eq || eq.type !== 'envelope' || eq.event_id !== eventId) notFound('Er is geen envelop-vraag.');
+          if (!eq.locked_at) conflict('De enveloppen zijn nog leeg: speel eerst de envelop-vraag (aan het begin van de avond).');
+          const hostName = json(this.db.get('SELECT settings FROM events WHERE id = ?', eventId).settings, {}).rouletteHost?.name;
+          M.openEnvelopes(this.db, eventId, eq, t, actor, hostName);
+          return this.#set(eventId, { screen: 'envelopes', round_id: eq.round_id, question_id: eq.id, phase: 'closed', open_at: null, deadline: null, paused: 0, paused_at: null }, actor, action);
         }
         case 'shots_reveal': {
           if (s.phase === 'open') conflict('Sluit eerst de open vraag.');
@@ -258,7 +269,7 @@ export class Live {
   // ---------- beoordelen en scoren ----------
   /** Automatische beoordeling; handmatige oordelen (judged_by) blijven staan. */
   verdictFor(q, key, a) {
-    if (['ranking', 'shot', 'invest'].includes(q.type) || q.settings.kompaan || key.correct == null) return null;
+    if (['ranking', 'shot', 'invest', 'envelope'].includes(q.type) || q.settings.kompaan || key.correct == null) return null;
     switch (q.type) {
       case 'mc': case 'tf': return (Array.isArray(key.correct) ? key.correct.includes(a) : a === key.correct) ? 'correct' : 'wrong';
       case 'open': return judgeOpen(a, [String(key.correct), ...key.accepted]);
@@ -273,7 +284,7 @@ export class Live {
     for (const s of this.db.all('SELECT * FROM submissions WHERE question_id = ? AND judged_by IS NULL', qid)) {
       const a = json(s.answer);
       let v = 'wrong';
-      if (['ranking', 'shot', 'invest'].includes(q.type) || q.settings.kompaan) v = null;
+      if (['ranking', 'shot', 'invest', 'envelope'].includes(q.type) || q.settings.kompaan) v = null;
       else switch (q.type) {
         case 'mc': case 'tf': v = (Array.isArray(key.correct) ? key.correct.includes(a) : a === key.correct) ? 'correct' : 'wrong'; break;
         case 'open': v = judgeOpen(a, [...(key.correct != null ? [String(key.correct)] : []), ...key.accepted]); break;
@@ -361,6 +372,21 @@ export class Live {
       this.db.run(`INSERT INTO submissions (id, event_id, question_id, owner_key, participant_id, team_id, answer, received_at) VALUES (?,?,?,?,?,?,?,?)
         ON CONFLICT(question_id, owner_key) DO UPDATE SET answer = excluded.answer, received_at = excluded.received_at`, id('s_'), eventId, q.id, 'host', null, null, JSON.stringify(clean), this.clock());
       this.audit(eventId, actor, 'host_invest', clean);
+    });
+    this.notify(eventId);
+  }
+
+  /** Envelop van de quizmaster: zijn voorspelde eindvolgorde (geen punten). */
+  hostEnvelope(eventId, actor, answer) {
+    this.db.tx(() => {
+      const s = this.state(eventId);
+      const q = s.question_id ? this.question(s.question_id) : null;
+      if (!q || q.type !== 'envelope') bad('Er staat geen envelop-vraag klaar.');
+      if (q.settings.envelopes) conflict('De enveloppen zijn al open.');
+      const clean = M.validateModuleAnswer(this.db, q, answer, eventId, null);
+      this.db.run(`INSERT INTO submissions (id, event_id, question_id, owner_key, participant_id, team_id, answer, received_at) VALUES (?,?,?,?,?,?,?,?)
+        ON CONFLICT(question_id, owner_key) DO UPDATE SET answer = excluded.answer, received_at = excluded.received_at`, id('s_'), eventId, q.id, 'host', null, null, JSON.stringify(clean), this.clock());
+      this.audit(eventId, actor, 'host_envelope', null);
     });
     this.notify(eventId);
   }

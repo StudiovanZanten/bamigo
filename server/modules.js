@@ -117,6 +117,16 @@ export function validateModuleAnswer(db, q, answer, eventId, membership) {
       if (!flavor && !base && !teamId) bad('Vul minstens één onderdeel in.');
       return { flavor, base, teamId: teamId || null };
     }
+    case 'envelope': {
+      const n = db.get('SELECT COUNT(*) AS n FROM teams WHERE event_id = ?', eventId).n;
+      if (!membership) {
+        // Envelop van de quizmaster: volledige top (team-id's in volgorde), puur voor de lol.
+        if (!Array.isArray(answer) || answer.length !== n || new Set(answer).size !== n) bad(`Zet alle ${n} teams in een volgorde.`);
+        return answer.map(t => { if (!db.get('SELECT 1 FROM teams WHERE id = ? AND event_id = ?', String(t), eventId)) bad('Onbekend team.'); return String(t); });
+      }
+      const i = Number(answer); if (!Number.isInteger(i) || i < 0 || i >= n) bad('Kies een plek.');
+      return i;
+    }
     case 'invest': {
       const a = answer && typeof answer === 'object' ? answer : bad('Ongeldige verdeling.');
       const out = {}; let sum = 0;
@@ -152,6 +162,7 @@ export function checkModuleSubmit(db, q, participant, membership) {
 // ---------- scoren per type ----------
 /** Geeft true als de vraag door een module is gescoord. `add(teamId, participantId, board, sourceSuffix, points, reason)` */
 export function scoreModule(db, q, key, subs, add) {
+  if (q.type === 'envelope') return true; // punten pas bij het openen van de enveloppen
   if (q.type === 'ranking' && (q.settings?.top || 1) > 1) {
     const top = q.settings.top; const { ranked, valid } = rankingTop(db, q.id);
     for (const s of subs) {
@@ -210,6 +221,37 @@ export function scoreModule(db, q, key, subs, add) {
     return true;
   }
   return false;
+}
+
+/**
+ * De BAMIGO Envelop: zet de stand (zonder envelopbonus) vast, vergelijk met de voorspelde plek per team
+ * en schrijf de bonus bij. Opnieuw openen vervalt de vorige bonus eerst (nooit dubbel).
+ */
+export function openEnvelopes(db, eventId, q, t, actor, hostName) {
+  db.run("UPDATE score_events SET voided_at = ?, voided_reason = 'enveloppen opnieuw geopend' WHERE event_id = ? AND source_key LIKE ? AND voided_at IS NULL", t, eventId, `env:${q.id}:%`);
+  const teams = db.all(`SELECT t.id, t.name, COALESCE(SUM(CASE WHEN s.voided_at IS NULL AND s.board = 'team' THEN s.points END),0) AS points
+    FROM teams t LEFT JOIN score_events s ON s.team_id = t.id WHERE t.event_id = ? GROUP BY t.id`, eventId);
+  const ranks = competitionRanks(teams, x => x.points);
+  const bonus = q.settings.bonus ?? 2;
+  const list = teams.map(tm => {
+    const sub = db.get('SELECT answer FROM submissions WHERE question_id = ? AND owner_key = ?', q.id, 't:' + tm.id);
+    const predicted = sub ? JSON.parse(sub.answer) + 1 : null;
+    const rank = ranks.get(tm); const hit = predicted === rank;
+    if (hit && bonus) db.run(`INSERT INTO score_events (id, event_id, team_id, board, question_id, source_key, points, reason, kind, created_by, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+      id('e_'), eventId, tm.id, 'team', q.id, `env:${q.id}:${tm.id}`, bonus, `BAMIGO Envelop: plek ${predicted} voorspeld en gehaald`, 'bonus', actor, t);
+    return { teamId: tm.id, name: tm.name, predicted, rank, points: tm.points, hit, bonus: hit ? bonus : 0 };
+  });
+  list.sort((a, b) => b.rank - a.rank || a.name.localeCompare(b.name)); // laatste plek eerst, winnaar als laatste
+  const hs = db.get("SELECT answer FROM submissions WHERE question_id = ? AND owner_key = 'host'", q.id);
+  let host = null;
+  if (hs) {
+    const order = JSON.parse(hs.answer);
+    const rows = order.map((tid, i) => { const tm = teams.find(x => x.id === tid); return { name: tm?.name ?? '?', predicted: i + 1, rank: tm ? ranks.get(tm) : null }; });
+    host = { name: hostName || 'Rinus', rows, hits: rows.filter(r => r.rank === r.predicted).length };
+  }
+  const result = { openedAt: t, bonus, list, host };
+  db.run('UPDATE questions SET settings = ? WHERE id = ?', JSON.stringify({ ...q.settings, envelopes: result }), q.id);
+  return result;
 }
 
 /** Onthullingsinformatie per type (alleen na onthulling aangeroepen). */

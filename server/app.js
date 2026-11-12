@@ -209,6 +209,7 @@ export async function buildApp({ dbFile = process.env.BAMIGO_DB || path.join(roo
       return { live: live.action(s.event.id, actorOf(s), { action: 'prepare', questionId: qid, seq: body.seq }) };
     }
     if (body.action === 'roulette') { live.roulette(s.event.id, actorOf(s), { task: body.task, exclude: body.exclude, host: body.host }); return { live: live.state(s.event.id) }; }
+    if (body.action === 'host_envelope') { live.hostEnvelope(s.event.id, actorOf(s), body.answer); return { live: live.state(s.event.id) }; }
     if (body.action === 'host_invest') { live.hostInvest(s.event.id, actorOf(s), body.answer); return { live: live.state(s.event.id) }; }
     if (body.action === 'roulette_close') { live.rouletteClose(s.event.id, actorOf(s)); return { live: live.state(s.event.id) }; }
     if (body.action === 'prev_question') {

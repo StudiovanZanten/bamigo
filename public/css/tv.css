@@ -68,3 +68,32 @@ body.tv { overflow: hidden; cursor: default; }
 .tv-podium .v { font-size: 1.4vw; color: var(--champagne); }
 @keyframes podIn { from { opacity: 0; transform: translateY(1vw); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .tv-podium .pod { animation: none; opacity: 1; } }
+
+/* De BAMIGO Envelop */
+.env-stage { display: grid; place-items: center; text-align: center; }
+.env-wrap { display: grid; justify-items: center; gap: 1.2vw; animation: fadein .4s ease-out; }
+.env-title { font-family: var(--display); font-size: 6vw; margin: 0; color: var(--ivory); }
+.env-svg { width: 18vw; height: auto; filter: drop-shadow(0 1vw 2vw #000a); }
+.env-svg .flap { transform-origin: 60px 4px; transition: transform .6s ease; }
+.env-svg.open .flap { transform: scaleY(-1); }
+.env-svg.open .seal { opacity: 0; transition: opacity .3s; }
+.env-card { display: grid; justify-items: center; gap: .6vw; }
+.env-card:not(.open) .env-svg { animation: envShake .8s ease-in-out infinite; }
+.env-team { font-family: var(--display); font-size: 5.5vw; margin: .4vw 0 0; color: var(--copper-text); }
+.env-line { font-size: 2.2vw; margin: 0; color: var(--champagne); }
+.env-big { font-family: var(--display); font-size: 9vw; line-height: 1; animation: rlBump .5s ease-out; }
+.env-big.hit { color: var(--ok); } .env-big.miss { color: var(--ivory); }
+.env-verdict { font-size: 2vw; color: var(--muted); }
+.env-verdict.hit { color: #151515; background: var(--ok); padding: .3em .9em; border-radius: .5em; font-weight: 700; }
+.env-done { display: flex; flex-wrap: wrap; gap: .8vw; justify-content: center; margin-top: 1vw; }
+.env-done span { border: 1px solid var(--line); border-radius: 99px; padding: .3em .9em; font-size: 1.4vw; color: var(--muted); }
+.env-done span.hit { border-color: var(--ok); color: var(--ok); }
+.env-table { font-size: 1.5vw; min-width: 55vw; }
+.env-table td { padding-top: .45vw; padding-bottom: .45vw; }
+.env-wrap:has(.env-table) { gap: .8vw; }
+.env-wrap:has(.env-table) .env-title { font-size: 4vw; }
+.env-table tr.hit td { color: var(--ok); }
+.env-host { font-size: 1.6vw; max-width: 80vw; } .env-host b.ok { color: var(--ok); } .env-host span { color: var(--muted); }
+.env-next { font-family: var(--display); font-size: 2.4vw; color: var(--copper-text); margin: 0; }
+@keyframes envShake { 0%, 100% { transform: rotate(0); } 25% { transform: rotate(-3deg); } 75% { transform: rotate(3deg); } }
+@keyframes rlBump { from { transform: scale(1.4); } to { transform: scale(1); } }

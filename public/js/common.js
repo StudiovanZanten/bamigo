@@ -134,4 +134,4 @@ export const sound = {
 
 export const ROUND_LABEL = { quiz: 'Algemene kennis', brocode: 'De Bro Code', ranking: 'Ranking de Boys', kompaan: 'Ken je kompaan', shots: 'Shot in het duister', missions: 'Zoek, pak & bewijs',
   dragons: 'BAMIGO Dragons', search: 'Zoek, pak & bewijs', bluff: 'Bluffen & inzetten', lightning: 'Bliksemronde', final: 'Finale', break: 'Pauze', intro: 'BAMIGO' };
-export const TYPE_LABEL = { mc: 'Meerkeuze', tf: 'Waar/niet waar', open: 'Open antwoord', number: 'Getal / schatting', order: 'Volgorde', match: 'Koppelen', ranking: 'Ranking de Boys (voorspel)', shot: 'Shot in het duister', invest: 'Dragons-investering' };
+export const TYPE_LABEL = { mc: 'Meerkeuze', tf: 'Waar/niet waar', open: 'Open antwoord', number: 'Getal / schatting', order: 'Volgorde', match: 'Koppelen', ranking: 'Ranking de Boys (voorspel)', shot: 'Shot in het duister', invest: 'Dragons-investering', envelope: 'De BAMIGO Envelop' };

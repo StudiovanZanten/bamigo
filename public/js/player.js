@@ -117,6 +117,7 @@ function render() {
     <p>${esc(L.round?.instructions || '')}</p><div class="host-mascot" style="margin:0 auto">${mascot('welkom')}</div></div>`;
   else if (L.screen === 'scoreboard' || L.screen === 'finale') body = boardScreen(v);
   else if (L.screen === 'shots_reveal') body = shotsRevealScreen(v);
+  else if (L.screen === 'envelopes') body = `<div class="center stack" style="margin-top:20px"><div style="font-size:4rem" aria-hidden="true">✉️</div><h1>De enveloppen gaan open</h1><p class="muted">Kijk naar de tv. Wie voorspelde zijn eigen plek?</p></div>`;
   else if (L.screen === 'break') body = `<div class="center stack"><h1>Pauze</h1><p class="muted">${esc(L.message || 'Even bijtanken. Daarna: VAMOSSS!')}</p></div>`;
   else body = lobbyScreen(v);
   app.innerHTML = head + body + (L.paused ? `<div class="paused" role="alertdialog" aria-label="Gepauzeerd"><div><h1>Gepauzeerd</h1><p class="muted">De host heeft het spel even stilgezet. De tijd staat stil.</p></div></div>` : '');
@@ -290,13 +291,14 @@ function questionScreen(v, q) {
   } else if (q.type === 'ranking') {
     const chosen = mine ? mine.answer : advising ? myAdvice?.answer : draft.choice;
     out += `<div class="choices" role="group" aria-label="Kies een naam">${q.candidates.map(c => `<button class="choice" data-cand="${c.id}" aria-pressed="${chosen === c.id}" ${tappable ? '' : 'disabled'}><span>${esc(c.name)}</span>${advTag(c.id)}<span class="mark">${chosen === c.id ? (mine ? '✓ Ingestuurd' : advising ? 'Jouw advies' : '● Gekozen') : ''}</span></button>`).join('')}</div>`;
-  } else if (q.type === 'mc' || q.type === 'tf') {
+  } else if (q.type === 'mc' || q.type === 'tf' || q.type === 'envelope') {
+    if (q.type === 'envelope') out += `<p class="notice small">✉️ ${notCaptain ? 'Tik aan waar jullie volgens jou eindigen; de captain kiest.' : 'Op welke plek eindigt jullie team?'} Verzegeld: niemand ziet het, ook de quizmaster niet. Precies goed = bonuspunten bij de uitslag.</p>`;
     const chosen = mine ? mine.answer : advising ? myAdvice?.answer : draft.choice;
     const correct = revealed ? [].concat(v.result?.correct) : [];
     out += `<div class="choices" role="group" aria-label="Antwoorden">${q.options.map((o, i) => {
       const cls = revealed ? (correct.includes(i) ? 'correct' : chosen === i ? 'wrong' : '') : '';
       const mark = revealed && correct.includes(i) ? '✓ Juist' : chosen === i ? (mine ? '✓ Ingestuurd' : advising ? 'Jouw advies' : '● Gekozen') : '';
-      return `<button class="choice ${cls}" data-choice="${i}" aria-pressed="${chosen === i}" ${tappable ? '' : 'disabled'}><span class="letter">${LETTERS[i]}</span><span class="grow">${esc(o)}${q.scope === 'team' && !revealed ? advTag(i) : ''}</span><span class="mark">${mark}</span></button>`;
+      return `<button class="choice ${cls}" data-choice="${i}" aria-pressed="${chosen === i}" ${tappable ? '' : 'disabled'}><span class="letter">${q.type === 'envelope' ? i + 1 : LETTERS[i]}</span><span class="grow">${esc(o)}${q.scope === 'team' && !revealed ? advTag(i) : ''}</span><span class="mark">${mark}</span></button>`;
     }).join('')}</div>`;
   } else if (q.type === 'open' || q.type === 'number') {
     const val = mine ? mine.answer : draft.text;
@@ -339,7 +341,7 @@ function questionScreen(v, q) {
   return out;
 }
 
-const hasDraft = q => q.type === 'ranking' && q.top > 1 ? draft.picks.length === Math.min(q.top, q.candidates.length) : (['mc', 'tf', 'ranking'].includes(q.type)) ? draft.choice !== null : (q.type === 'order' ? true : String(draft.text).trim() !== '');
+const hasDraft = q => q.type === 'ranking' && q.top > 1 ? draft.picks.length === Math.min(q.top, q.candidates.length) : (['mc', 'tf', 'ranking', 'envelope'].includes(q.type)) ? draft.choice !== null : (q.type === 'order' ? true : String(draft.text).trim() !== '');
 
 function boardScreen(v) {
   const sb = v.scoreboard; if (!sb) return '';
@@ -378,13 +380,13 @@ function bind(v, q) {
   const ans = $('#ans'); if (ans) ans.oninput = () => { draft.text = ans.value; const sb = $('#submitBtn'); if (sb) sb.disabled = !ans.value.trim(); };
   if (ans) ans.onkeydown = e => { if (e.key === 'Enter' && ans.value.trim()) $('#submitBtn')?.click(); };
   const sb = $('#submitBtn'); if (sb) sb.onclick = () => {
-    const a = q.type === 'ranking' && q.top > 1 ? draft.picks : ['mc', 'tf', 'ranking'].includes(q.type) ? draft.choice : q.type === 'order' ? draft.order : draft.text;
+    const a = q.type === 'ranking' && q.top > 1 ? draft.picks : ['mc', 'tf', 'ranking', 'envelope'].includes(q.type) ? draft.choice : q.type === 'order' ? draft.order : draft.text;
     send(q, a);
   };
   const md = $('[data-media]'); if (md) mediaUrl(md.dataset.media, { 'x-player-token': token }).then(u => { if (u) md.innerHTML = `<img src="${u}" alt="Afbeelding bij de vraag" style="max-width:100%;border-radius:6px">`; });
 }
 
-const ADVICE_TYPES = ['mc', 'tf', 'open', 'number', 'ranking'];
+const ADVICE_TYPES = ['mc', 'tf', 'open', 'number', 'ranking', 'envelope'];
 function isAdvising(v, q) {
   return v.live.phase === 'open' && !v.mine && q.scope === 'team' && !v.me.isCaptain && !!v.me.teamId && ADVICE_TYPES.includes(q.type) && !q.kompaan && q.scoring !== 'speed';
 }

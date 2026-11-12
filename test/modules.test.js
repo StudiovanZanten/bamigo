@@ -341,3 +341,39 @@ test('quizmaster doet mee: roulette (0.0-variant), Dragons-investering, zonder t
   const ind = live.scoreboard(E).individuals;
   assert.equal(ind[0].name, 'Rinus'); assert.ok(ind[0].points > 0);
 });
+
+test('De BAMIGO Envelop: verzegeld (ook voor host), stand vastzetten, +2 bij exact, quizmaster-envelop, nooit dubbel', () => {
+  const { db, live, E, T, P, run, pts, ev, clock } = setup();
+  const r = C.upsertRound(db, E, { title: 'Intro', kind: 'intro' });
+  const q = C.upsertQuestion(db, E, { roundId: r, type: 'envelope', scope: 'team', prompt: 'Op welke plek eindigen jullie?', seconds: 60 });
+  assert.throws(() => C.upsertQuestion(db, E, { roundId: r, type: 'envelope', scope: 'individual', prompt: 'x' }), /teamvraag/);
+  assert.throws(() => live.action(E, 'test', { action: 'envelopes_open' }), /leeg/);
+  run('prepare', { questionId: q }); run('open'); clock.add(10);
+  const pv = playerView(live, { participant: P.a1, event: ev() }, new Set());
+  assert.equal(pv.question.options.length, 5);
+  assert.throws(() => live.submit(E, P.a1, { questionId: q, answer: 5 }), /plek/);
+  live.submit(E, P.a1, { questionId: q, answer: 0 });   // A voorspelt 1e
+  live.submit(E, P.b1, { questionId: q, answer: 1 });   // B voorspelt 2e
+  live.submit(E, P.c1, { questionId: q, answer: 0 });   // C voorspelt 1e
+  live.hostEnvelope(E, 'test', [T.B, T.A, T.C, T.D, T.E]);
+  run('close');
+  const owner = () => staffView(live, { event: ev(), role: 'owner', grant: { label: 'Eigenaar' } }, new Set(), 'x');
+  assert.ok(owner().submissions.every(x => x.answer === undefined), 'verzegeld, ook voor de eigenaar');
+  assert.throws(() => run('reveal'), /enveloppen/);
+  // stand: A 10, B 6, C 6, D 1, E 0
+  const add = (team, n) => db.run("INSERT INTO score_events (id, event_id, team_id, board, points, reason, kind, created_at) VALUES (?,?,?,'team',?,'test','manual',?)", 'e' + Math.random(), E, team, n, Date.now());
+  add(T.A, 10); add(T.B, 6); add(T.C, 6); add(T.D, 1);
+  run('envelopes_open');
+  const env = live.state(E).screen;
+  assert.equal(env, 'envelopes');
+  const data = displayView(live, ev(), new Set(), 'x').live.envelopes;
+  assert.equal(data.list.at(-1).name, 'A'); assert.ok(data.list.at(-1).hit);
+  assert.ok(data.list.find(x => x.name === 'B').hit, 'gedeelde 2e plek telt');
+  assert.ok(!data.list.find(x => x.name === 'C').hit);
+  assert.equal(data.list.find(x => x.name === 'D').predicted, null);
+  assert.equal(data.host.hits, 2); // D 4e en E 5e goed
+  assert.deepEqual(pts(), { A: 12, B: 8, C: 6, D: 1, E: 0 });
+  run('envelopes_open'); // opnieuw tonen: geen dubbele bonus
+  assert.deepEqual(pts(), { A: 12, B: 8, C: 6, D: 1, E: 0 });
+  assert.throws(() => live.hostEnvelope(E, 'test', [T.A, T.B, T.C, T.D, T.E]), /envelop-vraag|al open/);
+});

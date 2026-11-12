@@ -126,7 +126,7 @@ function homeTab(v) {
 
 // ---------- LIVE ----------
 const PHASE_LABEL = { idle: 'Geen vraag actief', ready: 'Klaar om te openen', open: 'Open', closed: 'Gesloten', revealed: 'Onthuld', scored: 'Gescoord' };
-const SCREEN_LABEL = { lobby: 'Lobby', round_intro: 'Ronde-intro', question: 'Vraag', scoreboard: 'Scorebord', break: 'Pauze', finale: 'Finale', shots_reveal: 'Shotonthulling' };
+const SCREEN_LABEL = { lobby: 'Lobby', round_intro: 'Ronde-intro', question: 'Vraag', scoreboard: 'Scorebord', break: 'Pauze', finale: 'Finale', shots_reveal: 'Shotonthulling', envelopes: 'Enveloppen' };
 
 const FLOW = ['Klaarzetten', 'Openen', 'Antwoorden', 'Onthullen', 'Punten'];
 const FLOW_AT = { idle: 0, ready: 1, open: 2, closed: 3, revealed: 4, scored: 5 };
@@ -135,6 +135,7 @@ function explain(v) {
   if (p === 'idle' || (p === 'scored' && !v.nextQuestionId)) return v.nextQuestionId ? 'Druk op de knop om de eerste vraag klaar te zetten. Spelers zien nog niets.' : 'Alle vragen zijn gespeeld. Zet het scorebord of de finale op de tv (bij “Meer opties”).';
   if (p === 'ready') return 'De vraag staat klaar, maar is nog geheim. Druk op de knop: de tv telt af en de vraag verschijnt op tv en telefoons.';
   if (p === 'open') return 'Spelers antwoorden nu op hun telefoon. De vraag sluit vanzelf als de tijd op is. Iedereen klaar? Dan mag je zelf sluiten.';
+  if (p === 'closed' && q?.type === 'envelope') return 'De enveloppen zijn verzegeld, ook voor jou. Ze gaan open bij de uitslag (kaart “De BAMIGO Envelop”). Ga door naar de volgende vraag.';
   if (p === 'closed' && q?.type === 'shot') return 'Shots worden pas aan het eind van de ronde samen onthuld. Ga door naar de volgende shot.';
   if (p === 'closed') return 'De vraag is dicht. Druk op de knop om het goede antwoord op de tv te laten zien.';
   if (p === 'revealed') return 'Het antwoord staat op de tv. Druk op de knop om de punten bij te schrijven.';
@@ -144,6 +145,7 @@ function explain(v) {
 function primaryAction(v) {
   const p = v.live.phase;
   if (p === 'closed' && v.question?.type === 'shot') return v.nextQuestionId ? ['next_question', 'Volgende shot klaarzetten'] : null;
+  if (p === 'closed' && v.question?.type === 'envelope') return v.nextQuestionId ? ['next_question', 'Volgende vraag klaarzetten'] : null;
   if (p === 'ready') return ['open', 'Open vraag voor iedereen'];
   if (p === 'open') return ['close', 'Sluit vraag nu'];
   if (p === 'closed') return ['reveal', 'Onthul antwoord'];
@@ -181,6 +183,7 @@ function liveTab(v) {
       </div>
     </div>
     ${hostInvestCard(v)}
+    ${envelopeCard(v)}
     ${rouletteCard(v)}
     <details class="card more" data-keep="liveMore"><summary>Meer opties (scorebord, pauze, vraag schrappen)</summary>
       <p class="small muted" style="margin:12px 0 6px">Wat staat er op de tv?</p><div class="row">
@@ -226,7 +229,37 @@ function liveTab(v) {
   bindAdjust();
   bindRoulette(v);
   bindHostInvest(v);
+  bindEnvelope(v);
   tickLive();
+}
+
+// ---------- DE BAMIGO ENVELOP ----------
+let envDraft = null; // { qid, order: [teamId|''] }
+function envelopeCard(v) {
+  const E = v.envelope; if (!E) return '';
+  const q = v.question; const L = v.live;
+  const playing = q?.id === E.id && ['open', 'closed'].includes(L.phase) && !E.opened && L.screen !== 'envelopes';
+  const hostName = v.event.settings?.rouletteHost?.name || 'Rinus';
+  if (playing && envDraft?.qid !== E.id) envDraft = { qid: E.id, order: v.teams.map(() => '') };
+  const hostForm = playing ? `<details data-keep="envHost" style="margin-top:10px" ${E.hostDone ? '' : 'open'}><summary class="small"><b>Jouw eigen envelop</b> (voor de lol, geen punten) ${E.hostDone ? '<span class="pill ok">ingevuld</span>' : ''}</summary>
+      <p class="small muted">Jouw voorspelde top ${v.teams.length}. Wordt bij de uitslag als laatste getoond, als “${esc(hostName)} voorspelde…”.</p>
+      <div class="hi-grid">${v.teams.map((_, i) => `<label class="field" style="margin:0"><span>${i + 1}e plek</span><select id="env_${i}" data-envpos="${i}"><option value="">— kies —</option>${v.teams.map(t => `<option value="${t.id}" ${envDraft.order[i] === t.id ? 'selected' : ''}>${esc(t.name)}</option>`).join('')}</select></label>`).join('')}</div>
+      <button class="btn copper small" id="envHostGo" style="margin-top:10px">${E.hostDone ? 'Envelop vervangen' : 'Envelop dichtplakken'}</button></details>` : '';
+  return `<div class="card roulette-card"><div class="row" style="justify-content:space-between;align-items:baseline"><h3 style="margin:0">✉️ De BAMIGO Envelop</h3>
+      <span class="small muted">${E.opened ? 'geopend' : E.filled ? `${E.count} van ${v.teams.length} enveloppen verzegeld` : 'nog niet gespeeld'}</span></div>
+    <p class="small muted" style="margin:6px 0 10px">${E.filled ? 'Bij de uitslag: open de enveloppen op tv. De bonus telt dan mee; laat daarna de Finale zien als definitieve eindstand.' : 'Speel de envelop-vraag aan het begin van de avond (staat in je vragenlijst). Teams voorspellen dan hun eigen eindplek.'}</p>
+    <div class="row">${E.filled ? `<button class="btn copper" id="envOpen" ${L.phase === 'open' ? 'disabled' : ''}>${E.opened ? 'Enveloppen opnieuw tonen' : 'Enveloppen openen op tv'}</button>` : ''}
+      ${E.opened ? '<button class="btn primary" data-act="screen_finale">Definitieve eindstand (Finale)</button>' : ''}</div>
+    ${hostForm}</div>`;
+}
+function bindEnvelope(v) {
+  if ($('#envOpen')) $('#envOpen').onclick = e => { if (v.envelope.opened || confirm('Enveloppen nu openen op tv? De stand wordt vastgezet en de bonus bijgeschreven.')) act(e.target, () => live('envelopes_open', { questionId: v.envelope.id }), 'De enveloppen gaan open!'); };
+  $$('[data-envpos]').forEach(s => s.onchange = () => { envDraft.order[+s.dataset.envpos] = s.value; });
+  if ($('#envHostGo')) $('#envHostGo').onclick = e => {
+    const order = envDraft.order;
+    if (order.some(x => !x) || new Set(order).size !== order.length) return toast('Zet elk team precies één keer op een plek.', 'bad');
+    act(e.target, () => A.post('/api/staff/live', { action: 'host_envelope', answer: order }), 'Envelop dichtgeplakt.');
+  };
 }
 
 // ---------- DRAGONS: QUIZMASTER INVESTEERT ----------
@@ -439,14 +472,14 @@ function openQuestionEditor(q) {
     <div class="row"><button class="btn primary">Opslaan</button><button type="button" class="btn ghost" id="cancelEd">Annuleren</button></div></form>`;
   const sync = () => {
     const t = $('#qType').value;
-    const special = ['ranking', 'shot', 'invest'].includes(t);
+    const special = ['ranking', 'shot', 'invest', 'envelope'].includes(t);
     $('#shotNrWrap').hidden = t !== 'shot';
     $('#kompWrap').hidden = !['mc', 'tf', 'open'].includes(t);
     $('#topWrap').hidden = t !== 'ranking';
     $('#qCorrectSlot').closest('.field').hidden = special || $('#qKomp').checked;
     if (special) $('#qScope').value = 'team';
     if ($('#qKomp').checked) $('#qScope').value = 'individual';
-    $('#modHelp').textContent = { ranking: 'Teams voorspellen wie de groep het vaakst koos. Spelers stemmen vooraf in de voorbereiding. Standaard 2 punten.', shot: 'Per shot: 1 punt voor hoofdsmaak, basisdrank en team. Toegestane varianten stel je in bij Shots & Buitentas. Onthulling pas na het laatste shot.', invest: 'Elk team verdeelt €10.000 fictief over andere teams. Ontvangen bedrag → 5-4-3-2-1 punten.' }[t] || '';
+    $('#modHelp').textContent = { ranking: 'Teams voorspellen wie de groep het vaakst koos. Spelers stemmen vooraf in de voorbereiding. Standaard 2 punten.', shot: 'Per shot: 1 punt voor hoofdsmaak, basisdrank en team. Toegestane varianten stel je in bij Shots & Buitentas. Onthulling pas na het laatste shot.', invest: 'Elk team verdeelt €10.000 fictief over andere teams. Ontvangen bedrag → 5-4-3-2-1 punten.', envelope: 'Speel aan het begin: elk team voorspelt verzegeld zijn eindplek. Bij de uitslag open je de enveloppen; precies goed = 2 bonuspunten.' }[t] || '';
     $('#optWrap').hidden = !['mc', 'order'].includes(t);
     $('#accWrap').hidden = t !== 'open';
     $('#tolWrap').hidden = t !== 'number';
@@ -468,7 +501,7 @@ function openQuestionEditor(q) {
     let settings = { ...(q.settings || {}), kompaan: ['mc', 'tf', 'open'].includes(t) && $('#qKomp').checked };
     if (t === 'shot') settings.shotNumber = Number($('#qShotNr').value);
     if (t === 'ranking') settings.top = $('#qTop').checked ? 3 : 1;
-    if (['ranking', 'shot', 'invest'].includes(t)) correct = null;
+    if (['ranking', 'shot', 'invest', 'envelope'].includes(t)) correct = null;
     if (t === 'mc' || t === 'tf') correct = correct === '' ? null : Number(correct);
     if (t === 'order') { correct = options.map((_, i) => i); const sh = shuffle(options.map((_, i) => i)); const shuffled = sh.map(i => options[i]); correct = options.map(o => shuffled.indexOf(o)); options = shuffled; }
     if (t === 'number') correct = correct === '' ? null : correct;
