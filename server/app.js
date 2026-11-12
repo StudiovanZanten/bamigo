@@ -17,6 +17,7 @@ import { playerView, displayView, staffView } from './views.js';
 import { exportResults, exportPack, importPack, emergencyPack } from './exporting.js';
 import { seedDemo } from './seed-demo.js';
 import * as M from './modules.js';
+import * as MSG from './messages.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '..');
@@ -244,6 +245,15 @@ export async function buildApp({ dbFile = process.env.BAMIGO_DB || path.join(roo
   app.post('/api/staff/import/pack', async req => { const s = staff(req, 'content.write'); const r = importPack(db, s.event.id, req.body); touch(s.event.id); return r; });
   app.get('/api/staff/emergency', async (req, reply) => { const s = staff(req, 'content.read'); reply.type('text/html; charset=utf-8').send(emergencyPack(db, s.event.id)); });
 
+  // ---------- berichten aan spelers ----------
+  app.get('/api/push/key', async () => ({ publicKey: MSG.vapidKeys(db, publicUrl).publicKey }));
+  app.post('/api/player/push', async req => { const p = player(req); MSG.saveSubscription(db, { ...p.participant, event_id: p.event.id }, req.body?.subscription); return { ok: true }; });
+  app.post('/api/player/push/off', async req => { const p = player(req); MSG.removeSubscription(db, p.participant, req.body?.endpoint); return { ok: true }; });
+  app.post('/api/staff/messages', async req => { const s = staff(req, 'content.write'); const mid = MSG.upsertMessage(db, s.event.id, req.body || {}); touch(s.event.id); kick(); return { id: mid }; });
+  app.post('/api/staff/messages/import', async req => { const s = staff(req, 'content.write'); const n = MSG.importMessages(db, s.event.id, req.body); touch(s.event.id); kick(); return { imported: n }; });
+  app.post('/api/staff/messages/:id/send', async req => { const s = staff(req, 'content.write'); MSG.sendNow(db, s.event.id, req.params.id); await deliver(); return { ok: true }; });
+  app.delete('/api/staff/messages/:id', async req => { const s = staff(req, 'content.write'); MSG.deleteMessage(db, s.event.id, req.params.id); touch(s.event.id); return { ok: true }; });
+
   // ---------- shots, missies ----------
   app.post('/api/staff/shots/:id', async req => { const s = staff(req, 'secrets.read'); M.adminShot(db, s.event.id, req.params.id, req.body || {}); touch(s.event.id); return { ok: true }; });
   app.post('/api/staff/shots/team/:teamId', async req => { const s = staff(req, 'secrets.read'); M.saveShot(db, s.event.id, req.params.teamId, req.body || {}, s.grant.label); touch(s.event.id); return { ok: true }; });
@@ -375,7 +385,19 @@ export async function buildApp({ dbFile = process.env.BAMIGO_DB || path.join(roo
     });
     live.resumeAll();
   });
-  app.addHook('onClose', async () => { io?.close(); for (const t of live.timers.values()) clearTimeout(t); db.close(); });
+  // Bezorger: elke 20 s ingeplande berichten afleveren (en direct na een wijziging).
+  let delivering = false;
+  async function deliver() {
+    if (delivering) return; delivering = true;
+    try { for (const eid of await MSG.deliverDue(db, Date.now(), { push: true, baseUrl: publicUrl || '' })) touch(eid); }
+    catch (e) { console.error('berichten', e); }
+    finally { delivering = false; }
+  }
+  function kick() { setTimeout(deliver, 50); }
+  MSG.vapidKeys(db, publicUrl);
+  const deliverTimer = timers ? setInterval(deliver, 20_000) : null;
+  app.decorate('deliverMessages', deliver);
+  app.addHook('onClose', async () => { if (deliverTimer) clearInterval(deliverTimer); io?.close(); for (const t of live.timers.values()) clearTimeout(t); db.close(); });
   return app;
 }
 

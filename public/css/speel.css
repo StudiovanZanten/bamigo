@@ -61,3 +61,15 @@
 .podium .pos { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: var(--copper); color: var(--ivory); font-family: var(--display); flex: none; }
 .cand-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
 .cand-grid .choice { min-height: 52px; font-size: 1rem; }
+
+/* berichten van BAMIGO */
+.inbox h3 { margin: 0 0 10px; }
+.msgs { margin: 0 0 12px; }
+.list.msgs > li.msg { display: block; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.msg:last-child { border-bottom: 0; }
+.msg p { margin: 6px 0 8px; line-height: 1.45; }
+.older summary { cursor: pointer; color: var(--muted); padding: 6px 0 10px; }
+.push-on { display: flex; align-items: center; gap: 8px; margin: 4px 0 0; }
+.linkbtn { background: none; border: 0; color: var(--copper); text-decoration: underline; padding: 0; font: inherit; cursor: pointer; }
+.ios-tip { background: var(--raised); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
+.ios-tip ol { margin: 8px 0 0; padding-left: 20px; line-height: 1.6; }

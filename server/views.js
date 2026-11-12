@@ -4,6 +4,7 @@
 import { json } from './db.js';
 import { can } from './auth.js';
 import * as M from './modules.js';
+import * as MSG from './messages.js';
 
 const AFTER_CLOSE = ['closed', 'revealed', 'scored'];
 const REVEALED = ['revealed', 'scored'];
@@ -128,6 +129,7 @@ export function playerView(live, { participant, event }, online, t = live.clock(
     live: liveInfo(live, s, t), question: q, mine, result, advice,
     scoreboard: showBoard ? boardFor(live, event.id, { topTeams: 100, topPeople: 5, meId: participant.id }) : null,
     shotsReveal: s.screen === 'shots_reveal' ? M.shotsRevealData(db, event.id, s.round_id) : null,
+    messages: MSG.playerMessages(db, event.id),
     ownShot: q?.type === 'shot' && team ? !!db.get('SELECT 1 FROM shots WHERE team_id = ? AND number = ?', team.id, q.shotNumber) : false,
     kompaan: q?.kompaan && team ? { pair: M.kompaanPair(db, { ...live.question(q.id), event_id: event.id }, team.id).map(p => ({ id: p.id, name: p.name })) } : null,
     prep: prepView(live, event, participant, team),
@@ -205,6 +207,7 @@ export function staffView(live, { event, role, grant }, online, joinUrl, t = liv
       .map(x => ({ ...x, accepted_flavors: json(x.accepted_flavors, []), accepted_bases: json(x.accepted_bases, []) }));
     view.shotWarnings = M.shotWarnings(db, event.id);
     view.questionnaire = questionnaireOverview(db, event);
+    view.messages = MSG.staffMessages(db, event.id);
     view.rankingTotals = db.all("SELECT id, prompt FROM questions WHERE event_id = ? AND type = 'ranking'", event.id).map(q => ({ id: q.id, prompt: q.prompt, ...M.rankingTotals(db, q.id) }));
   }
   if (host || full) {

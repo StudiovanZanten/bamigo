@@ -249,3 +249,25 @@ test('vragenlijst vooraf: id\'s blijven stabiel en het overzicht toont antwoorde
   C.updateEvent(db, E, { name: 'Andere naam', settings: { drinks: false } });
   assert.equal(JSON.parse(db.get('SELECT settings FROM events WHERE id = ?', E).settings).questionnaire.length, 2, 'andere instellingen opslaan wist de vragenlijst niet');
 });
+
+test('berichten: Nederlandse tijd, inplannen, één keer bezorgen, alleen verstuurde zichtbaar', async () => {
+  const MSG = await import('../server/messages.js');
+  const { db, E } = setup();
+  assert.equal(MSG.epochToLocal(MSG.localToEpoch('2026-11-20T17:00')), '2026-11-20T17:00');
+  assert.equal(new Date(MSG.localToEpoch('2026-11-20T17:00')).toISOString(), '2026-11-20T16:00:00.000Z'); // wintertijd
+  assert.equal(new Date(MSG.localToEpoch('2026-07-01T17:00')).toISOString(), '2026-07-01T15:00:00.000Z'); // zomertijd
+  assert.throws(() => MSG.upsertMessage(db, E, { title: '' }), /titel/);
+  const n = MSG.importMessages(db, E, [{ sendAt: '2020-01-01T10:00', title: 'Oud', link: 'vragenlijst' }, { sendAt: '2099-01-01T10:00', title: 'Later', link: 'hack' }]);
+  assert.equal(n, 2);
+  assert.equal(MSG.playerMessages(db, E).length, 0);
+  assert.deepEqual(await MSG.deliverDue(db, Date.now(), { push: false }), [E]);
+  assert.deepEqual(await MSG.deliverDue(db, Date.now(), { push: false }), []); // nooit dubbel
+  const pm = MSG.playerMessages(db, E);
+  assert.equal(pm.length, 1); assert.equal(pm[0].title, 'Oud'); assert.equal(pm[0].link, 'vragenlijst');
+  const st = MSG.staffMessages(db, E).list;
+  assert.equal(st.find(m => m.title === 'Later').link, null);
+  assert.throws(() => MSG.upsertMessage(db, E, { id: pm[0].id, title: 'x' }), /al verstuurd/);
+  MSG.sendNow(db, E, st.find(m => m.title === 'Later').id);
+  await MSG.deliverDue(db, Date.now() + 1, { push: false });
+  assert.equal(MSG.playerMessages(db, E).length, 2);
+});

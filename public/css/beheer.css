@@ -55,3 +55,8 @@
 .explain { font-size: 1.05rem; margin: 0 0 12px; }
 details.more > summary, details > summary { cursor: pointer; font-weight: 600; min-height: 32px; }
 details.card.more { padding: 14px 18px; }
+
+/* berichten */
+.msg-list li { display: flex; gap: 12px; align-items: flex-start; flex-wrap: wrap; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.msg-list li:last-child { border-bottom: 0; }
+.msg-list li .grow { flex: 1 1 260px; min-width: 0; }

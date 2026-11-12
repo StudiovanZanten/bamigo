@@ -75,10 +75,11 @@ async function lookup(code) {
 
 // ---------- verbonden ----------
 function start() {
+  checkPush();
   app.innerHTML = '<p class="center muted" style="margin-top:40px">Verbinden…</p>';
   conn = connect({
     kind: 'player', token,
-    onState: v => { view = v; render(); },
+    onState: v => { noticeNew(v); view = v; render(); },
     onStatus: (s, clock) => {
       const el = $('#status');
       const map = { online: ['ok', 'Verbonden'], synced: ['ok', 'Verbonden'], offline: ['bad', 'Verbinding weg'], reconnecting: ['warn', 'Opnieuw verbinden'], unauthorized: ['bad', 'Sessie ongeldig'] };
@@ -98,7 +99,7 @@ function render() {
   if (q?.id !== draft.qid) { draft = { qid: q?.id ?? null, choice: null, picks: [], text: '', bet: null, order: q?.options ? q.options.map((_, i) => i) : null, shot: { flavor: '', base: '', teamId: '' }, invest: {} }; sending = null; }
   if (q?.options && !draft.order) draft.order = q.options.map((_, i) => i);
   // Structuursleutel: alleen opnieuw opbouwen als er echt iets verandert (behoudt focus en invoer).
-  const key = JSON.stringify([L.screen, L.phase, L.paused, L.seq, q?.id, q?.visible, v.mine, v.me, v.team?.members, sending, v.result && v.result.total, v.scoreboard, L.message, v.advice, L.banner]);
+  const key = JSON.stringify([L.screen, L.phase, L.paused, L.seq, q?.id, q?.visible, v.mine, v.me, v.team?.members, sending, v.result && v.result.total, v.scoreboard, L.message, v.advice, L.banner, v.messages, pushState]);
   renderPrep(v);
   if (key === lastKey) return;
   const focusId = document.activeElement?.id;
@@ -118,6 +119,10 @@ function render() {
   else body = lobbyScreen(v);
   app.innerHTML = head + body + (L.paused ? `<div class="paused" role="alertdialog" aria-label="Gepauzeerd"><div><h1>Gepauzeerd</h1><p class="muted">De host heeft het spel even stilgezet. De tijd staat stil.</p></div></div>` : '');
   bind(v, q);
+  $$('[data-open-task]').forEach(b => b.onclick = () => openTask(b.dataset.openTask));
+  $$('[data-push-on]').forEach(b => b.onclick = () => { b.disabled = true; enablePush(); });
+  $$('[data-push-off]').forEach(b => b.onclick = disablePush);
+  if (pendingTask && v.prep) { const t = pendingTask; pendingTask = null; setTimeout(() => openTask(t), 100); }
   if (focusId && document.getElementById(focusId)) document.getElementById(focusId).focus();
   tick();
 }
@@ -129,8 +134,111 @@ function lobbyScreen(v) {
     ${t ? `<section class="card"><h3>${esc(t.name)}</h3><ul class="list team-list">${t.members.map(m => `<li><span class="dot ${m.online ? 'on' : ''}" aria-hidden="true"></span>
       <span>${esc(m.name)}</span>${m.isCaptain ? '<span class="badge-captain">Captain</span>' : ''}<span class="small muted" style="margin-left:auto">${m.online ? 'online' : 'offline'}</span>
       ${v.me.isCaptain && !m.isCaptain ? `<button class="btn ghost small" data-captain="${m.id}">Maak captain</button>` : ''}</li>`).join('')}</ul>
-      <p class="small muted" style="margin:10px 0 0">Bij teamvragen tikt de captain het antwoord in.</p></section>` : `<p class="notice">Je bent nog niet ingedeeld. De host zet je in een team.</p>`}`;
+      <p class="small muted" style="margin:10px 0 0">Bij teamvragen tikt de captain het antwoord in.</p></section>` : `<p class="notice">Je bent nog niet ingedeeld. De host zet je in een team.</p>`}
+    ${inboxCard(v)}`;
 }
+
+// ---------- berichten van BAMIGO + meldingen ----------
+const TASK_OF = { vragenlijst: 'prof', ranking: 'vote', shot: 'shot', buitentas: 'miss' };
+const LINK_LABEL = { vragenlijst: 'Naar de vragenlijst', ranking: 'Naar Ranking de Boys', shot: 'Naar jullie shot', buitentas: 'Naar de Buitentas' };
+const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const pushSupported = 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+let pushState = 'checking'; // checking | on | off | denied | ios-install | unsupported
+let seenMsg = null;
+
+function noticeNew(v) {
+  const newest = v.messages?.[0]?.id || '';
+  if (seenMsg !== null && newest && newest !== seenMsg) { toast('Nieuw bericht van BAMIGO: ' + v.messages[0].title); sound.tick?.(); }
+  seenMsg = newest;
+}
+
+function fmtDay(ts) { return new Date(ts).toLocaleString('nl-NL', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }); }
+
+function pushBlock() {
+  if (pushState === 'on') return `<p class="small muted push-on"><span class="dot on" aria-hidden="true"></span>Meldingen staan aan. <button class="linkbtn" data-push-off>Uitzetten</button></p>`;
+  if (pushState === 'off') return `<button class="btn copper block" data-push-on>Meldingen aanzetten</button>
+    <p class="small muted" style="margin:6px 0 0">Dan krijg je een seintje als BAMIGO iets te melden heeft. Geen spam, beloofd.</p>`;
+  if (pushState === 'denied') return `<p class="small muted">Meldingen zijn geblokkeerd voor deze site. Zet ze aan in de instellingen van je browser.</p>`;
+  if (pushState === 'ios-install') return `<div class="ios-tip"><b>Meldingen op je iPhone</b>
+    <ol><li>Tik onderin op <b>Deel</b> <span aria-hidden="true">(vierkantje met pijl)</span>.</li><li>Kies <b>Zet op beginscherm</b> en tik op <b>Voeg toe</b>.</li><li>Open BAMIGO vanaf je beginscherm en zet hier de meldingen aan.</li></ol></div>`;
+  if (pushState === 'unsupported') return `<p class="small muted">Deze browser ondersteunt geen meldingen. Kijk af en toe hier voor nieuwe berichten.</p>`;
+  return '';
+}
+
+function inboxCard(v) {
+  const list = v.messages || [];
+  const item = m => `<li class="msg"><div class="row" style="justify-content:space-between;gap:8px"><b>${esc(m.title)}</b><span class="small muted">${fmtDay(m.sentAt)}</span></div>
+    ${m.body ? `<p>${esc(m.body).replace(/\n/g, '<br>')}</p>` : ''}${m.link && TASK_OF[m.link] ? `<button class="btn ghost small" data-open-task="${m.link}">${LINK_LABEL[m.link]} ›</button>` : ''}</li>`;
+  return `<section class="card inbox" aria-label="Berichten van BAMIGO"><h3>Berichten van BAMIGO</h3>
+    ${list.length ? `<ul class="list msgs">${list.slice(0, 3).map(item).join('')}</ul>
+      ${list.length > 3 ? `<details class="older"><summary class="small">Oudere berichten (${list.length - 3})</summary><ul class="list msgs">${list.slice(3).map(item).join('')}</ul></details>` : ''}`
+      : '<p class="small muted">Nog geen berichten. BAMIGO houdt je op de hoogte.</p>'}
+    ${pushBlock()}</section>`;
+}
+
+function openTask(link) {
+  const key = TASK_OF[link]; if (!key) return;
+  prepOpen.add(key);
+  const d = document.querySelector(`details[data-task="${key}"]`);
+  if (d) { d.open = true; d.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+}
+
+function b64ToBytes(s) {
+  const pad = '='.repeat((4 - s.length % 4) % 4);
+  const raw = atob((s + pad).replace(/-/g, '+').replace(/_/g, '/'));
+  return Uint8Array.from(raw, c => c.charCodeAt(0));
+}
+
+async function swReg() { return navigator.serviceWorker.register('/sw.js'); }
+
+async function checkPush() {
+  if (!pushSupported) pushState = isIOS && !standalone ? 'ios-install' : 'unsupported';
+  else if (isIOS && !standalone) pushState = 'ios-install';
+  else if (Notification.permission === 'denied') pushState = 'denied';
+  else {
+    try { const reg = await swReg(); const sub = await reg.pushManager.getSubscription();
+      if (sub && Notification.permission === 'granted') { pushState = 'on'; api({ 'x-player-token': token }).post('/api/player/push', { subscription: sub.toJSON() }).catch(() => {}); }
+      else pushState = 'off'; }
+    catch { pushState = 'unsupported'; }
+  }
+  // iPhone: houd de sessie in de link, zodat het beginscherm-icoon je meteen herkent.
+  if (pushState === 'ios-install' && token && !location.hash) history.replaceState(null, '', location.pathname + '#t=' + encodeURIComponent(token));
+  render();
+}
+
+async function enablePush() {
+  try {
+    const perm = await Notification.requestPermission();
+    if (perm !== 'granted') { pushState = perm === 'denied' ? 'denied' : 'off'; render(); return; }
+    const reg = await swReg(); await navigator.serviceWorker.ready;
+    const { publicKey } = await api().get('/api/push/key');
+    const sub = await reg.pushManager.getSubscription() || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToBytes(publicKey) });
+    await api({ 'x-player-token': token }).post('/api/player/push', { subscription: sub.toJSON() });
+    pushState = 'on'; toast('Meldingen staan aan. VAMOSSS!'); render();
+  } catch (e) { toast('Meldingen aanzetten lukte niet: ' + e.message, 'bad'); }
+}
+
+async function disablePush() {
+  try {
+    const reg = await swReg(); const sub = await reg.pushManager.getSubscription();
+    if (sub) { await api({ 'x-player-token': token }).post('/api/player/push/off', { endpoint: sub.endpoint }); await sub.unsubscribe(); }
+    pushState = 'off'; render();
+  } catch (e) { toast(e.message, 'bad'); }
+}
+
+function pendingTaskFromHash() {
+  const m = location.hash.match(/[#&]taak=([a-z]+)/);
+  if (!m) return null;
+  history.replaceState(null, '', location.pathname + location.search);
+  return m[1];
+}
+let pendingTask = pendingTaskFromHash();
+if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', e => {
+  if (e.data?.type !== 'open') return;
+  const m = String(e.data.url || '').match(/[#&]taak=([a-z]+)/);
+  if (m) openTask(m[1]);
+});
 
 function timerHtml(L) {
   if (!L.deadline) return '';

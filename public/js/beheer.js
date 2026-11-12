@@ -51,6 +51,7 @@ function tabsFor(v) {
   if (v.perms.people) t.push(['people', 'Teams']);
   t.push(['plan', v.perms.content ? 'Vragen' : 'Programma']);
   if (v.missions || v.shots) t.push(['extra', 'Shots & opdrachten']);
+  if (v.messages && v.perms.content) t.push(['msgs', 'Berichten']);
   t.push(['ready', 'Check']);
   if (v.perms.live) t.push(['live', '▶ Quiz spelen']);
   if (v.perms.scores) t.push(['scores', 'Scores']);
@@ -73,10 +74,10 @@ function render() {
     $('#tabs').innerHTML = tabs.map(([k, l]) => `<button role="tab" aria-selected="${k === tab}" data-tab="${k}">${l}</button>`).join('');
     $$('[data-tab]').forEach(b => b.onclick = () => { tab = b.dataset.tab; prefs.set('beheerTab2', tab); editing = null; lastTabs = ''; render(); });
   }
-  if (editing && (tab === 'plan' || tab === 'extra')) return; // formulier niet overschrijven tijdens bewerken
+  if (editing && (tab === 'plan' || tab === 'extra' || tab === 'msgs')) return; // formulier niet overschrijven tijdens bewerken
   const scrollY = window.scrollY;
   const focusId = document.activeElement?.id;
-  ({ home: homeTab, live: liveTab, plan: planTab, people: peopleTab, ready: readyTab, scores: scoresTab, event: eventTab, extra: extraTab }[tab])(v);
+  ({ home: homeTab, live: liveTab, plan: planTab, people: peopleTab, ready: readyTab, scores: scoresTab, event: eventTab, extra: extraTab, msgs: msgsTab }[tab])(v);
   $$('details[data-keep]').forEach(d => { if (openDetails.has(d.dataset.keep)) d.open = true; d.ontoggle = () => { d.open ? openDetails.add(d.dataset.keep) : openDetails.delete(d.dataset.keep); }; });
   $$('[data-goto]').forEach(b => b.onclick = () => goTab(b.dataset.goto));
   if (focusId && document.getElementById(focusId)) document.getElementById(focusId).focus();
@@ -107,6 +108,7 @@ function homeTab(v) {
         ${v.perms.people ? item('people', 'Teams en spelers', `${n(r.teams, 'team', 'teams')} · ${n(r.participants, 'speler', 'spelers')}`) : ''}
         ${item('plan', v.perms.content ? 'Vragen en rondes' : 'Programma', `${n(v.rounds.length, 'ronde', 'rondes')} · ${n(r.questions, 'vraag', 'vragen')}`, qWarn)}
         ${v.missions || v.shots ? item('extra', 'Shots en opdrachten', `${n(r.shotsSubmitted, 'shot', 'shots')} ingevuld · ${n(r.missions, 'opdracht', 'opdrachten')}`) : ''}
+        ${v.messages && v.perms.content ? item('msgs', 'Berichten aan spelers', `${n(v.messages.list.filter(m => !m.sentAt).length, 'bericht', 'berichten')} ingepland · ${n(v.messages.pushPlayers, 'speler', 'spelers')} met meldingen`) : ''}
         ${item('ready', 'Check: is alles klaar?', 'Overzicht van wat nog ontbreekt')}
       </section>
       ${v.perms.live ? `<section class="home-step main"><span class="home-num">2</span><h2>Quiz spelen</h2><p class="muted">Op de avond zelf.</p>
@@ -535,6 +537,61 @@ function eventTab(v) {
 }
 
 // ---------- SHOTS & BUITENTAS ----------
+// ---------- BERICHTEN ----------
+const MSG_LINKS = [['', 'Geen knop'], ['vragenlijst', 'Vragenlijst'], ['ranking', 'Ranking de Boys'], ['shot', 'Geheime shot'], ['buitentas', 'Buitentas']];
+function fmtLocal(s) { const [d, t] = s.split('T'); const [y, m, dd] = d.split('-'); return new Date(+y, +m - 1, +dd).toLocaleDateString('nl-NL', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }) + ' · ' + t; }
+function msgsTab(v) {
+  const M = v.messages; const edit = editing?.kind === 'msg' ? editing.data : null;
+  const planned = M.list.filter(m => !m.sentAt), sent = M.list.filter(m => m.sentAt).reverse();
+  const linkName = l => MSG_LINKS.find(x => x[0] === (l || ''))?.[1] || '';
+  const f = edit || { title: '', body: '', link: '', sendAt: '' };
+  main.innerHTML = `<div class="wrap">
+    <h1>Berichten aan spelers</h1>
+    <p class="muted">BAMIGO verstuurt deze berichten zelf, op het tijdstip dat je kiest (Nederlandse tijd). Spelers zien ze in de app, en wie meldingen aan heeft krijgt ook een seintje op de telefoon.</p>
+    <p><span class="pill ${M.pushPlayers ? 'ok' : ''}"><span class="dot"></span>${M.pushPlayers} van ${v.readiness?.participants ?? '?'} spelers hebben meldingen aan</span></p>
+    <form id="msgForm" class="card">
+      <h3>${edit?.id ? 'Bericht aanpassen' : 'Nieuw bericht'}</h3>
+      <div class="field"><label for="mTitle">Titel</label><input id="mTitle" maxlength="120" required value="${esc(f.title)}"></div>
+      <div class="field"><label for="mBody">Tekst</label><textarea id="mBody" maxlength="1500">${esc(f.body)}</textarea></div>
+      <div class="row">
+        <div class="field grow"><label for="mAt">Versturen op</label><input id="mAt" type="datetime-local" value="${esc(f.sendAt)}"><p class="small muted" style="margin:4px 0 0">Leeg laten = direct versturen.</p></div>
+        <div class="field grow"><label for="mLink">Knop in het bericht</label><select id="mLink">${MSG_LINKS.map(([k, l]) => `<option value="${k}" ${k === (f.link || '') ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+      </div>
+      <div class="row"><button class="btn primary" id="mSave">${edit?.id ? 'Opslaan' : 'Inplannen'}</button>${edit ? '<button type="button" class="btn ghost" id="mCancel">Annuleren</button>' : ''}</div>
+    </form>
+    <section class="card"><h3>Ingepland (${planned.length})</h3>
+      ${planned.length ? `<ul class="list msg-list">${planned.map(m => `<li><div class="grow"><b>${esc(m.title)}</b><div class="small muted">${fmtLocal(m.sendAt)}${m.link ? ' · knop: ' + linkName(m.link) : ''}</div>${m.body ? `<div class="small">${esc(m.body)}</div>` : ''}</div>
+        <div class="row" style="gap:6px;flex:none"><button class="btn ghost small" data-medit="${m.id}">Bewerk</button><button class="btn copper small" data-msend="${m.id}">Nu versturen</button><button class="btn danger small" data-mdel="${m.id}">Verwijder</button></div></li>`).join('')}</ul>`
+        : '<p class="small muted">Nog niets ingepland.</p>'}
+    </section>
+    <section class="card"><h3>Verstuurd (${sent.length})</h3>
+      ${sent.length ? `<ul class="list msg-list">${sent.map(m => `<li><div class="grow"><b>${esc(m.title)}</b><div class="small muted">${new Date(m.sentAt).toLocaleString('nl-NL', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} · ${m.pushCount ?? 0} meldingen bezorgd</div></div></li>`).join('')}</ul>`
+        : '<p class="small muted">Nog niets verstuurd.</p>'}
+    </section>
+    <details class="card" data-keep="msgImport"><summary><b>Meerdere berichten tegelijk toevoegen</b> <span class="small muted">(plak een lijst)</span></summary>
+      <p class="small muted">Plak hier een lijst in JSON, bijvoorbeeld van de quizvragen-assistent. Elk bericht: <code>sendAt</code>, <code>title</code>, <code>body</code> en eventueel <code>link</code>.</p>
+      <div class="field"><label for="mImport">Lijst</label><textarea id="mImport" style="min-height:140px;font-family:monospace" placeholder='[{"sendAt":"2026-11-20T17:00","title":"…","body":"…"}]'></textarea></div>
+      <button class="btn copper" id="mImportBtn">Toevoegen</button>
+    </details></div>`;
+  const form = $('#msgForm');
+  form.oninput = () => { if (!editing) editing = { kind: 'msg', data: { ...f } }; };
+  form.onsubmit = async e => { e.preventDefault();
+    const body = { id: edit?.id, title: $('#mTitle').value, body: $('#mBody').value, link: $('#mLink').value || null, sendAt: $('#mAt').value || null };
+    const r = await act($('#mSave'), () => A.post('/api/staff/messages', body), body.sendAt ? 'Ingepland. BAMIGO verstuurt het vanzelf.' : 'Verstuurd.');
+    if (r) { editing = null; render(); } };
+  if ($('#mCancel')) $('#mCancel').onclick = () => { editing = null; render(); };
+  $('#mImport').oninput = () => { if (!editing) editing = { kind: 'msg', data: null }; };
+  $('#mImportBtn').onclick = async e => {
+    let list; try { list = JSON.parse($('#mImport').value); } catch { return toast('Dit is geen geldige lijst. Controleer de haakjes en aanhalingstekens.', 'bad'); }
+    const r = await act(e.target, () => A.post('/api/staff/messages/import', list));
+    if (r) { toast(`${r.imported} berichten ingepland.`); editing = null; render(); }
+  };
+  $$('[data-medit]').forEach(b => b.onclick = () => { const m = M.list.find(x => x.id === b.dataset.medit); editing = { kind: 'msg', data: { ...m, link: m.link || '' } }; msgsTab(view); bindKeep(); window.scrollTo(0, 0); });
+  $$('[data-msend]').forEach(b => b.onclick = () => { if (confirm('Dit bericht nu naar alle spelers sturen?')) act(b, () => A.post(`/api/staff/messages/${b.dataset.msend}/send`), 'Verstuurd.'); });
+  $$('[data-mdel]').forEach(b => b.onclick = () => { if (confirm('Dit bericht verwijderen?')) act(b, () => A.del(`/api/staff/messages/${b.dataset.mdel}`), 'Verwijderd.'); });
+}
+function bindKeep() { $$('details[data-keep]').forEach(d => { if (openDetails.has(d.dataset.keep)) d.open = true; d.ontoggle = () => { d.open ? openDetails.add(d.dataset.keep) : openDetails.delete(d.dataset.keep); }; }); }
+
 function extraTab(v) {
   const teams = v.teams;
   const shotsHtml = v.shots ? `<section class="card"><h3>Shot in het duister</h3>
