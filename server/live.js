@@ -4,6 +4,9 @@ import { id, json } from './db.js';
 import { HttpError, bad, deny, notFound } from './auth.js';
 import { judgeOpen, speedScore, competitionRanks, pointsForRank, sameArray } from './scoring.js';
 import * as M from './modules.js';
+import { randomInt } from 'node:crypto';
+
+export const ROULETTE_TASKS = ['Neem een shotje!', 'Neem 3 slokken!', 'Neem een 0.0-shotje!'];
 
 export const ADVICE_TYPES = ['mc', 'tf', 'open', 'number', 'ranking'];
 export const CAPTAIN_STREAK = 3;
@@ -313,6 +316,40 @@ export class Live {
    * Captain-wissel: na CAPTAIN_STREAK foute teamantwoorden op rij van dezelfde captain
    * gaat de rol naar de teamgenoot met de meeste goede adviezen. Uit te zetten per avond.
    */
+  /**
+   * Shot-roulette: kies op de server één willekeurige aangemelde speler (niet uitgesloten,
+   * niet twee keer achter elkaar dezelfde). Geen punten; alleen eer en een shotje.
+   */
+  roulette(eventId, actor, { task, exclude } = {}) {
+    const out = this.db.tx(() => {
+      const ev = this.db.get('SELECT settings FROM events WHERE id = ?', eventId);
+      const settings = json(ev.settings, {});
+      const ex = Array.isArray(exclude) ? exclude.map(String).slice(0, 200) : settings.rouletteExclude || [];
+      if (Array.isArray(exclude)) this.db.run('UPDATE events SET settings = ? WHERE id = ?', JSON.stringify({ ...settings, rouletteExclude: ex }), eventId);
+      let pool = this.db.all(`SELECT p.id, p.name, t.name AS team FROM participants p LEFT JOIN memberships m ON m.participant_id = p.id LEFT JOIN teams t ON t.id = m.team_id
+        WHERE p.event_id = ? AND p.joined_at IS NOT NULL ORDER BY p.name`, eventId).filter(p => !ex.includes(p.id));
+      if (!pool.length) bad('Er is niemand om te kiezen. Zijn er spelers aangemeld (en niet allemaal uitgesloten)?');
+      const prev = json(this.state(eventId).roulette, null)?.winner?.id;
+      const candidates = pool.length > 1 ? pool.filter(p => p.id !== prev) : pool;
+      const w = candidates[randomInt(candidates.length)];
+      const names = pool.map(p => p.name);
+      for (let i = names.length - 1; i > 0; i--) { const j = randomInt(i + 1); [names[i], names[j]] = [names[j], names[i]]; }
+      const r = { id: id('r_'), at: this.clock() + 400, task: String(task || '').trim().slice(0, 80) || ROULETTE_TASKS[0], names, winner: { id: w.id, name: w.name, team: w.team || null } };
+      const s = this.state(eventId);
+      this.db.run('UPDATE live_state SET roulette = ?, seq = ?, updated_at = ? WHERE event_id = ?', JSON.stringify(r), s.seq + 1, this.clock(), eventId);
+      this.audit(eventId, actor, 'roulette', { winner: w.name, task: r.task });
+      return r;
+    });
+    this.notify(eventId);
+    return out;
+  }
+
+  rouletteClose(eventId, actor) {
+    const s = this.state(eventId);
+    this.db.run('UPDATE live_state SET roulette = NULL, seq = ?, updated_at = ? WHERE event_id = ?', s.seq + 1, this.clock(), eventId);
+    this.notify(eventId);
+  }
+
   rotateCaptains(eventId, qid, actor) {
     const ev = this.db.get('SELECT settings FROM events WHERE id = ?', eventId);
     if (json(ev.settings, {}).autoCaptain === false) return [];

@@ -60,3 +60,8 @@ details.card.more { padding: 14px 18px; }
 .msg-list li { display: flex; gap: 12px; align-items: flex-start; flex-wrap: wrap; padding: 12px 0; border-bottom: 1px solid var(--line); }
 .msg-list li:last-child { border-bottom: 0; }
 .msg-list li .grow { flex: 1 1 260px; min-width: 0; }
+
+/* shot-roulette */
+.roulette-card { border-color: var(--copper); }
+.rl-ex { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 4px 12px; margin-top: 8px; }
+.rl-ex .check { margin: 0; }

@@ -208,6 +208,8 @@ export async function buildApp({ dbFile = process.env.BAMIGO_DB || path.join(roo
       const qid = live.nextQuestionId(s.event.id); if (!qid) bad('Er is geen volgende vraag.');
       return { live: live.action(s.event.id, actorOf(s), { action: 'prepare', questionId: qid, seq: body.seq }) };
     }
+    if (body.action === 'roulette') { live.roulette(s.event.id, actorOf(s), { task: body.task, exclude: body.exclude }); return { live: live.state(s.event.id) }; }
+    if (body.action === 'roulette_close') { live.rouletteClose(s.event.id, actorOf(s)); return { live: live.state(s.event.id) }; }
     if (body.action === 'prev_question') {
       const qid = live.prevQuestionId(s.event.id); if (!qid) bad('Er is geen vorige vraag.');
       return { live: live.action(s.event.id, actorOf(s), { action: 'goto', questionId: qid, seq: body.seq }) };

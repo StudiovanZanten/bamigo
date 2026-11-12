@@ -1,12 +1,14 @@
 // TV-/presentatiescherm. Krijgt alleen de display-view: nooit antwoorden vóór de onthulling.
 import { $, esc, LETTERS, tokenFromHash, connect, connBanner, fmtTime, mascot, sound, mediaUrl, ROUND_LABEL } from './common.js';
+import { rouletteDriver } from './roulette.js';
 
 const stage = $('#stage');
 const token = tokenFromHash('k', 'displayToken');
 let conn, view, lastKey = '', prevScreen = null;
+const roul = rouletteDriver({ now: () => conn.now(), kind: 'tv' });
 
 if (!token) stage.innerHTML = `<div class="stage-body center"><div class="brand xl">BAMIGO</div><p>Open dit scherm via de tv-link uit het beheer.</p></div>`;
-else conn = connect({ kind: 'staff', token, onState: v => { if (v.kind !== 'display') { stage.innerHTML = '<p>Deze link is geen tv-link.</p>'; return; } view = v; render(); }, onStatus: s => connBanner(s === 'synced' ? 'online' : s) });
+else conn = connect({ kind: 'staff', token, onState: v => { if (v.kind !== 'display') { stage.innerHTML = '<p>Deze link is geen tv-link.</p>'; return; } view = v; roul.set(v.live.roulette); render(); }, onStatus: s => connBanner(s === 'synced' ? 'online' : s) });
 
 $('#startBtn').onclick = async () => {
   sound.unlock();

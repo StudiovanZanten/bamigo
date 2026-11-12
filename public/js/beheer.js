@@ -180,6 +180,7 @@ function liveTab(v) {
         <span class="small muted">Spelcode <b class="code">${esc(v.event.joinCode)}</b></span>
       </div>
     </div>
+    ${rouletteCard(v)}
     <details class="card more" data-keep="liveMore"><summary>Meer opties (scorebord, pauze, vraag schrappen)</summary>
       <p class="small muted" style="margin:12px 0 6px">Wat staat er op de tv?</p><div class="row">
       <button class="btn ghost small" data-act="screen_scoreboard">Scorebord</button>
@@ -222,7 +223,41 @@ function liveTab(v) {
   $$('[data-prepare]').forEach(b => b.onclick = () => act(b, () => live('goto', { questionId: b.dataset.prepare })));
   $$('[data-judge]').forEach(b => b.onclick = () => act(b, () => A.post('/api/staff/judge', { submissionId: b.dataset.judge, verdict: b.dataset.v })));
   bindAdjust();
+  bindRoulette(v);
   tickLive();
+}
+
+// ---------- SHOT-ROULETTE ----------
+let rlEx = null; // lokale keuze 'doet niet mee' (overleeft verversen van het scherm)
+const RL_TASKS = ['Neem een shotje!', 'Neem 3 slokken!', 'Neem een 0.0-shotje!'];
+function rouletteCard(v) {
+  const r = v.live.roulette; const ex = rlEx ?? v.event.settings?.rouletteExclude ?? [];
+  const people = [...v.teams.flatMap(t => t.members), ...(v.unassigned || [])].filter(m => m.joined).sort((a, b) => a.name.localeCompare(b.name));
+  const pick = prefs.get('rlTask', RL_TASKS[0]);
+  const custom = !RL_TASKS.includes(pick);
+  const active = r && v.serverNow - r.at < 40000;
+  return `<div class="card roulette-card"><div class="row" style="justify-content:space-between;align-items:baseline"><h3 style="margin:0">BAMIGO Shot-roulette</h3><span class="small muted">tussen de rondes · geen punten</span></div>
+    <p class="small muted" style="margin:6px 0 12px">BAMIGO kiest willekeurig één speler. Op tv en telefoons: “BAMIGOOO SHOTSS, wie is de Lul!?”, aftellen, en dan de winnaar.</p>
+    <div class="row"><select id="rlTask" style="width:auto;min-width:200px">${RL_TASKS.map(t => `<option ${t === pick ? 'selected' : ''}>${t}</option>`).join('')}<option value="__eigen" ${custom ? 'selected' : ''}>Zelf typen…</option></select>
+      <input id="rlCustom" maxlength="80" placeholder="Bijv. Zing het Wilhelmus" value="${custom ? esc(pick) : ''}" ${custom ? '' : 'hidden'} style="width:auto;flex:1;min-width:180px">
+      <button class="btn copper" id="rlGo" ${people.length - ex.filter(id => people.some(p => p.id === id)).length ? '' : 'disabled'}>Draai de shot-roulette!</button></div>
+    ${r ? `<p class="small" style="margin:12px 0 0">${active ? 'Nu op tv' : 'Laatste winnaar'}: <b>${esc(r.winner.name)}</b> · ${esc(r.task)} ${active ? '<button class="btn ghost small" id="rlClose">Weghalen van tv</button>' : ''}</p>` : ''}
+    <details data-keep="rlEx" style="margin-top:10px"><summary class="small">Wie doet niet mee? ${ex.length ? `(${ex.length} uitgesloten)` : ''}</summary>
+      ${people.length ? `<div class="rl-ex">${people.map(p => `<label class="check"><input type="checkbox" data-rlex="${p.id}" ${ex.includes(p.id) ? 'checked' : ''}> ${esc(p.name)}</label>`).join('')}</div>
+      <p class="small muted" style="margin:6px 0 0">Aangevinkt = wordt nooit gekozen (bijv. wie niet drinkt). Wordt bewaard bij de volgende draai.</p>` : '<p class="small muted">Nog niemand aangemeld.</p>'}</details>
+  </div>`;
+}
+function bindRoulette(v) {
+  const sel = $('#rlTask'); if (!sel) return;
+  sel.onchange = () => { const c = sel.value === '__eigen'; $('#rlCustom').hidden = !c; if (c) $('#rlCustom').focus(); else prefs.set('rlTask', sel.value); };
+  $('#rlCustom').onchange = e => prefs.set('rlTask', e.target.value.trim() || RL_TASKS[0]);
+  $$('[data-rlex]').forEach(c => c.onchange = () => { rlEx = $$('[data-rlex]').filter(x => x.checked).map(x => x.dataset.rlex); });
+  $('#rlGo').onclick = e => {
+    const task = sel.value === '__eigen' ? ($('#rlCustom').value.trim() || RL_TASKS[0]) : sel.value;
+    const exclude = $$('[data-rlex]').filter(c => c.checked).map(c => c.dataset.rlex);
+    act(e.target, () => A.post('/api/staff/live', { action: 'roulette', task, exclude }), 'BAMIGOOO SHOTSS!');
+  };
+  if ($('#rlClose')) $('#rlClose').onclick = e => act(e.target, () => A.post('/api/staff/live', { action: 'roulette_close' }));
 }
 
 function fmtKey(q, k) {

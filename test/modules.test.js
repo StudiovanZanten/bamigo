@@ -271,3 +271,21 @@ test('berichten: Nederlandse tijd, inplannen, één keer bezorgen, alleen verstu
   await MSG.deliverDue(db, Date.now() + 1, { push: false });
   assert.equal(MSG.playerMessages(db, E).length, 2);
 });
+
+test('shot-roulette: alleen aangemelde spelers, uitsluiten werkt, nooit twee keer achter elkaar dezelfde', () => {
+  const { db, live, E, P } = setup();
+  const r1 = live.roulette(E, 'test', { task: 'Neem 3 slokken!', exclude: [P.a1.id] });
+  assert.equal(r1.task, 'Neem 3 slokken!');
+  assert.notEqual(r1.winner.id, P.a1.id);
+  assert.ok(r1.names.length === 10 && !r1.names.includes('a1'));
+  let prev = r1.winner.id;
+  for (let i = 0; i < 30; i++) { const r = live.roulette(E, 'test', {}); assert.notEqual(r.winner.id, prev); assert.notEqual(r.winner.id, P.a1.id); prev = r.winner.id; }
+  assert.deepEqual(JSON.parse(db.get('SELECT settings FROM events WHERE id = ?', E).settings).rouletteExclude, [P.a1.id]);
+  const all = Object.values(P).map(p => p.id);
+  assert.throws(() => live.roulette(E, 'test', { exclude: all }), /niemand/);
+  const one = all.filter(x => x !== P.b1.id);
+  assert.equal(live.roulette(E, 'test', { exclude: one }).winner.id, P.b1.id);
+  assert.equal(live.roulette(E, 'test', { exclude: one }).winner.id, P.b1.id); // enige kandidaat mag wel opnieuw
+  live.rouletteClose(E, 'test');
+  assert.equal(live.state(E).roulette, null);
+});

@@ -1,5 +1,6 @@
 // Spelersomgeving: aanmelden via code/QR, sessie hervatten, antwoorden met echte ontvangstbevestiging.
 import { $, $$, esc, LETTERS, prefs, tokenFromHash, api, connect, toast, connBanner, fmtTime, mascot, sound, mediaUrl, ROUND_LABEL } from './common.js';
+import { rouletteDriver } from './roulette.js';
 
 const app = $('#app');
 let token = tokenFromHash('t', 'playerToken');
@@ -74,12 +75,13 @@ async function lookup(code) {
 }
 
 // ---------- verbonden ----------
+const roul = rouletteDriver({ now: () => conn.now(), meId: () => view?.me?.id, kind: 'phone' });
 function start() {
   checkPush();
   app.innerHTML = '<p class="center muted" style="margin-top:40px">Verbinden…</p>';
   conn = connect({
     kind: 'player', token,
-    onState: v => { noticeNew(v); view = v; render(); },
+    onState: v => { noticeNew(v); view = v; roul.set(v.live.roulette); render(); },
     onStatus: (s, clock) => {
       const el = $('#status');
       const map = { online: ['ok', 'Verbonden'], synced: ['ok', 'Verbonden'], offline: ['bad', 'Verbinding weg'], reconnecting: ['warn', 'Opnieuw verbinden'], unauthorized: ['bad', 'Sessie ongeldig'] };

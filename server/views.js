@@ -70,7 +70,7 @@ function revealInfo(live, s) {
 
 function liveInfo(live, s, t) {
   return { screen: s.screen, phase: s.phase, paused: !!s.paused, seq: s.seq, openAt: s.open_at, deadline: s.deadline,
-    pausedAt: s.paused_at, message: s.message, round: roundInfo(live.db, s.round_id), banner: s.banner ? json(s.banner) : null };
+    pausedAt: s.paused_at, message: s.message, round: roundInfo(live.db, s.round_id), banner: s.banner ? json(s.banner) : null, roulette: s.roulette ? json(s.roulette) : null };
 }
 
 function teamsWithMembers(db, eventId, online) {

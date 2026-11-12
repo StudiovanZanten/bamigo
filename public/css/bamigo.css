@@ -143,3 +143,22 @@ input.code { font-family: var(--display); font-size: 2rem; letter-spacing: .3em;
 .list { list-style: none; padding: 0; margin: 0; }
 .list > li { padding: 10px 0; border-bottom: 1px solid var(--line); display: flex; gap: 10px; align-items: center; }
 .kbd { font: 600 .75rem var(--body); border: 1px solid var(--line); border-radius: 4px; padding: 1px 6px; color: var(--muted); }
+
+/* BAMIGO Shot-roulette */
+.roulette { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; text-align: center; padding: 24px;
+  background: radial-gradient(circle at 50% 45%, #3a1a0c 0%, #151515 70%); color: var(--ivory); animation: pop .3s ease-out; }
+.rl-in { display: grid; gap: 10px; justify-items: center; max-width: 100%; }
+.rl-kicker { font-family: var(--body); font-weight: 700; letter-spacing: .3em; text-transform: uppercase; color: var(--copper-text); font-size: clamp(1rem, 2.4vw, 2.4rem); }
+.rl-title { font-family: var(--display); font-size: clamp(5rem, 18vw, 20vw); line-height: .9; color: var(--copper); text-shadow: 0 0 40px #bf5b2c88; animation: rlPulse .5s ease-in-out infinite alternate; }
+.rl-sub { font-family: var(--display); font-size: clamp(1.8rem, 5vw, 5vw); line-height: 1.05; }
+.rl-name { font-family: var(--display); font-size: clamp(3.2rem, 13vw, 13vw); line-height: 1; overflow-wrap: anywhere; }
+.rl-count { font-family: var(--display); font-size: clamp(2.4rem, 7vw, 7vw); color: var(--copper); width: 1.6em; height: 1.6em; border: 4px solid var(--copper); border-radius: 50%; display: grid; place-items: center; line-height: 1; }
+.rl-count.bump { animation: rlBump .35s ease-out; }
+.rl-team { font-size: clamp(1rem, 2vw, 2rem); color: var(--muted); }
+.rl-task { margin-top: 8px; background: var(--copper); color: var(--ivory); font-family: var(--display); font-size: clamp(1.6rem, 4.5vw, 4.5vw); padding: .25em .8em; border-radius: 10px; }
+.rl-vamos { font-family: var(--display); color: var(--champagne); font-size: clamp(1.2rem, 2.6vw, 2.6vw); letter-spacing: .05em; }
+.win .rl-name { color: var(--copper-text); animation: rlPulse .6s ease-in-out infinite alternate; }
+@keyframes rlPulse { from { transform: scale(1); } to { transform: scale(1.06); } }
+@keyframes rlBump { from { transform: scale(1.5); } to { transform: scale(1); } }
+.reduce-motion .roulette *, .reduce-motion .roulette { animation: none !important; }
+@media (prefers-reduced-motion: reduce) { .roulette, .roulette * { animation: none !important; } }
