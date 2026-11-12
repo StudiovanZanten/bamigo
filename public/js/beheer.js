@@ -351,6 +351,7 @@ function openQuestionEditor(q) {
     <div class="row" id="modRow">
       <div class="field" id="shotNrWrap" style="width:160px"><label for="qShotNr">Shotnummer</label><input id="qShotNr" type="number" min="1" max="50" value="${q.settings?.shotNumber ?? ''}"></div>
       <label class="check" id="kompWrap" style="margin:0"><input type="checkbox" id="qKomp" ${q.settings?.kompaan ? 'checked' : ''}> Ken je kompaan (aangewezen teamgenoten antwoorden ieder zelf; zelfde antwoord = punten)</label>
+      <label class="check" id="topWrap" style="margin:0"><input type="checkbox" id="qTop" ${(q.settings?.top || 1) > 1 ? 'checked' : ''}> Top 3 voorspellen (2 pt per goede plek, 1 pt als de naam wel in de top 3 staat)</label>
       <p class="small muted" id="modHelp" style="margin:0"></p></div>
     <div class="row"><label class="check" style="margin:0"><input type="checkbox" id="qBet" ${q.allowBet ? 'checked' : ''}> Inzetten toestaan (1–3)</label>
       <label class="check" style="margin:0"><input type="checkbox" id="qEx" ${q.isExample ? 'checked' : ''}> Voorbeeldvraag (markering)</label></div>
@@ -362,6 +363,7 @@ function openQuestionEditor(q) {
     const special = ['ranking', 'shot', 'invest'].includes(t);
     $('#shotNrWrap').hidden = t !== 'shot';
     $('#kompWrap').hidden = !['mc', 'tf', 'open'].includes(t);
+    $('#topWrap').hidden = t !== 'ranking';
     $('#qCorrectSlot').closest('.field').hidden = special || $('#qKomp').checked;
     if (special) $('#qScope').value = 'team';
     if ($('#qKomp').checked) $('#qScope').value = 'individual';
@@ -386,6 +388,7 @@ function openQuestionEditor(q) {
     let correct = $('#qCorrect')?.value ?? null;
     let settings = { ...(q.settings || {}), kompaan: ['mc', 'tf', 'open'].includes(t) && $('#qKomp').checked };
     if (t === 'shot') settings.shotNumber = Number($('#qShotNr').value);
+    if (t === 'ranking') settings.top = $('#qTop').checked ? 3 : 1;
     if (['ranking', 'shot', 'invest'].includes(t)) correct = null;
     if (t === 'mc' || t === 'tf') correct = correct === '' ? null : Number(correct);
     if (t === 'order') { correct = options.map((_, i) => i); const sh = shuffle(options.map((_, i) => i)); const shuffled = sh.map(i => options[i]); correct = options.map(o => shuffled.indexOf(o)); options = shuffled; }

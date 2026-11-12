@@ -218,3 +218,22 @@ test('teamadvies: wissel staat uit als de avond dat zegt', () => {
   }
   assert.equal(db.get('SELECT participant_id FROM memberships WHERE team_id = ? AND is_captain = 1', T.A).participant_id, P.a1.id);
 });
+
+test('ranking top 3: 2 pt per goede plek, 1 pt als de naam wel in de top 3 staat, gedeelde plekken tellen mee', () => {
+  const { db, live, E, P, run, pts } = setup();
+  const r = C.upsertRound(db, E, { kind: 'ranking', title: 'R' });
+  const q = C.upsertQuestion(db, E, { roundId: r, type: 'ranking', prompt: 'wie?', seconds: 30, settings: { top: 3 } });
+  // stemmen: b1 4x, c1 3x, d1 2x, e1 2x (gedeeld 3e)
+  const vote = (voters, who) => voters.forEach(v => M.castVote(db, E, P[v], { questionId: q, choiceId: P[who].id }));
+  vote(['a1', 'a2', 'c1', 'd1'], 'b1'); vote(['a1x', 'b1', 'b2'].filter(x => P[x]), 'c1'); M.castVote(db, E, P.e1, { questionId: q, choiceId: P.c1.id });
+  vote(['e2', 'e3'], 'd1'); vote(['c2', 'd2'], 'e1');
+  const ranked = M.rankingTop(db, q).ranked;
+  assert.deepEqual(ranked.slice(0, 4).map(x => [x.name, x.rank]), [['b1', 1], ['c1', 2], ['d1', 3], ['e1', 3]]);
+  run('prepare', { questionId: q }); run('open');
+  assert.throws(() => live.submit(E, P.a1, { questionId: q, answer: [P.b1.id] }), /3/);
+  live.submit(E, P.a1, { questionId: q, answer: [P.b1.id, P.c1.id, P.e1.id] });   // A: 2+2+2 = 6
+  live.submit(E, P.b1, { questionId: q, answer: [P.c1.id, P.b1.id, P.a1.id] });   // B: 1+1+0 = 2
+  live.submit(E, P.c1, { questionId: q, answer: [P.a1.id, P.a2.id, P.b2.id] });   // C: 0
+  run('close'); run('reveal'); run('score');
+  const p = pts(); assert.equal(p.A, 6); assert.equal(p.B, 2); assert.equal(p.C, 0);
+});

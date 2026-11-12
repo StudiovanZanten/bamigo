@@ -15,6 +15,27 @@ export function rankingTotals(db, qid) {
   return { rows, winners: rows.filter(r => r.votes === max && max > 0).map(r => r.id), valid: rows.reduce((a, r) => a + r.votes, 0) };
 }
 
+/** Top-N uit de stemmen met gedeelde plekken (competitierang). */
+export function rankingTop(db, qid) {
+  const { rows, valid } = rankingTotals(db, qid);
+  let rank = 0, prev = null;
+  const ranked = rows.map((r, i) => { if (r.votes !== prev) { rank = i + 1; prev = r.votes; } return { ...r, rank }; });
+  // span: hoeveel plekken een gedeelde rang beslaat (2x gedeeld 1e = plek 1 en 2)
+  for (const r of ranked) r.span = ranked.filter(x => x.rank === r.rank).length;
+  return { ranked, valid };
+}
+/** Punten voor een top-N voorspelling: 2 per naam op de goede plek, 1 per naam die wel in de top-N staat. */
+export function scoreTopPrediction(ranked, picks, top) {
+  let pts = 0; const detail = [];
+  picks.forEach((id, i) => {
+    const pos = i + 1; const r = ranked.find(x => x.id === id);
+    if (r && r.rank <= top && pos >= r.rank && pos <= r.rank + r.span - 1) { pts += 2; detail.push(2); }
+    else if (r && r.rank <= top) { pts += 1; detail.push(1); }
+    else detail.push(0);
+  });
+  return { pts, detail };
+}
+
 export function castVote(db, eventId, participant, { questionId, choiceId }) {
   const q = db.get("SELECT * FROM questions WHERE id = ? AND event_id = ? AND type = 'ranking'", questionId, eventId) || notFound('Rankingvraag niet gevonden');
   const live = db.get('SELECT question_id FROM live_state WHERE event_id = ?', eventId);
@@ -131,6 +152,15 @@ export function checkModuleSubmit(db, q, participant, membership) {
 // ---------- scoren per type ----------
 /** Geeft true als de vraag door een module is gescoord. `add(teamId, participantId, board, sourceSuffix, points, reason)` */
 export function scoreModule(db, q, key, subs, add) {
+  if (q.type === 'ranking' && (q.settings?.top || 1) > 1) {
+    const top = q.settings.top; const { ranked, valid } = rankingTop(db, q.id);
+    for (const s of subs) {
+      const { pts } = valid > 0 ? scoreTopPrediction(ranked, JSON.parse(s.answer), top) : { pts: 0 };
+      db.run('UPDATE submissions SET verdict = ? WHERE id = ?', valid > 0 ? (pts > 0 ? 'correct' : 'wrong') : null, s.id);
+      if (pts) add(s.team_id, s.participant_id, q.scope === 'individual' ? 'individual' : 'team', s.owner_key, pts, `Top ${top}: ${pts} punten`);
+    }
+    return true;
+  }
   if (q.type === 'ranking') {
     const { winners, valid } = rankingTotals(db, q.id);
     for (const s of subs) {
@@ -184,6 +214,10 @@ export function scoreModule(db, q, key, subs, add) {
 
 /** Onthullingsinformatie per type (alleen na onthulling aangeroepen). */
 export function revealModule(db, q) {
+  if (q.type === 'ranking' && (q.settings?.top || 1) > 1) {
+    const top = q.settings.top; const { ranked, valid } = rankingTop(db, q.id);
+    return { ranking: { topN: top, top: ranked.filter(r => r.rank <= Math.max(top, 3)).slice(0, 6).map(r => ({ id: r.id, name: r.name, votes: r.votes, rank: r.rank, winner: r.rank <= top })), valid, skipped: valid === 0 } };
+  }
   if (q.type === 'ranking') {
     const { rows, winners, valid } = rankingTotals(db, q.id);
     return { ranking: { top: rows.slice(0, 5).map(r => ({ name: r.name, votes: r.votes, winner: winners.includes(r.id) })), valid, skipped: valid === 0 } };

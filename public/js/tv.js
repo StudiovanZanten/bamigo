@@ -76,11 +76,12 @@ function question(v, q) {
   const r0 = v.result || {};
   const eur = n => '€' + Number(n).toLocaleString('nl-NL');
   if (q.type === 'shot') reveal = `<p class="intro-sub">Allergenen shot ${q.shotNumber}: <b>${esc(q.allergens)}</b> · Proeven is vrijwillig.</p>${L.phase === 'closed' ? '<p class="counter">Vastgezet. De onthulling volgt na het laatste shot.</p>' : ''}`;
-  if (q.type === 'ranking' && !revealed) reveal = '<p class="intro-sub">Teams voorspellen op de telefoon wie de groep het vaakst koos.</p>';
+  if (q.type === 'ranking' && !revealed) reveal = `<p class="intro-sub">${q.top > 1 ? `Teams voorspellen op de telefoon de top ${q.top} van de groep.` : 'Teams voorspellen op de telefoon wie de groep het vaakst koos.'}</p>`;
   if (q.type === 'invest' && !revealed) reveal = `<p class="intro-sub">Verdeel ${eur(q.budget)} fictief over de andere teams. Alles blijft geheim tot de onthulling.</p>`;
   if (q.kompaan && !revealed) reveal = '<p class="intro-sub">Ken je kompaan: de aangewezen teamgenoten antwoorden ieder zelf. Niet overleggen!</p>';
   if (revealed && (r0.ranking || r0.invest || r0.kompaan)) {
-    if (r0.ranking) reveal = r0.ranking.skipped ? '<p class="intro-sub">Geen geldige stemmen: deze vraag vervalt.</p>' : bars(r0.ranking.top.map(x => ({ label: x.name + (x.winner ? '  🏆' : ''), value: x.votes, hl: x.winner })), x => x + (x === 1 ? ' stem' : ' stemmen'));
+    if (r0.ranking?.topN) reveal = r0.ranking.skipped ? '<p class="intro-sub">Geen geldige stemmen: deze vraag vervalt.</p>' : `<div class="tv-podium">${r0.ranking.top.filter(x => x.winner).slice().reverse().map((x, i) => `<div class="pod pod-${x.rank}" style="animation-delay:${i * 0.9}s"><span class="r">${x.rank}</span><span class="n">${esc(x.name)}</span><span class="v">${x.votes} ${x.votes === 1 ? 'stem' : 'stemmen'}</span></div>`).join('')}</div>`;
+    else if (r0.ranking) reveal = r0.ranking.skipped ? '<p class="intro-sub">Geen geldige stemmen: deze vraag vervalt.</p>' : bars(r0.ranking.top.map(x => ({ label: x.name + (x.winner ? '  🏆' : ''), value: x.votes, hl: x.winner })), x => x + (x === 1 ? ' stem' : ' stemmen'));
     if (r0.invest) reveal = bars(r0.invest.map((x, i) => ({ label: x.name, value: x.total, hl: i === 0 })), eur);
     if (r0.kompaan) reveal = `<table class="board" style="margin-top:1vw"><tbody>${r0.kompaan.map(k => `<tr><td>${esc(k.team)}</td>${k.answers.map(a => `<td>${esc(a.name)}: <b>${esc(a.answer == null ? '—' : (q.options && (q.type === 'mc' || q.type === 'tf')) ? q.options[a.answer] : a.answer)}</b></td>`).join('')}<td class="pts">${k.match ? '✓' : '✗'}</td></tr>`).join('')}</tbody></table>`;
   } else if (revealed) {

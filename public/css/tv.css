@@ -57,3 +57,14 @@ body.tv { overflow: hidden; cursor: default; }
 .tv-banner p { margin: 0; font-size: 1.6vw; color: var(--ivory); opacity: .9; }
 @keyframes bannerOut { to { opacity: 0; visibility: hidden; } }
 @media (prefers-reduced-motion: reduce) { .tv-banner { animation-duration: 0s; } }
+
+.tv-podium { display: flex; flex-direction: column-reverse; gap: 1vw; margin-top: 1.5vw; max-width: 60vw; }
+.tv-podium .pod { display: grid; grid-template-columns: 5vw 1fr auto; align-items: center; gap: 1.5vw; padding: 1vw 1.6vw; border-radius: .8vw; background: var(--raised); border: 2px solid var(--line);
+  opacity: 0; animation: podIn .6s ease forwards; }
+.tv-podium .pod-1 { border-color: var(--copper); background: var(--copper-deep); }
+.tv-podium .r { font-family: var(--display); font-size: 3.4vw; color: var(--copper-text); }
+.tv-podium .pod-1 .r { color: var(--ivory); }
+.tv-podium .n { font-family: var(--display); font-size: 3vw; color: var(--ivory); }
+.tv-podium .v { font-size: 1.4vw; color: var(--champagne); }
+@keyframes podIn { from { opacity: 0; transform: translateY(1vw); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .tv-podium .pod { animation: none; opacity: 1; } }

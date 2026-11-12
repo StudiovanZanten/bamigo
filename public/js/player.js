@@ -95,7 +95,7 @@ function start() {
 function render() {
   const v = view; if (!v) return;
   const q = v.question; const L = v.live;
-  if (q?.id !== draft.qid) { draft = { qid: q?.id ?? null, choice: null, text: '', bet: null, order: q?.options ? q.options.map((_, i) => i) : null, shot: { flavor: '', base: '', teamId: '' }, invest: {} }; sending = null; }
+  if (q?.id !== draft.qid) { draft = { qid: q?.id ?? null, choice: null, picks: [], text: '', bet: null, order: q?.options ? q.options.map((_, i) => i) : null, shot: { flavor: '', base: '', teamId: '' }, invest: {} }; sending = null; }
   if (q?.options && !draft.order) draft.order = q.options.map((_, i) => i);
   // Structuursleutel: alleen opnieuw opbouwen als er echt iets verandert (behoudt focus en invoer).
   const key = JSON.stringify([L.screen, L.phase, L.paused, L.seq, q?.id, q?.visible, v.mine, v.me, v.team?.members, sending, v.result && v.result.total, v.scoreboard, L.message, v.advice, L.banner]);
@@ -168,7 +168,16 @@ function questionScreen(v, q) {
   }
   if (q.type === 'shot') return out + shotQuestion(v, q, mine, canAnswer, notCaptain);
   if (q.type === 'invest') return out + investQuestion(v, q, mine, canAnswer, notCaptain);
-  if (q.type === 'ranking') {
+  if (q.type === 'ranking' && q.top > 1) {
+    const picks = mine ? mine.answer : advising ? (draft.picks.length ? draft.picks : (myAdvice?.answer || [])) : draft.picks;
+    const nameOf = id => q.candidates.find(c => c.id === id)?.name || '?';
+    out += `<p class="small muted" style="margin:0 0 10px">${tappable ? `Tik ${q.top} namen aan, in volgorde: eerst wie volgens jullie op 1 staat.` : `Jullie top ${q.top}:`}</p>
+      <ol class="podium">${Array.from({ length: q.top }, (_, i) => `<li class="${picks[i] ? 'filled' : ''}"><span class="pos">${i + 1}</span><span>${picks[i] ? esc(nameOf(picks[i])) : '…'}</span></li>`).join('')}</ol>`;
+    if (q.scope === 'team' && v.advice?.length && !revealed) out += `<ul class="adv-list">${v.advice.map(a => `<li><b>${esc(a.mine ? 'Jij' : a.name)}</b><span>${a.answer.map(nameOf).map(esc).join(', ')}</span></li>`).join('')}</ul>`;
+    if (tappable) out += `<div class="choices cand-grid" role="group" aria-label="Kies namen">${q.candidates.map(c => { const at = picks.indexOf(c.id);
+      return `<button class="choice" data-pick="${c.id}" aria-pressed="${at >= 0}"><span class="grow">${esc(c.name)}</span><span class="mark">${at >= 0 ? at + 1 : ''}</span></button>`; }).join('')}</div>`;
+    if (advising && picks.length === Math.min(q.top, q.candidates.length)) out += `<button id="adviseTop" class="btn copper block" style="margin-top:12px">Advies doorgeven</button>`;
+  } else if (q.type === 'ranking') {
     const chosen = mine ? mine.answer : advising ? myAdvice?.answer : draft.choice;
     out += `<div class="choices" role="group" aria-label="Kies een naam">${q.candidates.map(c => `<button class="choice" data-cand="${c.id}" aria-pressed="${chosen === c.id}" ${tappable ? '' : 'disabled'}><span>${esc(c.name)}</span>${advTag(c.id)}<span class="mark">${chosen === c.id ? (mine ? '✓ Ingestuurd' : advising ? 'Jouw advies' : '● Gekozen') : ''}</span></button>`).join('')}</div>`;
   } else if (q.type === 'mc' || q.type === 'tf') {
@@ -220,7 +229,7 @@ function questionScreen(v, q) {
   return out;
 }
 
-const hasDraft = q => (['mc', 'tf', 'ranking'].includes(q.type)) ? draft.choice !== null : (q.type === 'order' ? true : String(draft.text).trim() !== '');
+const hasDraft = q => q.type === 'ranking' && q.top > 1 ? draft.picks.length === Math.min(q.top, q.candidates.length) : (['mc', 'tf', 'ranking'].includes(q.type)) ? draft.choice !== null : (q.type === 'order' ? true : String(draft.text).trim() !== '');
 
 function boardScreen(v) {
   const sb = v.scoreboard; if (!sb) return '';
@@ -246,6 +255,12 @@ function bind(v, q) {
     draft.choice = i; lastKey = ''; render();
   });
   $$('[data-cand]').forEach(b => b.onclick = () => { if (adv) return advise(q, b.dataset.cand); draft.choice = b.dataset.cand; lastKey = ''; render(); });
+  $$('[data-pick]').forEach(b => b.onclick = () => {
+    const id = b.dataset.pick; const p = draft.picks; const at = p.indexOf(id);
+    if (at >= 0) p.splice(at, 1); else if (p.length < q.top) p.push(id); else { p[q.top - 1] = id; }
+    lastKey = ''; render();
+  });
+  const at3 = $('#adviseTop'); if (at3) at3.onclick = () => advise(q, draft.picks.length ? draft.picks : (view.advice || []).find(a => a.mine)?.answer);
   const ab = $('#adviseBtn'); if (ab) ab.onclick = () => { const a = $('#ans').value.trim(); if (a) advise(q, a); };
   bindShot(q); bindInvest(q);
   $$('[data-bet]').forEach(b => b.onclick = () => { draft.bet = Number(b.dataset.bet) || null; lastKey = ''; render(); });
@@ -253,7 +268,7 @@ function bind(v, q) {
   const ans = $('#ans'); if (ans) ans.oninput = () => { draft.text = ans.value; const sb = $('#submitBtn'); if (sb) sb.disabled = !ans.value.trim(); };
   if (ans) ans.onkeydown = e => { if (e.key === 'Enter' && ans.value.trim()) $('#submitBtn')?.click(); };
   const sb = $('#submitBtn'); if (sb) sb.onclick = () => {
-    const a = ['mc', 'tf', 'ranking'].includes(q.type) ? draft.choice : q.type === 'order' ? draft.order : draft.text;
+    const a = q.type === 'ranking' && q.top > 1 ? draft.picks : ['mc', 'tf', 'ranking'].includes(q.type) ? draft.choice : q.type === 'order' ? draft.order : draft.text;
     send(q, a);
   };
   const md = $('[data-media]'); if (md) mediaUrl(md.dataset.media, { 'x-player-token': token }).then(u => { if (u) md.innerHTML = `<img src="${u}" alt="Afbeelding bij de vraag" style="max-width:100%;border-radius:6px">`; });
@@ -354,6 +369,8 @@ function bindInvest(q) {
 
 function revealExtra(v, q) {
   const r = v.result || {};
+  if (r.ranking?.topN) return r.ranking.skipped ? '<p class="notice">Geen geldige stemmen: deze vraag vervalt.</p>'
+    : `<table class="board" style="margin-top:12px"><tbody>${r.ranking.top.map(x => `<tr class="${x.winner ? 'me' : ''}"><td class="pos">${x.rank}</td><td>${esc(x.name)}</td><td class="pts">${x.votes}</td></tr>`).join('')}</tbody></table><p class="small muted">2 punten per naam op de goede plek, 1 punt als hij wel in de top ${r.ranking.topN} staat.</p>`;
   if (r.ranking) return r.ranking.skipped ? '<p class="notice">Geen geldige stemmen: deze vraag vervalt.</p>'
     : `<table class="board" style="margin-top:12px"><tbody>${r.ranking.top.map(x => `<tr class="${x.winner ? 'me' : ''}"><td>${esc(x.name)}${x.winner ? ' 🏆' : ''}</td><td class="pts">${x.votes}</td></tr>`).join('')}</tbody></table><p class="small muted">Alleen totalen; wie op wie stemde blijft geheim.</p>`;
   if (r.invest) return `<table class="board" style="margin-top:12px"><tbody>${r.invest.map(x => `<tr><td>${esc(x.name)}</td><td class="pts">€${x.total.toLocaleString('nl-NL')}</td></tr>`).join('')}</tbody></table>`;

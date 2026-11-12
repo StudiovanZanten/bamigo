@@ -487,6 +487,12 @@ export function validateAnswer(q, answer, db, eventId, membership) {
       return answer;
     }
     case 'ranking': {
+      const top = q.settings.top || 1;
+      if (top > 1) {
+        const n = Math.min(top, db.get('SELECT COUNT(*) AS n FROM participants WHERE event_id = ?', eventId).n);
+        if (!Array.isArray(answer) || answer.length !== n || new Set(answer).size !== n) bad(`Kies ${n} verschillende namen, in volgorde.`);
+        return answer.map(a => { const p = db.get('SELECT id FROM participants WHERE id = ? AND event_id = ?', String(a), eventId); if (!p) bad('Onbekende naam.'); return p.id; });
+      }
       const p = db.get('SELECT id FROM participants WHERE id = ? AND event_id = ?', String(answer), eventId);
       if (!p) bad('Kies een deelnemer.');
       return p.id;

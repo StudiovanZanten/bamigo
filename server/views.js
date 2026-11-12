@@ -38,6 +38,7 @@ export function publicQuestion(live, s, t) {
     options: visible ? q.options : null,
     right: visible && q.type === 'match' ? (q.settings.right || []) : null,
     kompaan: !!q.settings.kompaan,
+    top: q.type === 'ranking' ? (q.settings.top || 1) : null,
     candidates: visible && q.type === 'ranking' ? live.db.all('SELECT id, name FROM participants WHERE event_id = ? ORDER BY name', q.event_id) : null,
     teams: visible && ['shot', 'invest'].includes(q.type) ? live.db.all('SELECT id, name FROM teams WHERE event_id = ? ORDER BY sort, name', q.event_id) : null,
     budget: q.type === 'invest' ? (q.settings.budget || M.DRAGONS_BUDGET) : null, step: q.type === 'invest' ? M.DRAGONS_STEP : null,
