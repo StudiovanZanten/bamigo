@@ -352,7 +352,8 @@ export async function buildApp({ dbFile = process.env.BAMIGO_DB || path.join(roo
   // ---------- statische bestanden ----------
   await app.register(fastifyStatic, { root: path.join(root, 'public'), prefix: '/', index: false, wildcard: true });
   await app.register(fastifyStatic, { root: path.join(root, 'node_modules', '@fontsource'), prefix: '/fonts/', decorateReply: false });
-  const page = f => (req, reply) => reply.type('text/html; charset=utf-8').send(fs.readFileSync(path.join(root, 'public', f)));
+  // %BASE% wordt het publieke adres, zodat de WhatsApp-preview (og:image) een volledige url heeft
+  const page = f => (req, reply) => reply.type('text/html; charset=utf-8').send(fs.readFileSync(path.join(root, 'public', f), 'utf8').replaceAll('%BASE%', baseUrl(req)));
   app.get('/', page('index.html'));
   app.get('/speel', page('speel.html'));
   app.get('/tv', page('tv.html'));

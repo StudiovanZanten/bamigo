@@ -95,10 +95,10 @@ function question(v, q) {
     if (r0.kompaan) reveal = `<table class="board" style="margin-top:1vw"><tbody>${r0.kompaan.map(k => `<tr><td>${esc(k.team)}</td>${k.answers.map(a => `<td>${esc(a.name)}: <b>${esc(a.answer == null ? '—' : (q.options && (q.type === 'mc' || q.type === 'tf')) ? q.options[a.answer] : a.answer)}</b></td>`).join('')}<td class="pts">${k.match ? '✓' : '✗'}</td></tr>`).join('')}</tbody></table>`;
   } else if (revealed) {
     const r = v.result || {};
-    const ans = (q.type === 'open' || q.type === 'number') && r.correct != null ? `<div class="quote" style="max-width:none;display:inline-block">Antwoord: ${esc(r.correct)}</div>` : q.type === 'order' ? `<div class="quote" style="max-width:none">${[].concat(r.correct).map(i => esc(q.options[i])).join(' → ')}</div>` : '';
-    reveal = `<div class="q-row" style="margin-top:1.4vw">${ans}<div class="counter">${r.correctCount}/${r.total} goed</div>
-      ${r.fastest?.length ? `<div class="counter">Snelst: ${r.fastest.map(f => `${esc(f.name)} ${f.seconds.toFixed(2)}s`).join(' · ')}</div>` : ''}
-      ${r.answers ? `<div class="counter">${r.answers.map(a => `${esc(a.name)}: ${esc(a.value)}`).join(' · ')}</div>` : ''}</div>
+    const ans = (q.type === 'open' || q.type === 'number') && r.correct != null ? `<div class="ans-box"><small>Antwoord</small><b>${esc(r.correct)}</b></div>` : q.type === 'order' ? `<div class="ans-box"><small>Goede volgorde</small><b class="seq">${[].concat(r.correct).map(i => esc(q.options[i])).join(' <i>→</i> ')}</b></div>` : '';
+    reveal = `<div class="ans-row">${ans}<div class="ans-side"><div class="ans-score"><b>${r.correctCount}/${r.total}</b> goed</div>
+      ${r.fastest?.length ? `<div class="ans-chips">${r.fastest.map(f => `<span>⚡ ${esc(f.name)} <b>${f.seconds.toFixed(2)}s</b></span>`).join('')}</div>` : ''}
+      ${r.answers ? `<div class="ans-chips">${r.answers.map(a => `<span>${esc(a.name)} <b>${esc(a.value)}</b></span>`).join('')}</div>` : ''}</div></div>
       ${r.explanation ? `<p class="intro-sub" style="font-size:1.5vw;margin-top:1vw">${esc(r.explanation)}</p>` : ''}`;
   }
   const len = (q.prompt || '').length;

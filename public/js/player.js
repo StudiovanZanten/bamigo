@@ -2,6 +2,7 @@
 import { $, $$, esc, LETTERS, prefs, tokenFromHash, api, connect, toast, connBanner, fmtTime, mascot, sound, mediaUrl, ROUND_LABEL } from './common.js';
 import { rouletteDriver } from './roulette.js';
 import { openDossier } from './dossier.js';
+import { envelopeSvg } from './envelope.js';
 
 const app = $('#app');
 let token = tokenFromHash('t', 'playerToken');
@@ -40,7 +41,7 @@ async function joinScreen(errMsg) {
       <button class="btn primary block big">Verder</button>
     </form>`;
   $('#codeForm').onsubmit = async e => { e.preventDefault(); await lookup($('#code').value.trim()); };
-  if (code) lookup(code);
+  if (code && !errMsg) lookup(code); // bij een fout niet opnieuw proberen (anders eindeloze lus en blokkade voor de hele wifi)
 }
 
 async function lookup(code) {
@@ -97,7 +98,7 @@ function start() {
       const el = $('#status');
       const map = { online: ['ok', 'Verbonden'], synced: ['ok', 'Verbonden'], offline: ['bad', 'Verbinding weg'], reconnecting: ['warn', 'Opnieuw verbinden'], unauthorized: ['bad', 'Sessie ongeldig'] };
       const [cls, txt] = map[s] || ['', s];
-      el.className = 'pill ' + cls; el.innerHTML = `<span class="dot"></span>${txt}`;
+      el.hidden = false; el.className = 'pill ' + cls; el.innerHTML = `<span class="dot"></span>${txt}`;
       connBanner(s === 'synced' ? 'online' : s);
       if (clock.rtt < Infinity) $('#clockInfo').textContent = `Tijd gesynchroniseerd met de server (vertraging ±${Math.round(clock.rtt / 2)} ms).`;
       if (s === 'unauthorized') { prefs.del('playerToken'); token = null; conn.sock.close(); joinScreen('Je sessie is niet meer geldig. Meld je opnieuw aan (of vraag de host om een nieuwe link).'); }
@@ -128,7 +129,7 @@ function render() {
     <p>${esc(L.round?.instructions || '')}</p><div class="host-mascot" style="margin:0 auto">${mascot('welkom')}</div></div>`;
   else if (L.screen === 'scoreboard' || L.screen === 'finale') body = boardScreen(v);
   else if (L.screen === 'shots_reveal') body = shotsRevealScreen(v);
-  else if (L.screen === 'envelopes') body = `<div class="center stack" style="margin-top:20px"><div style="font-size:4rem" aria-hidden="true">✉️</div><h1>De enveloppen gaan open</h1><p class="muted">Kijk naar de tv. Wie voorspelde zijn eigen plek?</p></div>`;
+  else if (L.screen === 'envelopes') body = `<div class="center stack" style="margin-top:20px"><div class="env-phone">${envelopeSvg(false)}</div><h1>De enveloppen gaan open</h1><p class="muted">Kijk naar de tv. Wie voorspelde zijn eigen plek?</p></div>`;
   else if (L.screen === 'break') body = `<div class="center stack"><h1>Pauze</h1><p class="muted">${esc(L.message || 'Even bijtanken. Daarna: VAMOSSS!')}</p></div>`;
   else body = lobbyScreen(v);
   app.innerHTML = head + body + (L.paused ? `<div class="paused" role="alertdialog" aria-label="Gepauzeerd"><div><h1>Gepauzeerd</h1><p class="muted">De host heeft het spel even stilgezet. De tijd staat stil.</p></div></div>` : '');
@@ -295,7 +296,7 @@ function questionScreen(v, q) {
     const picks = mine ? mine.answer : advising ? (draft.picks.length ? draft.picks : (myAdvice?.answer || [])) : draft.picks;
     const nameOf = id => q.candidates.find(c => c.id === id)?.name || '?';
     out += `<p class="small muted" style="margin:0 0 10px">${tappable ? `Tik ${q.top} namen aan, in volgorde: eerst wie volgens jullie op 1 staat.` : `Jullie top ${q.top}:`}</p>
-      <ol class="podium">${Array.from({ length: q.top }, (_, i) => `<li class="${picks[i] ? 'filled' : ''}"><span class="pos">${i + 1}</span><span>${picks[i] ? esc(nameOf(picks[i])) : '…'}</span></li>`).join('')}</ol>`;
+      <ol class="podium">${Array.from({ length: q.top }, (_, i) => `<li class="${picks[i] ? 'filled' : ''}"><span class="pos">${i + 1}</span><span>${picks[i] ? esc(nameOf(picks[i])) : i === picks.filter(Boolean).length ? 'Tik een naam aan' : ''}</span></li>`).join('')}</ol>`;
     if (q.scope === 'team' && v.advice?.length && !revealed) out += `<ul class="adv-list">${v.advice.map(a => `<li><b>${esc(a.mine ? 'Jij' : a.name)}</b><span>${a.answer.map(nameOf).map(esc).join(', ')}</span></li>`).join('')}</ul>`;
     if (tappable) out += `<div class="choices cand-grid" role="group" aria-label="Kies namen">${q.candidates.map(c => { const at = picks.indexOf(c.id);
       return `<button class="choice" data-pick="${c.id}" aria-pressed="${at >= 0}"><span class="grow">${esc(c.name)}</span><span class="mark">${at >= 0 ? at + 1 : ''}</span></button>`; }).join('')}</div>`;
@@ -311,7 +312,7 @@ function questionScreen(v, q) {
     const chosen = mine ? mine.answer : advising ? myAdvice?.answer : draft.choice;
     out += `<div class="choices" role="group" aria-label="Kies een naam">${q.candidates.map(c => `<button class="choice" data-cand="${c.id}" aria-pressed="${chosen === c.id}" ${tappable ? '' : 'disabled'}><span>${esc(c.name)}</span>${advTag(c.id)}<span class="mark">${chosen === c.id ? (mine ? '✓ Ingestuurd' : advising ? 'Jouw advies' : '● Gekozen') : ''}</span></button>`).join('')}</div>`;
   } else if (q.type === 'mc' || q.type === 'tf' || q.type === 'envelope') {
-    if (q.type === 'envelope' && q.pledge && !notCaptain) out += `<div class="field" style="margin:0 0 12px"><label for="pledge">Als wij laatste worden, dan…</label><input id="pledge" maxlength="200" placeholder="…doen we een rondje push-ups voor de hele groep" value="${esc(mine ? mine.answer?.pledge || '' : draft.text)}" ${mine ? 'disabled' : ''}></div>`;
+    if (q.type === 'envelope' && q.pledge && !notCaptain) out += `<div class="field" style="margin:0 0 12px"><label for="pledge">Als wij laatste worden, dan…</label><input id="pledge" maxlength="200" placeholder="bijv. 20 push-ups voor de groep" value="${esc(mine ? mine.answer?.pledge || '' : draft.text)}" ${mine ? 'disabled' : ''}></div>`;
     if (q.type === 'envelope') out += `<p class="notice small">✉️ ${notCaptain ? 'Tik aan waar jullie volgens jou eindigen; de captain kiest.' : 'Op welke plek eindigt jullie team?'} Verzegeld: niemand ziet het, ook de quizmaster niet. Precies goed = bonuspunten bij de uitslag.</p>`;
     const chosen = mine ? (mine.answer && typeof mine.answer === 'object' ? mine.answer.place : mine.answer) : advising ? myAdvice?.answer : draft.choice;
     const correct = revealed ? [].concat(v.result?.correct) : [];
@@ -326,7 +327,7 @@ function questionScreen(v, q) {
       <input id="ans" ${q.type === 'number' ? 'inputmode="decimal"' : 'autocomplete="off" maxlength="200"'} value="${esc(val ?? '')}" ${tappable ? '' : 'disabled'}></div>`;
     if (advising) out += `<button id="adviseBtn" class="btn copper block">Advies doorgeven</button>`;
     if (q.scope === 'team' && v.advice?.length && !revealed) out += `<ul class="adv-list">${v.advice.map(a => `<li><b>${esc(a.mine ? 'Jij' : a.name)}</b><span>${esc(a.answer)}</span></li>`).join('')}</ul>`;
-    if (revealed) out += `<p class="notice ok">Juiste antwoord: <b>${esc(v.result?.correct)}</b></p>`;
+    if (revealed && v.result?.correct != null && v.result.correct !== '') out += `<p class="notice ok">Juiste antwoord: <b>${esc(v.result.correct)}</b></p>`;
   } else if (q.type === 'order') {
     const ord = mine ? mine.answer : draft.order;
     out += `<p class="small muted">Zet in de juiste volgorde (boven = eerst).</p><div class="choices">${ord.map((oi, pos) => `<div class="order-item">
@@ -340,7 +341,7 @@ function questionScreen(v, q) {
 
   // status / ontvangstbevestiging
   if (mine) {
-    out += `<div class="receipt" style="margin-top:16px" role="status"><span aria-hidden="true">✓</span><span>Ontvangen door de server${q.scoring === 'speed' ? ` na ${(mine.elapsedMs / 1000).toFixed(2)} s` : ''}${mine.by && q.scope === 'team' ? ` · door ${esc(mine.by)}` : ''}${mine.bet ? ` · inzet ${mine.bet}` : ''}.</span></div>`;
+    out += `<div class="receipt" style="margin-top:16px" role="status"><span aria-hidden="true">✓</span><span>Ingestuurd${mine.by && q.scope === 'team' ? ` door ${esc(mine.by)}` : ''}${q.scoring === 'speed' ? ` · ${(mine.elapsedMs / 1000).toFixed(2)} s` : ''}${mine.bet ? ` · inzet ${mine.bet}` : ''}</span></div>`;
     if (!revealed && view.event && sending?.oneliner) out += `<p class="small muted" style="margin-top:8px">${esc(sending.oneliner)}</p>`;
   } else if (sending?.status === 'pending') out += `<div class="receipt pending" style="margin-top:16px" role="status">Versturen… nog niet bevestigd.</div>`;
   else if (sending?.status === 'error') out += `<div class="receipt err" style="margin-top:16px" role="alert">${esc(sending.error)}</div>`;
@@ -352,8 +353,9 @@ function questionScreen(v, q) {
   if (L.phase === 'closed') out += `<p class="center muted" style="margin-top:16px">${mine ? 'Tijd is om. Wachten op de onthulling…' : 'Tijd is om. Geen antwoord ontvangen.'}</p>`;
   if (revealed) {
     const verdict = mine?.verdict;
-    out += `<div class="center" style="margin-top:20px"><div class="host-mascot" style="margin:0 auto 6px">${mascot(verdict === 'correct' ? 'goed' : mine ? 'fout' : 'denken')}</div>
-      <div class="verdict ${verdict === 'correct' ? 'ok' : 'no'}">${!mine ? 'Geen antwoord' : verdict === 'correct' ? 'Goed!' : verdict === 'review' ? 'Host beoordeelt…' : verdict == null ? 'Beoordeling volgt' : 'Helaas'}</div>
+    const waiting = mine && (verdict == null || verdict === 'review');
+    out += `<div class="center" style="margin-top:20px"><div class="host-mascot" style="margin:0 auto 6px">${mascot(verdict === 'correct' ? 'goed' : waiting || !mine ? 'denken' : 'fout')}</div>
+      <div class="verdict ${verdict === 'correct' ? 'ok' : waiting ? 'wait' : 'no'}">${!mine ? 'Geen antwoord' : verdict === 'correct' ? 'Goed!' : verdict === 'review' ? 'Quizmaster beoordeelt…' : v.result?.ranking?.skipped ? 'Vraag vervalt' : verdict == null ? 'Beoordeling volgt' : 'Helaas'}</div>
       ${mine?.points != null ? `<p>${mine.points > 0 ? '+' : ''}${mine.points} punten</p>` : ''}
       ${v.result?.explanation ? `<p class="muted small">${esc(v.result.explanation)}</p>` : ''}${revealExtra(v, q)}
       ${v.result?.fastest?.length ? `<p class="small">Snelst goed: ${v.result.fastest.map(f => `${esc(f.name)} (${f.seconds.toFixed(2)} s)`).join(', ')}</p>` : ''}</div>`;

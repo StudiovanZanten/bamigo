@@ -29,7 +29,7 @@ export function envelopeHtml(data, key) {
   const [i, sub] = key.split(':').map(Number);
   const r = list[i];
   const done = list.slice(0, i);
-  const line = sub === 0 ? `<p class="env-line">Envelop van</p>`
+  const line = sub === 0 ? `<p class="env-line">opent de envelop…</p>`
     : sub === 1 ? `<p class="env-line">voorspelde…</p><div class="env-big">${r.predicted ? `plek ${r.predicted}` : 'niks (geen envelop!)'}</div>`
     : `<p class="env-line">voorspelde plek ${r.predicted ?? '—'}… en werd</p><div class="env-big ${r.hit ? 'hit' : 'miss'}">${ord(r.rank)}!</div>
        <div class="env-verdict ${r.hit ? 'hit' : ''}">${r.hit ? `Precies goed: +${r.bonus} bonuspunten` : 'Mis. Helaas, pindakaas.'}</div>
@@ -44,7 +44,7 @@ export function envelopeSound(key) {
   else if (key.endsWith(':2')) sound.good();
 }
 
-function envelopeSvg(open) {
+export function envelopeSvg(open) {
   return `<svg class="env-svg ${open ? 'open' : ''}" viewBox="0 0 120 80" aria-hidden="true">
     <rect x="2" y="2" width="116" height="76" rx="6" fill="#F4E8CF" stroke="#C4AD83" stroke-width="2"/>
     <path d="M2 8 L60 46 L118 8" fill="none" stroke="#C4AD83" stroke-width="2"/>

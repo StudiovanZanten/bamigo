@@ -121,3 +121,18 @@ body.tv { overflow: hidden; cursor: default; }
 .cv.done .cv-list { gap: .4vw; } .cv.done .cv-row { font-size: 1.25vw; padding: .5vw 1vw; grid-template-columns: 2.2vw 1fr auto; }
 .cv.done .cv-n { font-size: 1.5vw; } .cv.done .cv-p { font-size: .9vw; }
 .board.cv-board td { font-size: 1.5vw; padding: .55vw .8vw; } .cv-own { font-size: 1vw; opacity: .6; font-family: var(--body); }
+
+.stage-body.center { align-items: center; }
+
+/* onthulling: antwoord + score */
+.ans-row { display: flex; align-items: center; gap: 2.4vw; margin-top: 1.4vw; }
+.ans-box { background: var(--ivory); color: #151515; padding: 1.1vw 2.2vw 1.3vw; border-radius: 2px; flex: none; max-width: 55%; }
+.ans-box small { display: block; font: 700 .95vw/1 var(--body); letter-spacing: .3em; text-transform: uppercase; color: var(--copper-deep); margin-bottom: .5vw; }
+.ans-box b { display: block; font-family: var(--display); font-weight: 400; font-size: 3.6vw; line-height: 1.05; }
+.ans-box b.seq { font-size: 2.2vw; } .ans-box b.seq i { font-style: normal; color: var(--copper); }
+.ans-side { display: flex; flex-direction: column; gap: .9vw; min-width: 0; }
+.ans-score { font-size: 1.5vw; color: var(--champagne); letter-spacing: .08em; white-space: nowrap; }
+.ans-score b { font-family: var(--display); font-weight: 400; font-size: 3vw; color: var(--ivory); letter-spacing: 0; margin-right: .3vw; }
+.ans-chips { display: flex; flex-wrap: wrap; gap: .6vw; }
+.ans-chips span { border: 1px solid var(--line); background: var(--raised); padding: .45vw 1vw; border-radius: 4px; font-size: 1.25vw; white-space: nowrap; color: var(--muted); }
+.ans-chips b { color: var(--ivory); margin-left: .4vw; }

@@ -119,13 +119,15 @@ export function seedMissions(db, dir, { log = console.log } = {}) {
 const BT_OLD = {"Opdracht: de Buitentas": "Kassabon zo dicht mogelijk bij 12:00, een voorwerp van precies 250 gram, een mysterieus huishoudelijk voorwerp en de krant van 28 december. Vink af en voeg een foto toe.", "Nog 7 dagen": "Nog 7 dagen. Zaterdag 23 januari om 20:00 gaat het los. Vergeet de Buitentas niet: kassabon, 250 gram, mysterieus voorwerp en de krant. De vragen liggen klaar. Het bewijsmateriaal ook. Geen verdere vragen. VAMOSSS!"};
 const BT_NEW = {"Opdracht: de Buitentas": "Kassabon zo dicht mogelijk bij 12:00, een voorwerp van precies 250 gram en de krant van 28 december. Vink af en voeg een foto toe.", "Nog 7 dagen": "Nog 7 dagen. Zaterdag 23 januari om 20:00 gaat het los. Vergeet de Buitentas niet: kassabon, 250 gram en de krant. De vragen liggen klaar. Het bewijsmateriaal ook. Geen verdere vragen. VAMOSSS!"};
 export function buitentasDrie(db, { log = console.log } = {}) {
-  const K = 'fix:buitentas-3:v1';
+  const K = 'fix:buitentas-3:v2';
   if (db.get('SELECT 1 FROM kv WHERE key = ?', K)) return null;
   let missions = 0, msgs = 0;
   db.tx(() => {
     missions = db.run("DELETE FROM missions WHERE lower(title) = 'mysterieus huishoudelijk voorwerp'").changes;
     for (const [title, body] of Object.entries(BT_NEW))
       msgs += db.run('UPDATE messages SET body = ? WHERE title = ? AND body = ? AND sent_at IS NULL', body, title, BT_OLD[title]).changes;
+    // uitleg bij de Krantenjacht was als notitie voor de host geschreven, maar spelers en tv zien hem
+    msgs += db.run('UPDATE answer_keys SET explanation = ? WHERE explanation = ?', "Laat de vondst zien in de krant. Rinus beoordeelt.", "Handmatig beoordelen; laat de vondst zien in de krant.").changes;
     db.run('INSERT INTO kv (key, value) VALUES (?, ?)', K, JSON.stringify({ missions, msgs }));
   });
   if (missions || msgs) log(`Buitentas bijgewerkt: ${missions} missie weg, ${msgs} berichten aangepast.`);

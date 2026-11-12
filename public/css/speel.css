@@ -131,3 +131,11 @@ body.no-scroll { overflow: hidden; }
 .cv-mini li span { font-family: var(--display); color: var(--copper-text); font-size: 1.1rem; }
 .cv-mini li.new { border-color: var(--copper); box-shadow: 0 0 0 2px rgba(191,91,44,.3); }
 .cv-mini li.lock { background: transparent; border-style: dashed; color: var(--muted); }
+
+/* verfijning */
+.dossier-task .grow { flex: 1; min-width: 0; }
+.dossier-task b { display: block; }
+#app:has(+ #prep:not([hidden])) { padding-bottom: 0; }
+#prep { padding-top: 0; }
+.verdict.wait { color: var(--champagne); }
+.env-phone { width: 132px; margin: 0 auto 8px; } .env-phone svg { width: 100%; height: auto; filter: drop-shadow(0 8px 16px #000a); }

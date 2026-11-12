@@ -116,12 +116,12 @@ function tvHref(v) { const t = prefs.get('tvToken.' + v.event.id, null); return 
 let jobLink = null;
 const waHref = t => 'https://wa.me/?text=' + encodeURIComponent(t);
 function todoCard(v) {
-  const joined = (v.teams || []).flatMap(t => t.members).filter(m => m.joined).length + (v.unassigned || []).filter(m => m.joined).length;
+  const joined = (v.teams || []).flatMap(t => t.members).filter(m => m.joined).length; // alleen de vaste spelers (de quizmaster telt niet mee)
   const total = (v.teams || []).flatMap(t => t.members).length;
   const job = (v.grants || []).filter(g => g.role === 'spoilerfree' && !g.revoked);
   if (total && joined >= total && job.length && !jobLink) return '';
   const pText = `BAMIGO 23 januari: meld je aan via ${v.event.joinUrl} en kies je naam. Zet de site daarna op je beginscherm en zet meldingen aan. VAMOSSS!`;
-  return `<section class="card todo"><h2 style="margin:0 0 4px">Nog twee dingen</h2><p class="muted small" style="margin:0 0 14px">De vragen, het spelersdossier, de verzegelde ronde, de berichten en de duo's staan klaar.</p>
+  return `<section class="card todo"><h2 style="margin:0 0 4px">${['Alles staat klaar', 'Nog één ding', 'Nog twee dingen'][(joined < total ? 1 : 0) + (job.length ? 0 : 1)]}</h2><p class="muted small" style="margin:0 0 14px">De vragen, het spelersdossier, de verzegelde ronde, de berichten en de duo's staan klaar.</p>
     <div class="todo-step ${joined ? 'done' : ''}"><span class="home-num">1</span><div class="grow"><b>Deel de spelerslink met de 10 spelers</b>
       <p class="small muted" style="margin:2px 0 8px">Privé of in een eigen groepje (niet in Brocode). Ze kiezen hun naam en komen vanzelf in hun duo. ${total ? `<b>${joined}/${total} aangemeld.</b>` : ''}</p>
       <div class="row" style="gap:8px"><input readonly value="${esc(v.event.joinUrl)}" style="flex:1;min-width:200px" aria-label="Spelerslink">

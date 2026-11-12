@@ -10,6 +10,17 @@
 <meta name="apple-mobile-web-app-title" content="BAMIGO">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>BAMIGO — Speel mee</title>
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="BAMIGO">
+<meta property="og:title" content="BAMIGO · De quiz">
+<meta property="og:description" content="Muchacho's, zaterdag 23 januari 2027. Tik op de link, kies je naam en doe mee.">
+<meta property="og:image" content="%BASE%/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="BAMIGO. De quiz · Muchacho's 2027">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="description" content="Muchacho's, zaterdag 23 januari 2027. Tik op de link, kies je naam en doe mee.">
+<link rel="icon" type="image/png" sizes="32x32" href="/icon-32.png">
 <link rel="stylesheet" href="/css/bamigo.css">
 <link rel="stylesheet" href="/css/speel.css">
 <script src="/socket.io/socket.io.min.js" defer></script>
@@ -19,7 +30,7 @@
 <header class="topbar">
   <span class="brand sm" aria-label="BAMIGO">BAMIGO</span>
   <div class="row" style="gap:8px">
-    <span id="status" class="pill" aria-live="polite"><span class="dot"></span>Verbinden…</span>
+    <span id="status" class="pill" aria-live="polite" hidden><span class="dot"></span>Verbinden…</span>
     <button id="menuBtn" class="btn ghost small" aria-expanded="false" aria-controls="menu">Menu</button>
   </div>
 </header>
