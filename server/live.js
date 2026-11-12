@@ -3,11 +3,12 @@
 import { id, json } from './db.js';
 import { HttpError, bad, deny, notFound } from './auth.js';
 import { judgeOpen, speedScore, competitionRanks, pointsForRank, sameArray } from './scoring.js';
+import * as M from './modules.js';
 
 const conflict = (msg, code = 'conflict') => { throw new HttpError(409, msg, code); };
 
 export const PHASES = ['idle', 'ready', 'open', 'closed', 'revealed', 'scored'];
-export const SCREENS = ['lobby', 'round_intro', 'question', 'scoreboard', 'break', 'finale'];
+export const SCREENS = ['lobby', 'round_intro', 'question', 'scoreboard', 'break', 'finale', 'shots_reveal'];
 
 export class Live {
   /** @param {{db, notify?:(eventId)=>void, clock?:()=>number, schedule?:boolean}} opts */
@@ -90,10 +91,12 @@ export class Live {
         }
         case 'close': {
           if (s.phase !== 'open') conflict('Er staat geen vraag open.');
+          this.db.run('UPDATE questions SET locked_at = COALESCE(locked_at, ?) WHERE id = ?', t, s.question_id);
           return this.#set(eventId, { phase: 'closed', paused: 0, paused_at: null, deadline: s.deadline && s.deadline < t ? s.deadline : t }, actor, action);
         }
         case 'reveal': {
           if (s.phase !== 'closed') conflict('Sluit de vraag eerst.');
+          if (this.question(s.question_id).type === 'shot') conflict('Shots worden samen onthuld nadat alle shots zijn vastgezet (knop “Shotonthulling”).');
           this.autoJudge(s.question_id);
           return this.#set(eventId, { phase: 'revealed' }, actor, action);
         }
@@ -101,6 +104,18 @@ export class Live {
           if (s.phase !== 'revealed' && s.phase !== 'scored') conflict('Onthul de vraag eerst.');
           this.scoreQuestion(eventId, s.question_id, actor);
           return this.#set(eventId, { phase: 'scored' }, actor, action);
+        }
+        case 'shots_reveal': {
+          if (s.phase === 'open') conflict('Sluit eerst de open vraag.');
+          const rid = roundId || s.round_id;
+          const qs = M.shotQuestionsInRound(this.db, rid);
+          if (!qs.length) conflict('Deze ronde heeft geen shotvragen.');
+          const open = qs.filter(q => !q.locked_at);
+          if (open.length) conflict(`Nog niet alle shots zijn vastgezet (${open.length} open). Pas daarna onthullen, anders is het laatste antwoord gratis.`);
+          for (const q of qs) this.scoreQuestion(eventId, q.id, actor);
+          const r = this.db.get('SELECT settings FROM rounds WHERE id = ?', rid);
+          this.db.run('UPDATE rounds SET settings = ? WHERE id = ?', JSON.stringify({ ...json(r.settings, {}), revealedAt: t }), rid);
+          return this.#set(eventId, { screen: 'shots_reveal', round_id: rid, question_id: null, phase: 'idle', open_at: null, deadline: null }, actor, action);
         }
         case 'pause': {
           if (s.paused) conflict('Al gepauzeerd.');
@@ -191,7 +206,8 @@ export class Live {
       if (t < s.open_at) conflict('De vraag is nog niet geopend.', 'not_open');
       if (s.deadline && t > s.deadline) conflict('Te laat: de tijd was om.', 'late');
       if (q.scope === 'individual' && participant.joined_at && participant.joined_at > s.open_at) conflict('Je doet mee vanaf de volgende vraag.', 'late_join');
-      const clean = validateAnswer(q, answer, this.db, eventId);
+      M.checkModuleSubmit(this.db, q, participant, m);
+      const clean = validateAnswer(q, answer, this.db, eventId, m);
       let b = null;
       if (bet !== undefined && bet !== null) {
         if (!q.allow_bet) bad('Inzetten is bij deze vraag niet toegestaan.');
@@ -217,7 +233,8 @@ export class Live {
     for (const s of this.db.all('SELECT * FROM submissions WHERE question_id = ? AND judged_by IS NULL', qid)) {
       const a = json(s.answer);
       let v = 'wrong';
-      switch (q.type) {
+      if (['ranking', 'shot', 'invest'].includes(q.type) || q.settings.kompaan) v = null;
+      else switch (q.type) {
         case 'mc': case 'tf': v = (Array.isArray(key.correct) ? key.correct.includes(a) : a === key.correct) ? 'correct' : 'wrong'; break;
         case 'open': v = judgeOpen(a, [...(key.correct != null ? [String(key.correct)] : []), ...key.accepted]); break;
         case 'number': v = q.scoring === 'closest' ? null : (Math.abs(a - Number(key.correct)) <= (key.tolerance ?? 0) ? 'correct' : 'wrong'); break;
@@ -258,6 +275,9 @@ export class Live {
           VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`, id('e_'), eventId, board === 'team' ? sub.team_id : null, board === 'individual' ? sub.participant_id : null,
           board, qid, `q:${qid}:${sub.owner_key}`, points, reason, 'auto', actor || null, t);
       };
+      const addM = (teamId, participantId, board, suffix, points, reason) => this.db.run(`INSERT INTO score_events (id, event_id, team_id, participant_id, board, question_id, source_key, points, reason, kind, created_by, created_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`, id('e_'), eventId, board === 'team' ? teamId : null, board === 'individual' ? participantId : null, board, qid, `q:${qid}:${suffix}`, points, reason, 'auto', actor || null, t);
+      if (M.scoreModule(this.db, { ...q, event_id: eventId }, key, subs, addM)) return;
       if (q.scoring === 'closest' && q.type === 'number') {
         const target = Number(key.correct);
         const scale = q.settings.scale || [5, 4, 3, 2, 1];
@@ -322,6 +342,19 @@ export class Live {
     return { teams, individuals: people };
   }
 
+  // ---------- Buitentas ----------
+  scoreMission(eventId, actor, missionId) {
+    const res = this.db.tx(() => {
+      const t = this.clock();
+      this.db.run("UPDATE score_events SET voided_at = ?, voided_reason = 'opnieuw gescoord' WHERE event_id = ? AND source_key LIKE ? AND voided_at IS NULL", t, eventId, `m:${missionId}:%`);
+      return M.scoreMission(this.db, eventId, missionId, (teamId, key, points, reason) => this.db.run(`INSERT INTO score_events (id, event_id, team_id, board, source_key, points, reason, kind, created_by, created_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?)`, id('e_'), eventId, teamId, 'team', key, points, reason, 'auto', actor, t));
+    });
+    this.audit(eventId, actor, 'score_mission', { missionId });
+    this.notify(eventId);
+    return res;
+  }
+
   // ---------- captain ----------
   setCaptain(eventId, actor, participantId, { byParticipant } = {}) {
     this.db.tx(() => {
@@ -341,7 +374,9 @@ export class Live {
 }
 
 /** Valideer en normaliseer een antwoord per vraagtype. */
-export function validateAnswer(q, answer, db, eventId) {
+export function validateAnswer(q, answer, db, eventId, membership) {
+  const mod = M.validateModuleAnswer(db, q, answer, eventId, membership);
+  if (mod !== undefined) return mod;
   const n = q.options.length;
   switch (q.type) {
     case 'mc': { const i = Number(answer); if (!Number.isInteger(i) || i < 0 || i >= n) bad('Ongeldige keuze.'); return i; }

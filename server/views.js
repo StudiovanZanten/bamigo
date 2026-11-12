@@ -3,6 +3,7 @@
 // die ze (nog) niet mag zien — ook niet "verstopt" in de payload.
 import { json } from './db.js';
 import { can } from './auth.js';
+import * as M from './modules.js';
 
 const AFTER_CLOSE = ['closed', 'revealed', 'scored'];
 const REVEALED = ['revealed', 'scored'];
@@ -36,6 +37,13 @@ export function publicQuestion(live, s, t) {
     media: visible && q.media_id ? { id: q.media_id } : null,
     options: visible ? q.options : null,
     right: visible && q.type === 'match' ? (q.settings.right || []) : null,
+    kompaan: !!q.settings.kompaan,
+    candidates: visible && q.type === 'ranking' ? live.db.all('SELECT id, name FROM participants WHERE event_id = ? ORDER BY name', q.event_id) : null,
+    teams: visible && ['shot', 'invest'].includes(q.type) ? live.db.all('SELECT id, name FROM teams WHERE event_id = ? ORDER BY sort, name', q.event_id) : null,
+    budget: q.type === 'invest' ? (q.settings.budget || M.DRAGONS_BUDGET) : null, step: q.type === 'invest' ? M.DRAGONS_STEP : null,
+    shotNumber: q.type === 'shot' ? q.settings.shotNumber : null,
+    // Allergenen moeten vóór het proeven controleerbaar zijn, ook al verraadt dat iets.
+    allergens: q.type === 'shot' ? (live.db.get('SELECT allergens FROM shots WHERE event_id = ? AND number = ?', q.event_id, q.settings.shotNumber)?.allergens ?? 'nog niet ingevuld — vraag de organisatie') : null,
     number: pos.indexOf(q.id) + 1, of: pos.length,
   };
 }
@@ -53,6 +61,7 @@ function revealInfo(live, s) {
     out.fastest = live.db.all(`SELECT p.name, s.elapsed_ms FROM submissions s JOIN participants p ON p.id = s.participant_id
       WHERE s.question_id = ? AND s.verdict = 'correct' ORDER BY s.elapsed_ms LIMIT 3`, s.question_id).map(r => ({ name: r.name, seconds: +(r.elapsed_ms / 1000).toFixed(2) }));
   }
+  Object.assign(out, M.revealModule(live.db, { ...q, event_id: q.event_id }) || {});
   if (q.type === 'number') out.answers = subs.length <= 12 ? live.db.all(`SELECT t.name, s.answer FROM submissions s LEFT JOIN teams t ON t.id = s.team_id WHERE s.question_id = ?`, s.question_id).map(r => ({ name: r.name, value: json(r.answer) })) : null;
   return out;
 }
@@ -114,6 +123,10 @@ export function playerView(live, { participant, event }, online, t = live.clock(
       .map(x => ({ id: x.id, name: x.name, isCaptain: !!x.is_captain, online: online.has(x.id) })) } : null,
     live: liveInfo(live, s, t), question: q, mine, result,
     scoreboard: showBoard ? boardFor(live, event.id, { topTeams: 100, topPeople: 5, meId: participant.id }) : null,
+    shotsReveal: s.screen === 'shots_reveal' ? M.shotsRevealData(db, event.id, s.round_id) : null,
+    ownShot: q?.type === 'shot' && team ? !!db.get('SELECT 1 FROM shots WHERE team_id = ? AND number = ?', team.id, q.shotNumber) : false,
+    kompaan: q?.kompaan && team ? { pair: M.kompaanPair(db, { ...live.question(q.id), event_id: event.id }, team.id).map(p => ({ id: p.id, name: p.name })) } : null,
+    prep: prepView(live, event, participant, team),
   };
 }
 
@@ -126,6 +139,7 @@ export function displayView(live, event, online, joinUrl, t = live.clock()) {
     teams: teams.map(tm => ({ id: tm.id, name: tm.name, color: tm.color, size: tm.members.length, joined: tm.members.filter(m => m.joined).length, online: tm.members.filter(m => m.online).length, members: tm.members.map(m => ({ name: m.name, online: m.online })) })),
     live: liveInfo(live, s, t), question: publicQuestion(live, s, t), counts: counts(live, event.id, s), result: revealInfo(live, s),
     scoreboard: ['scoreboard', 'finale'].includes(s.screen) || s.phase === 'scored' ? boardFor(live, event.id, { topTeams: 10, topPeople: 10 }) : null,
+    shotsReveal: s.screen === 'shots_reveal' ? M.shotsRevealData(live.db, event.id, s.round_id) : null,
   };
 }
 
@@ -181,6 +195,19 @@ export function staffView(live, { event, role, grant }, online, joinUrl, t = liv
       LEFT JOIN participants p ON p.id = e.participant_id WHERE e.event_id = ? ORDER BY e.created_at DESC LIMIT 200`, event.id)
       .map(e => ({ id: e.id, team: e.team_name, participant: e.participant_name, board: e.board, points: e.points, reason: e.reason, kind: e.kind, at: e.created_at, voided: !!e.voided_at, voidedReason: e.voided_reason, questionId: e.question_id }));
   }
+  if (can(role, 'secrets.read')) {
+    view.shots = db.all('SELECT s.*, t.name AS team FROM shots s JOIN teams t ON t.id = s.team_id WHERE s.event_id = ? ORDER BY s.number IS NULL, s.number, t.name', event.id)
+      .map(x => ({ ...x, accepted_flavors: json(x.accepted_flavors, []), accepted_bases: json(x.accepted_bases, []) }));
+    view.shotWarnings = M.shotWarnings(db, event.id);
+    view.rankingTotals = db.all("SELECT id, prompt FROM questions WHERE event_id = ? AND type = 'ranking'", event.id).map(q => ({ id: q.id, prompt: q.prompt, ...M.rankingTotals(db, q.id) }));
+  }
+  if (host || full) {
+    view.missions = db.all('SELECT * FROM missions WHERE event_id = ? ORDER BY sort, title', event.id).map(m => ({ ...m,
+      evidence: db.all('SELECT e.team_id, e.value, e.note, e.media_id, e.measured, e.checked FROM evidence e WHERE e.mission_id = ?', m.id) }));
+    view.shotRounds = db.all("SELECT r.id, r.title, r.settings FROM rounds r WHERE r.event_id = ? AND EXISTS (SELECT 1 FROM questions q WHERE q.round_id = r.id AND q.type = 'shot')", event.id)
+      .map(r => { const qs = M.shotQuestionsInRound(db, r.id); return { id: r.id, title: r.title, total: qs.length, locked: qs.filter(q => q.locked_at).length, revealed: !!json(r.settings, {}).revealedAt }; });
+  }
+  if (s.screen === 'shots_reveal' && (host || full)) view.shotsReveal = M.shotsRevealData(db, event.id, s.round_id);
   if (can(role, 'roles.manage')) view.grants = db.all('SELECT id, role, label, revoked, created_at FROM role_grants WHERE event_id = ? ORDER BY created_at', event.id);
   return view;
 }
@@ -195,13 +222,32 @@ export function readiness(db, eventId, full) {
     teams: one('SELECT COUNT(*) AS n FROM teams WHERE event_id = ?', eventId),
     teamsWithoutCaptain: one('SELECT COUNT(*) AS n FROM teams t WHERE t.event_id = ? AND NOT EXISTS (SELECT 1 FROM memberships m WHERE m.team_id = t.id AND m.is_captain = 1)', eventId),
     shotsSubmitted: one("SELECT COUNT(*) AS n FROM shots WHERE event_id = ? AND COALESCE(name,'') <> ''", eventId),
-    missionsDone: one('SELECT COUNT(*) AS n FROM evidence WHERE event_id = ? AND mission_id IS NOT NULL', eventId),
+    missionsDone: one("SELECT COUNT(*) AS n FROM evidence WHERE event_id = ? AND mission_id IS NOT NULL AND (COALESCE(value,'') <> '' OR media_id IS NOT NULL)", eventId),
+    rankingVotes: one('SELECT COUNT(DISTINCT voter_id) AS n FROM ranking_votes WHERE event_id = ?', eventId),
     missions: one('SELECT COUNT(*) AS n FROM missions WHERE event_id = ?', eventId),
     questions: one('SELECT COUNT(*) AS n FROM questions WHERE event_id = ?', eventId),
     exampleQuestions: one('SELECT COUNT(*) AS n FROM questions WHERE event_id = ? AND is_example = 1', eventId),
     questionsWithoutAnswer: one(`SELECT COUNT(*) AS n FROM questions q LEFT JOIN answer_keys k ON k.question_id = q.id
-      WHERE q.event_id = ? AND q.type NOT IN ('ranking') AND (k.correct IS NULL OR k.correct = 'null')`, eventId),
+      WHERE q.event_id = ? AND q.type NOT IN ('ranking', 'shot', 'invest') AND COALESCE(json_extract(q.settings, '$.kompaan'), 0) <> 1 AND (k.correct IS NULL OR k.correct = 'null')`, eventId),
     missingMedia: one(`SELECT COUNT(*) AS n FROM questions WHERE event_id = ? AND json_extract(settings, '$.needsMedia') = 1 AND media_id IS NULL`, eventId),
   };
   return r;
+}
+
+// ---------- voorbereiding (speler) ----------
+function prepView(live, event, participant, team) {
+  const db = live.db; const settings = json(event.settings, {});
+  const cur = live.state(event.id).question_id;
+  const people = db.all('SELECT id, name FROM participants WHERE event_id = ? ORDER BY name', event.id);
+  const ranking = db.all(`SELECT q.id, q.prompt, q.locked_at, v.choice_id, v.id AS vid FROM questions q LEFT JOIN ranking_votes v ON v.question_id = q.id AND v.voter_id = ?
+    WHERE q.event_id = ? AND q.type = 'ranking' AND q.voided_at IS NULL ORDER BY q.sort, q.id`, participant.id, event.id)
+    .map(r => ({ id: r.id, prompt: r.prompt, voted: !!r.vid, choiceId: r.choice_id, closed: !!r.locked_at || r.id === cur || !!db.get('SELECT 1 FROM submissions WHERE question_id = ? LIMIT 1', r.id) }));
+  const shot = team && settings.drinks !== false ? db.get('SELECT name, flavor, base, ingredients, allergens, story, amount, number, updated_by FROM shots WHERE team_id = ?', team.id) : null;
+  const hasShotRound = settings.drinks !== false && !!db.get("SELECT 1 FROM rounds WHERE event_id = ? AND kind = 'shots'", event.id);
+  const missions = db.all('SELECT id, title, description, kind, target, unit, scored_at FROM missions WHERE event_id = ? ORDER BY sort, title', event.id)
+    .map(m => { const e = team ? db.get('SELECT value, note, media_id, checked FROM evidence WHERE mission_id = ? AND team_id = ?', m.id, team.id) : null;
+      return { id: m.id, title: m.title, description: m.description, kind: m.kind, target: m.target, unit: m.unit, closed: !!m.scored_at, mine: e ? { value: e.value, note: e.note, hasPhoto: !!e.media_id, checked: !!e.checked } : null }; });
+  const profile = json(participant.profile, {});
+  return { ranking, candidates: people.filter(p => settings.selfVote || p.id !== participant.id), profile: { story: profile.story || '', limits: profile.limits || '', done: !!profile.done },
+    shot: hasShotRound && team ? (shot || {}) : null, missions };
 }

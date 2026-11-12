@@ -1,5 +1,5 @@
 // Organisatie, backstage en live bediening. Wat je ziet hangt af van je rol (de server filtert).
-import { $, $$, esc, LETTERS, prefs, tokenFromHash, api, connect, toast, connBanner, fmtTime, ROUND_LABEL, TYPE_LABEL } from './common.js';
+import { $, $$, esc, LETTERS, prefs, tokenFromHash, api, connect, toast, connBanner, fmtTime, mediaUrl, ROUND_LABEL, TYPE_LABEL } from './common.js';
 
 const main = $('#main');
 const token = tokenFromHash('k', 'staffToken');
@@ -52,6 +52,7 @@ function tabsFor(v) {
   t.push(['plan', v.perms.content ? 'Inhoud' : 'Planning']);
   if (v.perms.people) t.push(['people', 'Teams & spelers']);
   t.push(['ready', 'Gereedheid']);
+  if (v.missions || v.shots) t.push(['extra', 'Shots & Buitentas']);
   if (v.perms.scores) t.push(['scores', 'Scores']);
   if (v.perms.roles) t.push(['event', 'Avond & links']);
   return t;
@@ -70,10 +71,10 @@ function render() {
     $('#tabs').innerHTML = tabs.map(([k, l]) => `<button role="tab" aria-selected="${k === tab}" data-tab="${k}">${l}</button>`).join('');
     $$('[data-tab]').forEach(b => b.onclick = () => { tab = b.dataset.tab; prefs.set('beheerTab', tab); editing = null; lastTabs = ''; render(); });
   }
-  if (editing && tab === 'plan') return; // formulier niet overschrijven tijdens bewerken
+  if (editing && (tab === 'plan' || tab === 'extra')) return; // formulier niet overschrijven tijdens bewerken
   const scrollY = window.scrollY;
   const focusId = document.activeElement?.id;
-  ({ live: liveTab, plan: planTab, people: peopleTab, ready: readyTab, scores: scoresTab, event: eventTab }[tab])(v);
+  ({ live: liveTab, plan: planTab, people: peopleTab, ready: readyTab, scores: scoresTab, event: eventTab, extra: extraTab }[tab])(v);
   if (focusId && document.getElementById(focusId)) document.getElementById(focusId).focus();
   window.scrollTo(0, scrollY);
 }
@@ -90,7 +91,7 @@ const live = (action, extra = {}) => A.post('/api/staff/live', { action, seq: vi
 
 // ---------- LIVE ----------
 const PHASE_LABEL = { idle: 'Geen vraag actief', ready: 'Klaar om te openen', open: 'Open', closed: 'Gesloten', revealed: 'Onthuld', scored: 'Gescoord' };
-const SCREEN_LABEL = { lobby: 'Lobby', round_intro: 'Ronde-intro', question: 'Vraag', scoreboard: 'Scorebord', break: 'Pauze', finale: 'Finale' };
+const SCREEN_LABEL = { lobby: 'Lobby', round_intro: 'Ronde-intro', question: 'Vraag', scoreboard: 'Scorebord', break: 'Pauze', finale: 'Finale', shots_reveal: 'Shotonthulling' };
 
 function primaryAction(v) {
   const p = v.live.phase;
@@ -128,6 +129,9 @@ function liveTab(v) {
         ${q ? '<button class="btn danger small" data-act="void">Vraag ongeldig verklaren…</button>' : ''}
       </div>
     </div>
+    ${(v.shotRounds || []).map(r => `<div class="card"><h3>${esc(r.title)}</h3><p class="small">${r.locked}/${r.total} shots vastgezet${r.revealed ? ' · onthuld' : ''}.</p>
+      <button class="btn copper" data-shotreveal="${r.id}" ${r.locked < r.total || L.phase === 'open' ? 'disabled' : ''}>Shotonthulling${r.revealed ? ' opnieuw tonen' : ''}</button>
+      ${r.locked < r.total ? '<p class="small muted" style="margin:8px 0 0">Kan pas als alle shots zijn vastgezet (anders is het laatste antwoord gratis).</p>' : ''}</div>`).join('')}
     <div class="card"><h3>Scherm op tv</h3><div class="row">
       <button class="btn ghost small" data-act="screen_lobby">Lobby</button>
       <button class="btn ghost small" data-act="screen_scoreboard">Scorebord</button>
@@ -155,6 +159,7 @@ function liveTab(v) {
     if (a === 'next_question') return act(b, () => live('next_question'));
     act(b, () => live(a));
   });
+  $$('[data-shotreveal]').forEach(b => b.onclick = () => { if (confirm('Alle shots onthullen en punten toekennen?')) act(b, () => live('shots_reveal', { roundId: b.dataset.shotreveal }), 'VAMOSSS!'); });
   $('#introSel').onchange = e => { if (e.target.value) act(null, () => live('round_intro', { roundId: e.target.value })); };
   $$('[data-prepare]').forEach(b => b.onclick = () => act(b, () => live('prepare', { questionId: b.dataset.prepare })));
   $$('[data-judge]').forEach(b => b.onclick = () => act(b, () => A.post('/api/staff/judge', { submissionId: b.dataset.judge, verdict: b.dataset.v })));
@@ -273,7 +278,7 @@ function openQuestionEditor(q) {
   if (q.type === 'order' && Array.isArray(k.correct) && q.options) q = { ...q, options: k.correct.map(i => q.options[i]) };
   $('#editorSlot').innerHTML = `<form class="editor" id="qForm"><h3>${q.id ? 'Vraag bewerken' : 'Nieuwe vraag'}</h3>
     <div class="row">
-      <div class="field"><label for="qType">Type</label><select id="qType">${Object.entries(TYPE_LABEL).filter(([t]) => t !== 'ranking' && t !== 'match').map(([t, l]) => `<option value="${t}" ${t === q.type ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+      <div class="field"><label for="qType">Type</label><select id="qType">${Object.entries(TYPE_LABEL).filter(([t]) => t !== 'match').map(([t, l]) => `<option value="${t}" ${t === q.type ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
       <div class="field"><label for="qScope">Wie antwoordt</label><select id="qScope"><option value="team" ${q.scope === 'team' ? 'selected' : ''}>Team (captain)</option><option value="individual" ${q.scope === 'individual' ? 'selected' : ''}>Iedereen zelf</option></select></div>
       <div class="field"><label for="qScoring">Scoring</label><select id="qScoring"><option value="fixed">Vaste punten</option><option value="speed" ${q.scoring === 'speed' ? 'selected' : ''}>Bliksem (sneller = meer)</option><option value="closest" ${q.scoring === 'closest' ? 'selected' : ''}>Dichtstbij (5-4-3-2-1)</option></select></div>
       <div class="field" style="width:110px"><label for="qSec">Seconden</label><input id="qSec" type="number" min="0" max="600" value="${q.seconds}"></div>
@@ -287,6 +292,10 @@ function openQuestionEditor(q) {
       <div class="grow field" id="accWrap"><label for="qAcc">Ook goed (varianten, één per regel)</label><textarea id="qAcc">${esc((k.accepted || []).join('\n'))}</textarea></div>
       <div class="field" id="tolWrap" style="width:140px"><label for="qTol">Marge (±)</label><input id="qTol" type="number" step="any" value="${k.tolerance ?? ''}"></div></div>
     <div class="field"><label for="qExpl">Uitleg bij onthulling</label><input id="qExpl" value="${esc(k.explanation || '')}"></div>
+    <div class="row" id="modRow">
+      <div class="field" id="shotNrWrap" style="width:160px"><label for="qShotNr">Shotnummer</label><input id="qShotNr" type="number" min="1" max="50" value="${q.settings?.shotNumber ?? ''}"></div>
+      <label class="check" id="kompWrap" style="margin:0"><input type="checkbox" id="qKomp" ${q.settings?.kompaan ? 'checked' : ''}> Ken je kompaan (aangewezen teamgenoten antwoorden ieder zelf; zelfde antwoord = punten)</label>
+      <p class="small muted" id="modHelp" style="margin:0"></p></div>
     <div class="row"><label class="check" style="margin:0"><input type="checkbox" id="qBet" ${q.allowBet ? 'checked' : ''}> Inzetten toestaan (1–3)</label>
       <label class="check" style="margin:0"><input type="checkbox" id="qEx" ${q.isExample ? 'checked' : ''}> Voorbeeldvraag (markering)</label></div>
     <div class="field"><label for="qMedia">Afbeelding/audio (optioneel, max 15 MB)</label><input id="qMedia" type="file" accept="image/*,audio/*,video/mp4">
@@ -294,6 +303,13 @@ function openQuestionEditor(q) {
     <div class="row"><button class="btn primary">Opslaan</button><button type="button" class="btn ghost" id="cancelEd">Annuleren</button></div></form>`;
   const sync = () => {
     const t = $('#qType').value;
+    const special = ['ranking', 'shot', 'invest'].includes(t);
+    $('#shotNrWrap').hidden = t !== 'shot';
+    $('#kompWrap').hidden = !['mc', 'tf', 'open'].includes(t);
+    $('#qCorrectSlot').closest('.field').hidden = special || $('#qKomp').checked;
+    if (special) $('#qScope').value = 'team';
+    if ($('#qKomp').checked) $('#qScope').value = 'individual';
+    $('#modHelp').textContent = { ranking: 'Teams voorspellen wie de groep het vaakst koos. Spelers stemmen vooraf in de voorbereiding. Standaard 2 punten.', shot: 'Per shot: 1 punt voor hoofdsmaak, basisdrank en team. Toegestane varianten stel je in bij Shots & Buitentas. Onthulling pas na het laatste shot.', invest: 'Elk team verdeelt €10.000 fictief over andere teams. Ontvangen bedrag → 5-4-3-2-1 punten.' }[t] || '';
     $('#optWrap').hidden = !['mc', 'order'].includes(t);
     $('#accWrap').hidden = t !== 'open';
     $('#tolWrap').hidden = t !== 'number';
@@ -304,7 +320,7 @@ function openQuestionEditor(q) {
     else $('#qCorrectSlot').innerHTML = `<input id="qCorrect" ${t === 'number' ? 'inputmode="decimal"' : ''} value="${esc(cur)}">`;
   };
   sync();
-  $('#qType').onchange = sync; $('#qOpts').oninput = sync;
+  $('#qType').onchange = sync; $('#qOpts').oninput = sync; $('#qKomp').onchange = sync;
   $('#cancelEd').onclick = closeEditor;
   $('#qPrompt').focus();
   $('#qForm').onsubmit = async e => {
@@ -312,7 +328,9 @@ function openQuestionEditor(q) {
     const t = $('#qType').value;
     let options = $('#qOpts').value.split('\n').map(s => s.trim()).filter(Boolean);
     let correct = $('#qCorrect')?.value ?? null;
-    let settings = q.settings || {};
+    let settings = { ...(q.settings || {}), kompaan: ['mc', 'tf', 'open'].includes(t) && $('#qKomp').checked };
+    if (t === 'shot') settings.shotNumber = Number($('#qShotNr').value);
+    if (['ranking', 'shot', 'invest'].includes(t)) correct = null;
     if (t === 'mc' || t === 'tf') correct = correct === '' ? null : Number(correct);
     if (t === 'order') { correct = options.map((_, i) => i); const sh = shuffle(options.map((_, i) => i)); const shuffled = sh.map(i => options[i]); correct = options.map(o => shuffled.indexOf(o)); options = shuffled; }
     if (t === 'number') correct = correct === '' ? null : correct;
@@ -366,6 +384,7 @@ function readyTab(v) {
     ${card(`${r.joined}/${r.participants}`, 'spelers aangemeld', r.joined < r.participants)}
     ${card(`${r.questionnaireDone}/${r.participants}`, 'vragenlijst voltooid', r.questionnaireDone < r.participants)}
     ${card(`${r.teams}`, 'teams' + (r.teamsWithoutCaptain ? ` · ${r.teamsWithoutCaptain} zonder captain` : ''), r.teamsWithoutCaptain)}
+    ${card(`${r.rankingVotes}/${r.participants}`, 'spelers hebben rankingstemmen')}
     ${card(`${r.shotsSubmitted}/${r.teams}`, 'shots ingediend', r.shotsSubmitted < r.teams)}
     ${card(`${r.missionsDone}/${r.missions * r.teams || 0}`, 'missies afgevinkt')}
     ${card(r.questions, 'vragen' + (r.exampleQuestions ? ` · ${r.exampleQuestions} voorbeeld` : ''), r.exampleQuestions)}
@@ -428,4 +447,55 @@ function eventTab(v) {
   $('#dupForm').onsubmit = async e => { e.preventDefault(); const r = await act(e.submitter, () => A.post('/api/staff/duplicate', { name: $('#dName').value, includeQuestions: $('#dQ').checked, includeTeams: $('#dT').checked, includeParticipants: $('#dP').checked }));
     if (r) $('#dupOut').innerHTML = `<p class="small">Nieuwe beheerlink:</p><div class="linkbox">${esc(r.url)}</div><p class="small">TV-link:</p><div class="linkbox">${esc(r.tvUrl)}</div>`; };
   $('#archive').onclick = e => { if (confirm('Zeker weten?')) act(e.target, () => A.patch('/api/staff/event', { status: v.event.status === 'archived' ? 'draft' : 'archived' })); };
+}
+
+// ---------- SHOTS & BUITENTAS ----------
+function extraTab(v) {
+  const teams = v.teams;
+  const shotsHtml = v.shots ? `<section class="card"><h3>Shot in het duister</h3>
+    <p class="small muted">Alleen zichtbaar voor inhoudsbeheer. Nummer de flessen bij aankomst (buiten zicht) en leg toegestane varianten vast vóór het proeven.</p>
+    ${v.shotWarnings.map(w => `<p class="notice warn small">${esc(w)}</p>`).join('')}
+    ${teams.map(t => { const sh = v.shots.find(x => x.team_id === t.id); return `<form class="card" style="background:var(--bg)" data-shotform="${sh?.id || ''}" data-team="${t.id}">
+      <div class="row" style="justify-content:space-between"><h3 style="margin:0">${esc(t.name)}</h3>${sh?.name ? `<span class="pill ok"><span class="dot"></span>ingediend</span>` : '<span class="pill bad"><span class="dot"></span>nog niet ingediend</span>'}</div>
+      ${sh ? `<p class="small">${esc(sh.name || '')} · <b>${esc(sh.flavor || '?')}</b> · ${esc(sh.base || '?')} · allergenen: ${esc(sh.allergens || '—')} · ${esc(sh.amount || '')}</p>${sh.story ? `<p class="small muted">“${esc(sh.story)}”</p>` : ''}
+      <div class="row"><div class="field" style="width:120px"><label for="sn_${sh.id}">Nummer</label><input id="sn_${sh.id}" name="number" type="number" min="1" value="${sh.number ?? ''}"></div>
+        <div class="grow field"><label for="sf_${sh.id}">Ook goed: smaak (één per regel)</label><textarea id="sf_${sh.id}" name="acceptedFlavors" style="min-height:48px">${esc(sh.accepted_flavors.join('\n'))}</textarea></div>
+        <div class="grow field"><label for="sb_${sh.id}">Ook goed: basis (één per regel)</label><textarea id="sb_${sh.id}" name="acceptedBases" style="min-height:48px">${esc(sh.accepted_bases.join('\n'))}</textarea></div></div>
+      <button class="btn copper small">Opslaan</button>` : '<p class="small muted">Het team vult dit in via de telefoon (voorbereiding).</p>'}</form>`; }).join('')}</section>` : '';
+  const missionsHtml = v.missions ? `<section class="card"><h3>BAMIGO Buitentas — Douane</h3>
+    <p class="small muted">Vul per team de gecontroleerde waarde in (bijv. 11:58 of 247) en vink goedgekeurd aan. Niet ingeleverd of afgekeurd = 0 punten. Dichtstbij: ${teams.length}-…-1 met gedeelde plekken.</p>
+    ${v.missions.map(m => `<div class="card" style="background:var(--bg)"><div class="row" style="justify-content:space-between"><h3 style="margin:0">${esc(m.title)}</h3>
+      <span class="small muted">${m.kind === 'closest' ? `dichtst bij ${esc(m.target || '?')} ${esc(m.unit || '')}` : `goedgekeurd = ${m.max_points} pt`}${m.scored_at ? ' · gescoord' : ''}</span></div>
+      <table class="subs"><thead><tr><th>Team</th><th>Opgegeven</th><th>Foto</th><th>Gemeten</th><th>OK</th></tr></thead><tbody>
+      ${teams.map(t => { const e = m.evidence.find(x => x.team_id === t.id) || {}; return `<tr><td>${esc(t.name)}</td><td>${esc(e.value || '—')}${e.note ? `<br><span class="small muted">${esc(e.note)}</span>` : ''}</td>
+        <td>${e.media_id ? `<button class="btn ghost small" data-photo="${e.media_id}">Bekijk</button>` : '—'}</td>
+        <td><input style="min-height:40px;width:110px" data-measure="${m.id}:${t.id}" value="${esc(e.measured ?? '')}" aria-label="Gemeten waarde ${esc(t.name)}"></td>
+        <td><input type="checkbox" style="width:24px;height:24px" data-ok="${m.id}:${t.id}" ${e.checked ? 'checked' : ''} aria-label="Goedgekeurd ${esc(t.name)}"></td></tr>`; }).join('')}</tbody></table>
+      <div class="row" style="margin-top:10px">${v.perms.scores ? `<button class="btn copper small" data-mscore="${m.id}">${m.scored_at ? 'Opnieuw scoren' : 'Punten toekennen'}</button>` : ''}
+        ${v.perms.content ? `<button class="btn ghost small" data-medit="${m.id}">Bewerken</button><button class="btn danger small" data-mdel="${m.id}">Verwijder</button>` : ''}</div></div>`).join('') || '<p class="muted">Nog geen missies.</p>'}
+    ${v.perms.content ? `<button class="btn ghost" id="addMission">Missie toevoegen</button><div id="missionSlot"></div>` : ''}<div id="photoSlot"></div></section>` : '';
+  main.innerHTML = `<div class="grid2">${shotsHtml}${missionsHtml}</div>`;
+  $$('[data-shotform]').forEach(f => f.onsubmit = e => { e.preventDefault(); if (!f.dataset.shotform) return;
+    act(e.submitter, () => A.post('/api/staff/shots/' + f.dataset.shotform, { number: f.elements.namedItem('number').value, acceptedFlavors: f.elements.namedItem('acceptedFlavors').value, acceptedBases: f.elements.namedItem('acceptedBases').value }), 'Shot opgeslagen.'); });
+  const save = (mt) => { const [m, t] = mt.split(':'); return A.post('/api/staff/evidence/check', { missionId: m, teamId: t, measured: $(`[data-measure="${mt}"]`).value, checked: $(`[data-ok="${mt}"]`).checked }); };
+  $$('[data-measure]').forEach(i => i.onchange = () => act(null, () => save(i.dataset.measure)));
+  $$('[data-ok]').forEach(i => i.onchange = () => act(null, () => save(i.dataset.ok)));
+  $$('[data-mscore]').forEach(b => b.onclick = () => { if (confirm('Punten voor deze missie toekennen?')) act(b, () => A.post(`/api/staff/missions/${b.dataset.mscore}/score`), 'Missie gescoord.'); });
+  $$('[data-mdel]').forEach(b => b.onclick = () => { if (confirm('Missie verwijderen? Eventuele punten vervallen.')) act(b, () => A.del('/api/staff/missions/' + b.dataset.mdel)); });
+  $$('[data-photo]').forEach(b => b.onclick = async () => { const u = await mediaUrl(b.dataset.photo, { 'x-staff-token': token }); $('#photoSlot').innerHTML = u ? `<img src="${u}" alt="Bewijsfoto" style="max-width:100%;border-radius:8px;margin-top:12px">` : '<p class="notice bad">Foto niet beschikbaar.</p>'; });
+  const add = $('#addMission'); if (add) add.onclick = () => missionEditor({ kind: 'closest', max_points: 5 });
+  $$('[data-medit]').forEach(b => b.onclick = () => missionEditor(v.missions.find(m => m.id === b.dataset.medit)));
+}
+function missionEditor(m) {
+  editing = { kind: 'mission' };
+  $('#missionSlot').innerHTML = `<form class="editor" id="mForm"><h3>${m.id ? 'Missie bewerken' : 'Nieuwe missie'}</h3>
+    <div class="field"><label for="mT">Titel</label><input id="mT" required value="${esc(m.title || '')}"></div>
+    <div class="field"><label for="mD">Omschrijving en regels</label><textarea id="mD">${esc(m.description || '')}</textarea></div>
+    <div class="row"><div class="field"><label for="mK">Beoordeling</label><select id="mK"><option value="closest" ${m.kind === 'closest' ? 'selected' : ''}>Dichtstbij doel</option><option value="check" ${m.kind === 'check' ? 'selected' : ''}>Ingeleverd en goedgekeurd</option></select></div>
+      <div class="field"><label for="mG">Doel (bijv. 12:00 of 250)</label><input id="mG" value="${esc(m.target || '')}"></div>
+      <div class="field" style="width:100px"><label for="mU">Eenheid</label><input id="mU" value="${esc(m.unit || '')}"></div>
+      <div class="field" style="width:100px"><label for="mP">Max punten</label><input id="mP" type="number" value="${m.max_points}"></div></div>
+    <div class="row"><button class="btn primary">Opslaan</button><button type="button" class="btn ghost" id="mCancel">Annuleren</button></div></form>`;
+  $('#mCancel').onclick = closeEditor;
+  $('#mForm').onsubmit = e => { e.preventDefault(); act(e.submitter, () => A.post('/api/staff/missions', { id: m.id, title: $('#mT').value, description: $('#mD').value, kind: $('#mK').value, target: $('#mG').value, unit: $('#mU').value, maxPoints: +$('#mP').value }), 'Missie opgeslagen.').then(x => x && closeEditor()); };
 }

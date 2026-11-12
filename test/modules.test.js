@@ -1,0 +1,151 @@
+// Spelvormen: Ranking de Boys, Shot in het duister, Dragons, Ken je kompaan, Buitentas.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { openDb } from '../server/db.js';
+import { Live } from '../server/live.js';
+import * as C from '../server/content.js';
+import * as M from '../server/modules.js';
+import { playerView, displayView } from '../server/views.js';
+
+function setup() {
+  const db = openDb(':memory:');
+  let t = Date.now() + 60_000;
+  const clock = { now: () => t, add: ms => { t += ms; } };
+  const live = new Live({ db, clock: clock.now, schedule: false });
+  const { event } = C.createEvent(db, { name: 'Mod', settings: { countdownMs: 0 } });
+  const E = event.id;
+  const T = {}; const P = {};
+  [['A', ['a1', 'a2']], ['B', ['b1', 'b2']], ['C', ['c1', 'c2']], ['D', ['d1', 'd2']], ['E', ['e1', 'e2', 'e3']]].forEach(([tn, ns]) => {
+    T[tn] = C.upsertTeam(db, E, { name: tn });
+    ns.forEach(n => { const r = C.joinEvent(db, { code: event.join_code, name: n, teamId: T[tn] }); P[n] = db.get('SELECT * FROM participants WHERE id = ?', r.participantId); });
+  });
+  const ev = () => db.get('SELECT * FROM events WHERE id = ?', E);
+  const run = (action, extra = {}) => live.action(E, 'test', { action, seq: live.state(E).seq, ...extra });
+  const play = (qid, answers) => { run('prepare', { questionId: qid }); run('open'); clock.add(10); for (const [p, a] of answers) live.submit(E, P[p], { questionId: qid, answer: a }); run('close'); };
+  const pts = () => Object.fromEntries(live.scoreboard(E).teams.map(t => [t.name, t.points]));
+  return { db, live, clock, E, T, P, ev, run, play, pts };
+}
+
+test('Ranking de Boys: zelfstemmen uit, gedeelde winnaars, alleen totalen, 0 stemmen = vervalt', () => {
+  const { db, live, E, P, run, play, pts, ev } = setup();
+  const r = C.upsertRound(db, E, { title: 'Ranking', kind: 'ranking' });
+  const q = C.upsertQuestion(db, E, { roundId: r, type: 'ranking', prompt: 'Wie heeft de beste versiertrucs?', seconds: 20, points: 2 });
+  const q0 = C.upsertQuestion(db, E, { roundId: r, type: 'ranking', prompt: 'Niemand stemt hierop', seconds: 20, points: 2 });
+  assert.throws(() => M.castVote(db, E, P.a1, { questionId: q, choiceId: P.a1.id }), /jezelf/);
+  // b1 en c1 krijgen ieder 2 stemmen (gedeelde eerste plaats); a2 slaat over
+  M.castVote(db, E, P.a1, { questionId: q, choiceId: P.b1.id });
+  M.castVote(db, E, P.a2, { questionId: q, choiceId: null });
+  M.castVote(db, E, P.d1, { questionId: q, choiceId: P.b1.id });
+  M.castVote(db, E, P.e1, { questionId: q, choiceId: P.c1.id });
+  M.castVote(db, E, P.e2, { questionId: q, choiceId: P.d2.id });
+  M.castVote(db, E, P.e2, { questionId: q, choiceId: P.c1.id }); // stem wijzigen mag vóór de vraag
+  // teams voorspellen (captains)
+  play(q, [['a1', P.b1.id], ['b1', P.c1.id], ['c1', P.d2.id]]);
+  assert.throws(() => M.castVote(db, E, P.b2, { questionId: q, choiceId: P.b1.id }), /gesloten/);
+  run('reveal');
+  const res = displayView(live, ev(), new Set(), 'x').result.ranking;
+  assert.deepEqual(res.top.map(x => [x.name, x.votes, x.winner]), [['b1', 2, true], ['c1', 2, true]]);
+  assert.ok(res.top.every(x => Object.keys(x).sort().join() === 'name,votes,winner'), 'alleen totalen, geen kiezers');
+  assert.ok(!JSON.stringify(displayView(live, ev(), new Set(), 'x')).includes('voter'), 'geen kiezers in de payload');
+  run('score');
+  assert.deepEqual(pts(), { A: 2, B: 2, C: 0, D: 0, E: 0 });
+  play(q0, [['a1', P.b1.id]]); run('reveal'); run('score');
+  assert.equal(pts().A, 2, 'zonder geldige stemmen geen punten');
+  assert.equal(JSON.parse(JSON.stringify(displayView(live, ev(), new Set(), 'x'))).result.ranking.skipped, true);
+});
+
+test('Shot in het duister: geen punten/inzending op eigen shot, onthulling pas na alle shots, 1+1+1', () => {
+  const { db, live, E, T, P, run, play, pts, ev } = setup();
+  const r = C.upsertRound(db, E, { title: 'Shots', kind: 'shots' });
+  const shots = {};
+  [['A', 'Drop', 'Wodka', 1], ['B', 'Koffie', 'Rum', 2]].forEach(([tn, f, b, n]) => {
+    M.saveShot(db, E, T[tn], { name: tn + ' shot', flavor: f, base: b, allergens: 'geen', story: 'Verhaal ' + tn }, 'x');
+    shots[tn] = db.get('SELECT id FROM shots WHERE team_id = ?', T[tn]).id;
+    M.adminShot(db, E, shots[tn], { number: n, acceptedFlavors: f === 'Drop' ? 'zoethout\nsalmiak' : '', acceptedBases: '' });
+  });
+  assert.throws(() => M.adminShot(db, E, shots.B, { number: 1 }), /al vergeven/);
+  const q1 = C.upsertQuestion(db, E, { roundId: r, type: 'shot', prompt: 'Shot 1', seconds: 30, settings: { shotNumber: 1 } });
+  const q2 = C.upsertQuestion(db, E, { roundId: r, type: 'shot', prompt: 'Shot 2', seconds: 30, settings: { shotNumber: 2 } });
+  // Shot 1 is van team A: A mag niet inzenden; B raadt alles goed (variant "salmiak"), C alleen team
+  run('prepare', { questionId: q1 }); run('open');
+  assert.throws(() => live.submit(E, P.a1, { questionId: q1, answer: { flavor: 'drop', base: 'wodka', teamId: T.B } }), /eigen shot/);
+  assert.throws(() => live.submit(E, P.b1, { questionId: q1, answer: { flavor: 'x', base: 'y', teamId: T.B } }), /ander team/);
+  live.submit(E, P.b1, { questionId: q1, answer: { flavor: 'Salmiak', base: 'wodka', teamId: T.A } });
+  live.submit(E, P.c1, { questionId: q1, answer: { flavor: 'kers', base: 'gin', teamId: T.A } });
+  run('close');
+  assert.throws(() => run('reveal'), /samen onthuld/);
+  assert.throws(() => run('shots_reveal', { roundId: r }), /Nog niet alle shots/);
+  const pv = JSON.stringify(playerView(live, { participant: P.c1, event: ev() }, new Set()));
+  assert.ok(!pv.includes('Verhaal A') && !pv.includes('A shot'), 'geen herkomst of verhaal vóór de onthulling');
+  // Onafhankelijk raden: C noemt team A opnieuw bij shot 2 (mag), A raadt B
+  play(q2, [['c1', { flavor: 'koffie', base: 'rum', teamId: T.A }], ['a1', { flavor: 'koffie', base: 'rum', teamId: T.B }]]);
+  run('shots_reveal', { roundId: r });
+  assert.deepEqual(pts(), { A: 3, B: 3, C: 1 + 2, D: 0, E: 0 });
+  const dv = displayView(live, ev(), new Set(), 'x');
+  assert.equal(dv.shotsReveal.shots.length, 2);
+  assert.equal(dv.shotsReveal.shots[0].team, 'A');
+});
+
+test('Dragons: niet in eigen team, precies €10.000 in stappen van €500, geheim tot onthulling, 5-4-3-2-1 met gelijke stand', () => {
+  const { db, live, E, T, P, run, pts, ev, clock } = setup();
+  const r = C.upsertRound(db, E, { title: 'Dragons', kind: 'dragons' });
+  const q = C.upsertQuestion(db, E, { roundId: r, type: 'invest', prompt: 'Verdeel je €10.000', seconds: 60 });
+  run('prepare', { questionId: q }); run('open'); clock.add(10);
+  assert.throws(() => live.submit(E, P.a1, { questionId: q, answer: { [T.A]: 5000, [T.B]: 5000 } }), /eigen team/);
+  assert.throws(() => live.submit(E, P.a1, { questionId: q, answer: { [T.B]: 9000 } }), /precies/);
+  assert.throws(() => live.submit(E, P.a1, { questionId: q, answer: { [T.B]: 9750, [T.C]: 250 } }), /stappen/);
+  assert.throws(() => live.submit(E, P.a1, { questionId: q, answer: { [T.B]: 12000, [T.C]: -2000 } }), /stappen|precies/);
+  live.submit(E, P.a1, { questionId: q, answer: { [T.B]: 6000, [T.C]: 4000 } });
+  live.submit(E, P.b1, { questionId: q, answer: { [T.C]: 6000, [T.A]: 4000 } });
+  live.submit(E, P.c1, { questionId: q, answer: { [T.D]: 10000 } });
+  live.submit(E, P.d1, { questionId: q, answer: { [T.E]: 4000, [T.A]: 6000 } });
+  live.submit(E, P.e1, { questionId: q, answer: { [T.B]: 4000, [T.D]: 6000 } });
+  // A 10000, B 10000, C 10000, D 16000, E 4000
+  assert.ok(!JSON.stringify(displayView(live, ev(), new Set(), 'x')).includes('16000'), 'investeringen geheim tot onthulling');
+  run('close'); run('reveal');
+  assert.ok(JSON.stringify(displayView(live, ev(), new Set(), 'x')).includes('16000'));
+  run('score');
+  assert.deepEqual(pts(), { D: 5, A: 4, B: 4, C: 4, E: 1 });
+});
+
+test('Ken je kompaan: duo vergelijkt, trio roteert zichtbaar, niet-aangewezen speler geblokkeerd', () => {
+  const { db, live, E, T, P, run, pts, clock } = setup();
+  const r = C.upsertRound(db, E, { title: 'Kompaan', kind: 'kompaan' });
+  const mk = n => C.upsertQuestion(db, E, { roundId: r, type: 'mc', scope: 'individual', prompt: 'Wat bestelt je kompaan? ' + n, options: ['Bier', 'Wijn', 'Fris'], seconds: 30, points: 1, settings: { kompaan: true } });
+  const q1 = mk(1), q2 = mk(2), q3 = mk(3);
+  const pairs = [q1, q2, q3].map(q => M.kompaanPair(db, { ...live.question(q), event_id: E }, T.E).map(p => p.id));
+  const skipped = pairs.map(pr => ['e1', 'e2', 'e3'].find(n => !pr.includes(P[n].id)));
+  assert.deepEqual(skipped, ['e1', 'e2', 'e3'], 'elk triolid zit één keer over');
+  run('prepare', { questionId: q1 }); run('open'); clock.add(10);
+  assert.throws(() => live.submit(E, P.e1, { questionId: q1, answer: 0 }), /teamgenoten/);
+  live.submit(E, P.e2, { questionId: q1, answer: 1 }); live.submit(E, P.e3, { questionId: q1, answer: 1 });
+  live.submit(E, P.a1, { questionId: q1, answer: 0 }); live.submit(E, P.a2, { questionId: q1, answer: 2 });
+  live.submit(E, P.b1, { questionId: q1, answer: 2 }); live.submit(E, P.b2, { questionId: q1, answer: 2 });
+  run('close'); run('reveal'); run('score');
+  assert.deepEqual(pts(), { B: 1, E: 1, A: 0, C: 0, D: 0 });
+});
+
+test('Buitentas: kassabon dichtst bij 12:00 en 250 gram, gelijke afwijking deelt punten, niet ingeleverd 0', () => {
+  const { db, live, E, T, pts } = setup();
+  const bon = M.upsertMission(db, E, { title: 'Kassabon', kind: 'closest', target: '12:00', unit: 'min' });
+  const gram = M.upsertMission(db, E, { title: '250 gram', kind: 'closest', target: '250', unit: 'g' });
+  const tas = M.upsertMission(db, E, { title: 'Mysterieus voorwerp', kind: 'check', maxPoints: 2 });
+  M.saveEvidence(db, E, T.A, bon, { value: '12:00' }, 'x');
+  M.checkEvidence(db, E, bon, T.A, { measured: '12:00', checked: true });
+  M.checkEvidence(db, E, bon, T.B, { measured: '11:58', checked: true });
+  M.checkEvidence(db, E, bon, T.C, { measured: '12:02', checked: true });
+  M.checkEvidence(db, E, bon, T.D, { measured: '13:30', checked: true });
+  // E levert niets in
+  live.scoreMission(E, 't', bon);
+  assert.deepEqual(pts(), { A: 5, B: 4, C: 4, D: 2, E: 0 });
+  live.scoreMission(E, 't', bon); // opnieuw scoren: geen dubbeling
+  assert.equal(pts().A, 5);
+  M.checkEvidence(db, E, gram, T.E, { measured: '249,5', checked: true });
+  M.checkEvidence(db, E, gram, T.A, { measured: '300', checked: false }); // afgekeurd
+  live.scoreMission(E, 't', gram);
+  assert.equal(pts().E, 5); assert.equal(pts().A, 5);
+  M.checkEvidence(db, E, tas, T.C, { checked: true });
+  live.scoreMission(E, 't', tas);
+  assert.equal(pts().C, 6);
+  assert.throws(() => M.saveEvidence(db, E, T.B, bon, { value: '12:00' }, 'x'), /al beoordeeld/);
+});

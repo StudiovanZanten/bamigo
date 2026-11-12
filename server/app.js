@@ -16,6 +16,7 @@ import { Live } from './live.js';
 import { playerView, displayView, staffView } from './views.js';
 import { exportResults, exportPack, importPack, emergencyPack } from './exporting.js';
 import { seedDemo } from './seed-demo.js';
+import * as M from './modules.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '..');
@@ -145,6 +146,34 @@ export async function buildApp({ dbFile = process.env.BAMIGO_DB || path.join(roo
     touch(p.event.id); return { ok: true };
   });
 
+  // ---------- voorbereiding (speler) ----------
+  const myTeam = p => live.membership(p.participant.id) || deny('Je zit nog niet in een team.');
+  app.post('/api/player/vote', async req => { const p = player(req); M.castVote(db, p.event.id, p.participant, req.body || {}); touch(p.event.id); return { ok: true }; });
+  app.post('/api/player/profile', async req => {
+    const p = player(req); const b = req.body || {};
+    const prof = { ...json(p.participant.profile, {}), story: String(b.story ?? '').slice(0, 1000), limits: String(b.limits ?? '').slice(0, 500), done: !!b.done };
+    db.run('UPDATE participants SET profile = ? WHERE id = ?', JSON.stringify(prof), p.participant.id);
+    touch(p.event.id); return { ok: true };
+  });
+  app.post('/api/player/shot', async req => {
+    const p = player(req); const m = myTeam(p);
+    if (json(p.event.settings, {}).drinks === false) deny('Drankonderdelen staan uit voor deze avond.');
+    if (db.get("SELECT 1 FROM questions WHERE event_id = ? AND type = 'shot' AND locked_at IS NOT NULL", p.event.id)) deny('De shotronde is al begonnen; wijzigen kan niet meer.');
+    M.saveShot(db, p.event.id, m.team_id, req.body || {}, p.participant.name); touch(p.event.id); return { ok: true };
+  });
+  app.post('/api/player/evidence', async req => {
+    const p = player(req); const m = myTeam(p); const b = req.body || {};
+    M.saveEvidence(db, p.event.id, m.team_id, String(b.missionId || ''), { value: b.value, note: b.note }, p.participant.name); touch(p.event.id); return { ok: true };
+  });
+  app.post('/api/player/evidence/photo', { config: { rateLimit: { max: 30, timeWindow: '1 minute' } } }, async req => {
+    const p = player(req); const m = myTeam(p);
+    const missionId = String(req.query.missionId || '');
+    db.get('SELECT 1 FROM missions WHERE id = ? AND event_id = ?', missionId, p.event.id) || notFound('Missie niet gevonden');
+    const mid = await storeUpload(req, p.event.id, 'player:' + p.participant.id, { imagesOnly: true, sensitive: true });
+    M.saveEvidence(db, p.event.id, m.team_id, missionId, { mediaId: mid }, p.participant.name);
+    touch(p.event.id); return { ok: true };
+  });
+
   // ---------- staf ----------
   app.get('/api/staff/view', async req => { const s = staff(req); return staffView(live, s, onlineSet(s.event.id), joinUrl(req, s.event.join_code)); });
   app.patch('/api/staff/event', async req => { const s = staff(req, 'event.manage'); C.updateEvent(db, s.event.id, req.body || {}); touch(s.event.id); return { ok: true }; });
@@ -209,29 +238,50 @@ export async function buildApp({ dbFile = process.env.BAMIGO_DB || path.join(roo
   app.post('/api/staff/import/pack', async req => { const s = staff(req, 'content.write'); const r = importPack(db, s.event.id, req.body); touch(s.event.id); return r; });
   app.get('/api/staff/emergency', async (req, reply) => { const s = staff(req, 'content.read'); reply.type('text/html; charset=utf-8').send(emergencyPack(db, s.event.id)); });
 
-  // ---------- media ----------
-  app.post('/api/staff/media', async req => {
+  // ---------- shots, missies ----------
+  app.post('/api/staff/shots/:id', async req => { const s = staff(req, 'secrets.read'); M.adminShot(db, s.event.id, req.params.id, req.body || {}); touch(s.event.id); return { ok: true }; });
+  app.post('/api/staff/shots/team/:teamId', async req => { const s = staff(req, 'secrets.read'); M.saveShot(db, s.event.id, req.params.teamId, req.body || {}, s.grant.label); touch(s.event.id); return { ok: true }; });
+  app.post('/api/staff/missions', async req => { const s = staff(req, 'content.write'); const mid = M.upsertMission(db, s.event.id, req.body || {}); touch(s.event.id); return { id: mid }; });
+  app.delete('/api/staff/missions/:id', async req => {
     const s = staff(req, 'content.write');
+    if (!db.run('DELETE FROM missions WHERE id = ? AND event_id = ?', req.params.id, s.event.id).changes) notFound();
+    db.run("UPDATE score_events SET voided_at = ?, voided_reason = 'missie verwijderd' WHERE event_id = ? AND source_key LIKE ? AND voided_at IS NULL", Date.now(), s.event.id, `m:${req.params.id}:%`);
+    touch(s.event.id); return { ok: true };
+  });
+  app.post('/api/staff/evidence/check', async req => { const s = staff(req, 'live.control'); const b = req.body || {}; M.checkEvidence(db, s.event.id, String(b.missionId), String(b.teamId), b); touch(s.event.id); return { ok: true }; });
+  app.post('/api/staff/missions/:id/score', async req => { const s = staff(req, 'scores.write'); return { results: live.scoreMission(s.event.id, actorOf(s), req.params.id) }; });
+
+  // ---------- media ----------
+  async function storeUpload(req, eventId, by, { imagesOnly = false, sensitive = false } = {}) {
     const file = await req.file();
     if (!file) bad('Geen bestand');
-    const ext = MEDIA_TYPES[file.mimetype]; if (!ext) bad('Bestandstype niet toegestaan (jpg, png, webp, gif, mp3, m4a, wav, mp4).');
+    const ext = MEDIA_TYPES[file.mimetype];
+    if (!ext || (imagesOnly && !file.mimetype.startsWith('image/'))) bad(imagesOnly ? 'Alleen foto’s (jpg, png, webp).' : 'Bestandstype niet toegestaan (jpg, png, webp, gif, mp3, m4a, wav, mp4).');
     const buf = await file.toBuffer();
     if (file.file.truncated) bad('Bestand is te groot (max 15 MB).');
     if (!sniff(buf, file.mimetype)) bad('Bestandsinhoud klopt niet met het type.');
-    const mid = id('m_'); const key = `${s.event.id}/${mid}.${ext}`;
-    fs.mkdirSync(path.join(mediaDir, s.event.id), { recursive: true });
+    const mid = id('m_'); const key = `${eventId}/${mid}.${ext}`;
+    fs.mkdirSync(path.join(mediaDir, eventId), { recursive: true });
     fs.writeFileSync(path.join(mediaDir, key), buf);
     db.run('INSERT INTO media (id, event_id, filename, mime, size, storage_key, sensitive, uploaded_by, created_at) VALUES (?,?,?,?,?,?,?,?,?)',
-      mid, s.event.id, String(file.filename).slice(0, 120), file.mimetype, buf.length, key, req.query.sensitive ? 1 : 0, actorOf(s), Date.now());
-    return { id: mid };
+      mid, eventId, String(file.filename).slice(0, 120), file.mimetype, buf.length, key, sensitive ? 1 : 0, by, Date.now());
+    return mid;
+  }
+  app.post('/api/staff/media', async req => {
+    const s = staff(req, 'content.write');
+    return { id: await storeUpload(req, s.event.id, actorOf(s), { sensitive: !!req.query.sensitive }) };
   });
   // Media alleen via header-token. Spelers/tv: alleen media van de actieve, geopende vraag.
   app.get('/api/media/:id', async (req, reply) => {
     const m = db.get('SELECT * FROM media WHERE id = ?', req.params.id) || notFound();
     const st = staffByToken(db, tokenFrom(req, 'x-staff-token'));
     let ok = false;
-    if (st && st.event.id === m.event_id) ok = can(st.role, 'content.read') || (!m.sensitive && (can(st.role, 'display') || can(st.role, 'live.prompts')) && mediaIsLive(m.id, m.event_id));
-    if (!ok) { const p = playerByToken(db, tokenFrom(req, 'x-player-token')); ok = !!p && p.event.id === m.event_id && !m.sensitive && mediaIsLive(m.id, m.event_id); }
+    const evidenceOf = db.get('SELECT team_id FROM evidence WHERE media_id = ?', m.id);
+    if (st && st.event.id === m.event_id) ok = can(st.role, 'content.read') || (!!evidenceOf && can(st.role, 'live.control')) || (!m.sensitive && (can(st.role, 'display') || can(st.role, 'live.prompts')) && mediaIsLive(m.id, m.event_id));
+    if (!ok) {
+      const p = playerByToken(db, tokenFrom(req, 'x-player-token'));
+      if (p && p.event.id === m.event_id) ok = evidenceOf ? live.membership(p.participant.id)?.team_id === evidenceOf.team_id : (!m.sensitive && mediaIsLive(m.id, m.event_id));
+    }
     if (!ok) deny();
     reply.header('Cache-Control', 'private, no-store').type(m.mime).send(fs.createReadStream(path.join(mediaDir, m.storage_key)));
   });

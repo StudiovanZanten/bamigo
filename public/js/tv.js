@@ -27,6 +27,7 @@ function render() {
   else if (L.screen === 'round_intro') body = intro(v);
   else if (L.screen === 'question' && q) body = question(v, q);
   else if (L.screen === 'scoreboard' || L.screen === 'finale') body = board(v);
+  else if (L.screen === 'shots_reveal') body = shotsReveal(v);
   else if (L.screen === 'break') body = `<div class="stage-body center fade-in"><div class="tag">Pauze</div><h1 class="intro-title">Even bijtanken.</h1><p class="intro-sub" style="margin:0 auto">${esc(L.message || 'Daarna gaan we verder. VAMOSSS!')}</p></div>`;
   else body = `<div class="stage-body center"><div class="brand xl">BAMIGO</div></div>`;
   stage.innerHTML = head(v) + body + foot(v) + (L.paused ? '<div class="tv-paused"><div class="center"><h1>Gepauzeerd</h1><p class="intro-sub" style="margin:0 auto">De tijd staat stil.</p></div></div>' : '');
@@ -71,7 +72,17 @@ function question(v, q) {
   const right = L.phase === 'open' ? `<div class="divider"></div><div class="center"><div class="timer" data-timer>--:--</div><div class="counter" style="margin-top:.6vw">${v.counts ? `${v.counts.submitted}/${v.counts.expected} ${q.scope === 'team' ? 'teams' : 'spelers'} ingestuurd` : ''}</div></div>`
     : L.phase === 'closed' ? `<div class="divider"></div><div class="center"><div class="timer">00:00</div><div class="counter">Tijd is om · ${v.counts?.submitted ?? 0} antwoorden</div></div>` : '';
   let reveal = '';
-  if (revealed) {
+  const r0 = v.result || {};
+  const eur = n => '€' + Number(n).toLocaleString('nl-NL');
+  if (q.type === 'shot') reveal = `<p class="intro-sub">Allergenen shot ${q.shotNumber}: <b>${esc(q.allergens)}</b> · Proeven is vrijwillig.</p>${L.phase === 'closed' ? '<p class="counter">Vastgezet. De onthulling volgt na het laatste shot.</p>' : ''}`;
+  if (q.type === 'ranking' && !revealed) reveal = '<p class="intro-sub">Teams voorspellen op de telefoon wie de groep het vaakst koos.</p>';
+  if (q.type === 'invest' && !revealed) reveal = `<p class="intro-sub">Verdeel ${eur(q.budget)} fictief over de andere teams. Alles blijft geheim tot de onthulling.</p>`;
+  if (q.kompaan && !revealed) reveal = '<p class="intro-sub">Ken je kompaan: de aangewezen teamgenoten antwoorden ieder zelf. Niet overleggen!</p>';
+  if (revealed && (r0.ranking || r0.invest || r0.kompaan)) {
+    if (r0.ranking) reveal = r0.ranking.skipped ? '<p class="intro-sub">Geen geldige stemmen: deze vraag vervalt.</p>' : bars(r0.ranking.top.map(x => ({ label: x.name + (x.winner ? '  🏆' : ''), value: x.votes, hl: x.winner })), x => x + (x === 1 ? ' stem' : ' stemmen'));
+    if (r0.invest) reveal = bars(r0.invest.map((x, i) => ({ label: x.name, value: x.total, hl: i === 0 })), eur);
+    if (r0.kompaan) reveal = `<table class="board" style="margin-top:1vw"><tbody>${r0.kompaan.map(k => `<tr><td>${esc(k.team)}</td>${k.answers.map(a => `<td>${esc(a.name)}: <b>${esc(a.answer == null ? '—' : (q.options && (q.type === 'mc' || q.type === 'tf')) ? q.options[a.answer] : a.answer)}</b></td>`).join('')}<td class="pts">${k.match ? '✓' : '✗'}</td></tr>`).join('')}</tbody></table>`;
+  } else if (revealed) {
     const r = v.result || {};
     const ans = q.type === 'open' || q.type === 'number' ? `<div class="quote" style="max-width:none;display:inline-block">Antwoord: ${esc(r.correct)}</div>` : q.type === 'order' ? `<div class="quote" style="max-width:none">${[].concat(r.correct).map(i => esc(q.options[i])).join(' → ')}</div>` : '';
     reveal = `<div class="q-row" style="margin-top:1.4vw">${ans}<div class="counter">${r.correctCount}/${r.total} goed</div>
@@ -105,3 +116,21 @@ function tick() {
   if (t && L.deadline) { const left = L.deadline - (L.paused ? L.pausedAt : now); t.textContent = fmtTime(left); const s = Math.ceil(left / 1000); if (s !== lastSec && s <= 5 && s > 0 && !L.paused) sound.tick(); lastSec = s; }
 }
 setInterval(tick, 200);
+
+function bars(items, fmt) {
+  const max = Math.max(1, ...items.map(i => i.value));
+  return `<div style="margin-top:1.4vw;display:grid;gap:.8vw">${items.map(i => `<div style="display:grid;grid-template-columns:22vw 1fr 10vw;align-items:center;gap:1vw;font-size:2vw">
+    <span style="${i.hl ? 'color:var(--ivory);font-weight:700' : 'color:var(--champagne)'}">${esc(i.label)}</span>
+    <span style="height:2vw;background:var(--raised-2);border-radius:3px;overflow:hidden"><i style="display:block;height:100%;width:${(i.value / max) * 100}%;background:${i.hl ? 'var(--copper)' : 'var(--champagne)'}"></i></span>
+    <span class="display" style="text-align:right">${fmt(i.value)}</span></div>`).join('')}</div>`;
+}
+
+function shotsReveal(v) {
+  const d = v.shotsReveal || { shots: [], points: [] };
+  return `<div class="stage-body fade-in"><div class="q-row" style="justify-content:space-between"><div><span class="tag">Shot in het duister</span><h1 class="q" style="margin:1vw 0;white-space:nowrap;max-width:none">De onthulling</h1></div>
+    <div class="center"><div class="host-mascot" style="width:10vw;height:10vw">${mascot('verrast')}</div><div class="speech">VAMOSSS!</div></div></div>
+    <div style="display:grid;grid-template-columns:repeat(${Math.min(5, d.shots.length || 1)},1fr);gap:1vw">${d.shots.map(s => `<div class="team-card"><div class="counter">Shot ${s.number}</div><h3>${esc(s.team)}</h3>
+      <div style="font-size:1.3vw;font-weight:600">${esc(s.name || '')}</div><div class="m">${esc(s.flavor || '')} · ${esc(s.base || '')}</div>${s.story ? `<p style="font-size:1.1vw;margin:.6vw 0 0;color:var(--champagne)">“${esc(s.story)}”</p>` : ''}</div>`).join('')}</div>
+    <div class="counter" style="margin-top:1.6vw">Punten deze ronde</div>
+    <div style="display:flex;gap:1vw;flex-wrap:wrap;margin-top:.6vw">${d.points.map(p => `<div class="team-card" style="padding:.6vw 1.2vw;display:flex;gap:1vw;align-items:baseline"><span style="font-size:1.5vw">${esc(p.name)}</span><span class="display copper-text" style="font-size:2.4vw">${p.points}</span></div>`).join('')}</div></div>`;
+}

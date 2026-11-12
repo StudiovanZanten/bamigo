@@ -95,10 +95,11 @@ function start() {
 function render() {
   const v = view; if (!v) return;
   const q = v.question; const L = v.live;
-  if (q?.id !== draft.qid) { draft = { qid: q?.id ?? null, choice: null, text: '', bet: null, order: q?.options ? q.options.map((_, i) => i) : null }; sending = null; }
+  if (q?.id !== draft.qid) { draft = { qid: q?.id ?? null, choice: null, text: '', bet: null, order: q?.options ? q.options.map((_, i) => i) : null, shot: { flavor: '', base: '', teamId: '' }, invest: {} }; sending = null; }
   if (q?.options && !draft.order) draft.order = q.options.map((_, i) => i);
   // Structuursleutel: alleen opnieuw opbouwen als er echt iets verandert (behoudt focus en invoer).
   const key = JSON.stringify([L.screen, L.phase, L.paused, L.seq, q?.id, q?.visible, v.mine, v.me, v.team?.members, sending, v.result && v.result.total, v.scoreboard, L.message]);
+  renderPrep(v);
   if (key === lastKey) return;
   const focusId = document.activeElement?.id;
   lastKey = key;
@@ -111,6 +112,7 @@ function render() {
   else if (L.screen === 'round_intro') body = `<div class="center stack"><span class="tag">${esc(ROUND_LABEL[L.round?.kind] || 'Ronde')}</span><h1>${esc(L.round?.title || '')}</h1>
     <p>${esc(L.round?.instructions || '')}</p><div class="host-mascot" style="margin:0 auto">${mascot('welkom')}</div></div>`;
   else if (L.screen === 'scoreboard' || L.screen === 'finale') body = boardScreen(v);
+  else if (L.screen === 'shots_reveal') body = shotsRevealScreen(v);
   else if (L.screen === 'break') body = `<div class="center stack"><h1>Pauze</h1><p class="muted">${esc(L.message || 'Even bijtanken. Daarna: VAMOSSS!')}</p></div>`;
   else body = lobbyScreen(v);
   app.innerHTML = head + body + (L.paused ? `<div class="paused" role="alertdialog" aria-label="Gepauzeerd"><div><h1>Gepauzeerd</h1><p class="muted">De host heeft het spel even stilgezet. De tijd staat stil.</p></div></div>` : '');
@@ -152,7 +154,17 @@ function questionScreen(v, q) {
   const canAnswer = L.phase === 'open' && !mine && (q.scope === 'individual' || v.me.isCaptain) && !(sending?.status === 'pending');
   const notCaptain = q.scope === 'team' && !v.me.isCaptain;
 
-  if (q.type === 'mc' || q.type === 'tf') {
+  if (q.kompaan && v.kompaan) {
+    const inPair = v.kompaan.pair.some(p => p.id === v.me.id);
+    out += `<p class="notice small">${inPair ? `Ken je kompaan: antwoord zonder te overleggen. Daarna vergelijken we op tv.` : `Deze vraag zit jij over: <b>${v.kompaan.pair.map(p => esc(p.name)).join('</b> en <b>')}</b> antwoorden. Jij mag meekijken (en zwijgen).`}</p>`;
+    if (!inPair) return out + (['revealed', 'scored'].includes(L.phase) ? revealExtra(v, q) : '');
+  }
+  if (q.type === 'shot') return out + shotQuestion(v, q, mine, canAnswer, notCaptain);
+  if (q.type === 'invest') return out + investQuestion(v, q, mine, canAnswer, notCaptain);
+  if (q.type === 'ranking') {
+    const chosen = mine ? mine.answer : draft.choice;
+    out += `<div class="choices" role="group" aria-label="Kies een naam">${q.candidates.map(c => `<button class="choice" data-cand="${c.id}" aria-pressed="${chosen === c.id}" ${canAnswer ? '' : 'disabled'}><span>${esc(c.name)}</span><span class="mark">${chosen === c.id ? (mine ? '✓ Ingestuurd' : '● Gekozen') : ''}</span></button>`).join('')}</div>`;
+  } else if (q.type === 'mc' || q.type === 'tf') {
     const chosen = mine ? mine.answer : draft.choice;
     const correct = revealed ? [].concat(v.result?.correct) : [];
     out += `<div class="choices" role="group" aria-label="Antwoorden">${q.options.map((o, i) => {
@@ -193,13 +205,13 @@ function questionScreen(v, q) {
     out += `<div class="center" style="margin-top:20px"><div class="host-mascot" style="margin:0 auto 6px">${mascot(verdict === 'correct' ? 'goed' : mine ? 'fout' : 'denken')}</div>
       <div class="verdict ${verdict === 'correct' ? 'ok' : 'no'}">${!mine ? 'Geen antwoord' : verdict === 'correct' ? 'Goed!' : verdict === 'review' ? 'Host beoordeelt…' : verdict == null ? 'Beoordeling volgt' : 'Helaas'}</div>
       ${mine?.points != null ? `<p>${mine.points > 0 ? '+' : ''}${mine.points} punten</p>` : ''}
-      ${v.result?.explanation ? `<p class="muted small">${esc(v.result.explanation)}</p>` : ''}
+      ${v.result?.explanation ? `<p class="muted small">${esc(v.result.explanation)}</p>` : ''}${revealExtra(v, q)}
       ${v.result?.fastest?.length ? `<p class="small">Snelst goed: ${v.result.fastest.map(f => `${esc(f.name)} (${f.seconds.toFixed(2)} s)`).join(', ')}</p>` : ''}</div>`;
   }
   return out;
 }
 
-const hasDraft = q => (q.type === 'mc' || q.type === 'tf') ? draft.choice !== null : (q.type === 'order' ? true : String(draft.text).trim() !== '');
+const hasDraft = q => (['mc', 'tf', 'ranking'].includes(q.type)) ? draft.choice !== null : (q.type === 'order' ? true : String(draft.text).trim() !== '');
 
 function boardScreen(v) {
   const sb = v.scoreboard; if (!sb) return '';
@@ -222,12 +234,14 @@ function bind(v, q) {
     if (q.scoring === 'speed') { draft.choice = i; send(q, i); return; }
     draft.choice = i; lastKey = ''; render();
   });
+  $$('[data-cand]').forEach(b => b.onclick = () => { draft.choice = b.dataset.cand; lastKey = ''; render(); });
+  bindShot(q); bindInvest(q);
   $$('[data-bet]').forEach(b => b.onclick = () => { draft.bet = Number(b.dataset.bet) || null; lastKey = ''; render(); });
   $$('[data-up]').forEach(b => b.onclick = () => { const p = Number(b.dataset.up); const o = draft.order; [o[p - 1], o[p]] = [o[p], o[p - 1]]; lastKey = ''; render(); });
   const ans = $('#ans'); if (ans) ans.oninput = () => { draft.text = ans.value; const sb = $('#submitBtn'); if (sb) sb.disabled = !ans.value.trim(); };
   if (ans) ans.onkeydown = e => { if (e.key === 'Enter' && ans.value.trim()) $('#submitBtn')?.click(); };
   const sb = $('#submitBtn'); if (sb) sb.onclick = () => {
-    const a = q.type === 'mc' || q.type === 'tf' ? draft.choice : q.type === 'order' ? draft.order : draft.text;
+    const a = ['mc', 'tf', 'ranking'].includes(q.type) ? draft.choice : q.type === 'order' ? draft.order : draft.text;
     send(q, a);
   };
   const md = $('[data-media]'); if (md) mediaUrl(md.dataset.media, { 'x-player-token': token }).then(u => { if (u) md.innerHTML = `<img src="${u}" alt="Afbeelding bij de vraag" style="max-width:100%;border-radius:6px">`; });
@@ -255,6 +269,134 @@ function attempt() {
   });
 }
 function retryPending() { if (sending?.retry && sending.status === 'error') { sending.status = 'pending'; sending.retry = false; sending.tries = 0; attempt(); } }
+
+
+// ---------- spelvormen ----------
+function shotQuestion(v, q, mine, canAnswer, notCaptain) {
+  let out = `<p class="notice warn small">Allergenen shot ${q.shotNumber}: <b>${esc(q.allergens)}</b>. Proeven is vrijwillig.</p>`;
+  if (v.ownShot) return out + `<div class="center stack" style="margin-top:20px"><h2>Dit is jullie shot.</h2><p class="muted">Proost. Op je eigen shot scoor je niet; houd je pokerface.</p></div>`;
+  const a = mine ? mine.answer : draft.shot;
+  const dis = canAnswer ? '' : 'disabled';
+  out += `<div class="field"><label for="shF">Hoofdsmaak</label><input id="shF" maxlength="100" value="${esc(a.flavor || '')}" ${dis}></div>
+    <div class="field"><label for="shB">Basisdrank (of “geen alcohol”)</label><input id="shB" maxlength="100" value="${esc(a.base || '')}" ${dis}></div>
+    <div class="field"><label for="shT">Van welk team?</label><select id="shT" ${dis}><option value="">— kies —</option>${q.teams.filter(t => t.id !== v.me.teamId).map(t => `<option value="${t.id}" ${a.teamId === t.id ? 'selected' : ''}>${esc(t.name)}</option>`).join('')}</select></div>
+    <p class="small muted">Elk onderdeel 1 punt. Je mag hetzelfde team vaker noemen. Herkomst en verhalen komen pas na het laatste shot.</p>`;
+  if (v.live.phase === 'open' && !mine && !notCaptain) out += `<button id="shotSubmit" class="btn primary block big">Antwoord vastzetten</button>`;
+  if (mine) out += `<div class="receipt" role="status">✓ Vastgezet en ontvangen. Onthulling na het laatste shot.</div>`;
+  if (sending?.status === 'pending') out += `<div class="receipt pending" role="status">Versturen… nog niet bevestigd.</div>`;
+  if (sending?.status === 'error') out += `<div class="receipt err" role="alert">${esc(sending.error)}</div>`;
+  if (v.live.phase === 'open' && !mine && notCaptain) out += `<p class="notice">De captain zet jullie antwoord vast.</p>`;
+  return out;
+}
+function bindShot(q) {
+  const b = $('#shotSubmit'); if (!b) return;
+  ['shF', 'shB'].forEach((id, i) => $('#' + id).oninput = e => { draft.shot[i ? 'base' : 'flavor'] = e.target.value; });
+  $('#shT').onchange = e => { draft.shot.teamId = e.target.value; };
+  b.onclick = () => send(q, { ...draft.shot });
+}
+
+function investQuestion(v, q, mine, canAnswer, notCaptain) {
+  const alloc = mine ? mine.answer : draft.invest;
+  const total = Object.values(alloc).reduce((a, b) => a + b, 0);
+  const left = q.budget - total;
+  const eur = n => '€' + Number(n).toLocaleString('nl-NL');
+  let out = `<p class="muted small">Fictief geld. Niet in je eigen team. Precies ${eur(q.budget)} verdelen, in stappen van ${eur(q.step)}. Alles blijft geheim tot de onthulling.</p>
+    <ul class="list">${q.teams.filter(t => t.id !== v.me.teamId).map(t => `<li><span class="grow" style="flex:1">${esc(t.name)}</span>
+      ${canAnswer ? `<button class="btn ghost small" data-inv="${t.id}" data-d="-1" aria-label="Minder voor ${esc(t.name)}">−</button>` : ''}
+      <b style="min-width:90px;text-align:right">${eur(alloc[t.id] || 0)}</b>
+      ${canAnswer ? `<button class="btn ghost small" data-inv="${t.id}" data-d="1" aria-label="Meer voor ${esc(t.name)}">+</button>` : ''}</li>`).join('')}</ul>
+    <p class="center" style="margin-top:10px">${mine ? '' : left === 0 ? '<b>Budget verdeeld.</b>' : `Nog te verdelen: <b>${eur(left)}</b>`}</p>`;
+  if (v.live.phase === 'open' && !mine && !notCaptain) out += `<button id="investSubmit" class="btn primary block big" ${left === 0 ? '' : 'disabled'}>Investering vastzetten</button>`;
+  if (mine) out += `<div class="receipt" role="status">✓ Investering vastgezet en ontvangen.</div>`;
+  if (sending?.status === 'error') out += `<div class="receipt err" role="alert">${esc(sending.error)}</div>`;
+  if (v.live.phase === 'open' && !mine && notCaptain) out += `<p class="notice">De captain verdeelt het budget.</p>`;
+  if (['revealed', 'scored'].includes(v.live.phase)) out += revealExtra(v, q);
+  return out;
+}
+function bindInvest(q) {
+  $$('[data-inv]').forEach(b => b.onclick = () => {
+    const t = b.dataset.inv, d = Number(b.dataset.d) * q.step;
+    const total = Object.values(draft.invest).reduce((a, x) => a + x, 0);
+    const nv = Math.max(0, (draft.invest[t] || 0) + d);
+    if (d > 0 && total + d > q.budget) return;
+    draft.invest[t] = nv; if (!nv) delete draft.invest[t];
+    lastKey = ''; render();
+  });
+  const sb = $('#investSubmit'); if (sb) sb.onclick = () => send(q, { ...draft.invest });
+}
+
+function revealExtra(v, q) {
+  const r = v.result || {};
+  if (r.ranking) return r.ranking.skipped ? '<p class="notice">Geen geldige stemmen: deze vraag vervalt.</p>'
+    : `<table class="board" style="margin-top:12px"><tbody>${r.ranking.top.map(x => `<tr class="${x.winner ? 'me' : ''}"><td>${esc(x.name)}${x.winner ? ' 🏆' : ''}</td><td class="pts">${x.votes}</td></tr>`).join('')}</tbody></table><p class="small muted">Alleen totalen; wie op wie stemde blijft geheim.</p>`;
+  if (r.invest) return `<table class="board" style="margin-top:12px"><tbody>${r.invest.map(x => `<tr><td>${esc(x.name)}</td><td class="pts">€${x.total.toLocaleString('nl-NL')}</td></tr>`).join('')}</tbody></table>`;
+  if (r.kompaan) { const mine = r.kompaan.find(k => k.team === v.me.teamName); return mine ? `<p class="small">${mine.answers.map(a => `${esc(a.name)}: <b>${esc(fmtAns(q, a.answer))}</b>`).join(' · ')} ${mine.match ? '— zelfde antwoord!' : '— niet hetzelfde'}</p>` : ''; }
+  return '';
+}
+const fmtAns = (q, a) => a == null ? '—' : (q.type === 'mc' || q.type === 'tf') && q.options ? `${LETTERS[a]}. ${q.options[a]}` : a;
+
+function shotsRevealScreen(v) {
+  const d = v.shotsReveal; if (!d) return '';
+  return `<div class="center"><span class="tag">Shot in het duister</span><h1 style="margin-top:12px">De onthulling</h1></div>
+    ${d.shots.map(s => `<section class="card"><div class="row" style="justify-content:space-between"><h3 style="margin:0">Shot ${s.number}: ${esc(s.name || '')}</h3><span class="pill">${esc(s.team)}</span></div>
+      <p class="small" style="margin:6px 0">${esc(s.flavor || '')} · ${esc(s.base || '')}</p>${s.story ? `<p class="muted small" style="margin:0">“${esc(s.story)}”</p>` : ''}</section>`).join('')}
+    <h3 style="margin-top:20px">Punten deze ronde</h3><table class="board"><tbody>${d.points.map(p => `<tr class="${p.name === v.me.teamName ? 'me' : ''}"><td>${esc(p.name)}</td><td class="pts">${p.points}</td></tr>`).join('')}</tbody></table>`;
+}
+
+// ---------- voorbereiding: vragenlijst, ranking, teamshot, buitentas ----------
+let prepKey = '', prepDirty = false;
+function renderPrep(v) {
+  const el = $('#prep');
+  const show = ['lobby', 'break'].includes(v.live.screen) && v.prep;
+  el.hidden = !show; if (!show) return;
+  const k = JSON.stringify(v.prep) + v.me.teamId;
+  if (k === prepKey) return;
+  // Niet opnieuw opbouwen terwijl iemand in de voorbereiding bezig is; na verlaten van het blok bijwerken.
+  if (el.contains(document.activeElement) || prepDirty) {
+    el.onfocusout = () => setTimeout(() => { if (!el.contains(document.activeElement) && view) { prepDirty = false; renderPrep(view); } }, 50);
+    return;
+  }
+  prepKey = k; prepDirty = false;
+  const P = v.prep; const pr = P.profile;
+  const openVotes = P.ranking.filter(r => !r.closed);
+  el.innerHTML = `<h2 style="margin-top:28px">Voorbereiding</h2>
+  <p class="muted small">Ongeveer vijf minuten. Alles mag je overslaan.</p>
+  ${openVotes.length ? `<section class="card"><h3>Ranking de Boys</h3><p class="small muted">Stem anoniem. Tijdens de quiz voorspellen de teams wie het vaakst gekozen is. Alleen totalen worden getoond.</p>
+    ${openVotes.map(r => `<div class="field"><label for="rv_${r.id}">${esc(r.prompt)}</label><select id="rv_${r.id}" data-vote="${r.id}">
+      <option value="" ${!r.voted ? 'selected' : ''}>— nog niet gestemd —</option><option value="skip" ${r.voted && !r.choiceId ? 'selected' : ''}>Overslaan</option>
+      ${P.candidates.map(c => `<option value="${c.id}" ${r.choiceId === c.id ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select></div>`).join('')}</section>` : ''}
+  <form class="card" id="profForm"><h3>Over jou</h3>
+    <div class="field"><label for="pStory">Een eigen verhaal dat de quizmasters mogen gebruiken (optioneel)</label><textarea id="pStory" maxlength="1000">${esc(pr.story)}</textarea></div>
+    <div class="field"><label for="pLim">Waar moet de humor bij jou wegblijven? (optioneel, alleen voor de quizmasters)</label><input id="pLim" maxlength="500" value="${esc(pr.limits)}"></div>
+    <button class="btn copper">${pr.done ? 'Bijwerken' : 'Opslaan'}</button> ${pr.done ? '<span class="pill ok"><span class="dot"></span>Ingevuld</span>' : ''}</form>
+  ${P.shot ? `<form class="card" id="shotForm"><h3>Jullie geheime shot</h3><p class="small muted">Eén inzending per team; alleen jullie team ziet dit. ${P.shot.updated_by ? `Laatst bewerkt door ${esc(P.shot.updated_by)}.` : ''}</p>
+    ${[['name', 'Naam / merk'], ['flavor', 'Hoofdsmaak'], ['base', 'Basisdrank (of “geen alcohol”)'], ['ingredients', 'Ingrediënten'], ['allergens', 'Allergenen (verplicht; “geen” als er geen zijn)'], ['amount', 'Hoeveelheid (bijv. 1 fles 0,7 l)']]
+      .map(([f, l]) => `<div class="field"><label for="sh_${f}">${l}</label><input id="sh_${f}" data-shot="${f}" maxlength="300" value="${esc(P.shot[f] || '')}"></div>`).join('')}
+    <div class="field"><label for="sh_story">Kort verhaal (wordt pas na het laatste shot onthuld)</label><textarea id="sh_story" data-shot="story" maxlength="500">${esc(P.shot.story || '')}</textarea></div>
+    <button class="btn copper">Shot opslaan</button></form>` : ''}
+  ${P.missions.length ? `<section class="card"><h3>BAMIGO Buitentas</h3><p class="small muted">Verzamel vooraf, lever de fysieke tas in bij de BAMIGO Douane. Bewijsmateriaal. Geen verdere vragen.</p>
+    ${P.missions.map(m => `<form class="card" style="background:var(--bg)" data-mission="${m.id}"><h3 style="font-size:1.1rem">${esc(m.title)}</h3>${m.description ? `<p class="small">${esc(m.description)}</p>` : ''}
+      ${m.closed ? `<p class="pill ok"><span class="dot"></span>Beoordeeld</p>` : `<div class="row"><div class="grow"><label for="mv_${m.id}">${m.kind === 'closest' ? `Jullie waarde${m.unit ? ' (' + esc(m.unit) + ')' : ''}` : 'Wat hebben jullie?'}</label><input id="mv_${m.id}" name="value" maxlength="100" value="${esc(m.mine?.value || '')}"></div></div>
+      <div class="field" style="margin-top:8px"><label for="mn_${m.id}">Toelichting</label><input id="mn_${m.id}" name="note" maxlength="500" value="${esc(m.mine?.note || '')}"></div>
+      <div class="row"><button class="btn copper small">Opslaan</button><label class="btn ghost small" style="margin:0;color:var(--ivory)">${m.mine?.hasPhoto ? 'Foto vervangen' : 'Foto toevoegen'}<input type="file" accept="image/*" capture="environment" data-photo="${m.id}" hidden></label>
+      ${m.mine?.value || m.mine?.hasPhoto ? '<span class="pill ok"><span class="dot"></span>Ingeleverd</span>' : ''}</div>`}</form>`).join('')}</section>` : ''}`;
+  const A = api({ 'x-player-token': token });
+  el.oninput = () => { prepDirty = true; };
+  $$('[data-vote]', el).forEach(s => s.onchange = async () => {
+    if (!s.value) return;
+    try { await A.post('/api/player/vote', { questionId: s.dataset.vote, choiceId: s.value === 'skip' ? null : s.value }); toast('Stem opgeslagen. Geheim, uiteraard.'); prepDirty = false; } catch (e) { toast(e.message, 'bad'); }
+  });
+  const pf = $('#profForm', el); if (pf) pf.onsubmit = async e => { e.preventDefault(); try { await A.post('/api/player/profile', { story: $('#pStory').value, limits: $('#pLim').value, done: true }); prepDirty = false; toast('Opgeslagen.'); } catch (err) { toast(err.message, 'bad'); } };
+  const sf = $('#shotForm', el); if (sf) sf.onsubmit = async e => { e.preventDefault(); const b = {}; $$('[data-shot]', sf).forEach(i => b[i.dataset.shot] = i.value);
+    try { await A.post('/api/player/shot', b); prepDirty = false; toast('Shot opgeslagen. Mondje dicht.'); } catch (err) { toast(err.message, 'bad'); } };
+  $$('[data-mission]', el).forEach(f => f.onsubmit = async e => { e.preventDefault();
+    try { await A.post('/api/player/evidence', { missionId: f.dataset.mission, value: f.elements.namedItem('value').value, note: f.elements.namedItem('note').value }); prepDirty = false; toast('Bewijsmateriaal vastgelegd.'); } catch (err) { toast(err.message, 'bad'); } });
+  $$('[data-photo]', el).forEach(inp => inp.onchange = async () => {
+    const file = inp.files[0]; if (!file) return;
+    const fd = new FormData(); fd.append('file', file);
+    try { await api({ 'x-player-token': token }).post('/api/player/evidence/photo?missionId=' + encodeURIComponent(inp.dataset.photo), fd); toast('Foto geüpload.'); } catch (err) { toast(err.message, 'bad'); }
+  });
+}
 
 // ---------- timer ----------
 let lastSec = null, cdRefreshed = null;

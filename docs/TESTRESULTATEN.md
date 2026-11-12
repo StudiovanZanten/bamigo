@@ -1,8 +1,8 @@
-# Testresultaten — fase 1 (12 november 2026)
+# Testresultaten — fase 1–4 (12 november 2026)
 
 Omgeving: cloud-container, Linux, 4 vCPU, Node.js 22.23, server en clients op dezelfde machine (loopback). **Geen echte wifi of echte telefoons**; zie beperkingen.
 
-## Geautomatiseerd (`npm test`): 20/20 geslaagd
+## Geautomatiseerd (`npm test`): 25/25 geslaagd
 
 | # uit plan | Wat | Resultaat |
 |---|---|---|
@@ -19,6 +19,11 @@ Omgeving: cloud-container, Linux, 4 vCPU, Node.js 22.23, server en clients op de
 | — | Open antwoord met typfout → “twijfel” voor host; handmatig oordeel herscoort zonder dubbeling | ✔ |
 | — | Dubbelklik/verouderde hostactie geweigerd; nieuwe vraag niet te starten terwijl er een openstaat; gespeelde vraag niet opnieuw | ✔ |
 | 10 | Dupliceren: geen inzendingen, scores of sessies mee; nieuwe code | ✔ |
+| 7 | Ranking: zelfstemmen geweigerd, gedeelde eerste plaats beide goed, 0 stemmen = vervalt, alleen totalen | ✔ |
+| 8 | Shots: eigen shot geblokkeerd, onthulling geweigerd tot alle shots vastgezet, varianten, onafhankelijk raden | ✔ |
+| 9 | Dragons: eigen team, niet-volledig budget en verkeerde stappen geweigerd; geheim tot onthulling; 5-4-3-2-1 met gelijke stand | ✔ |
+| — | Ken je kompaan: trio roteert, niet-aangewezen geblokkeerd, punt bij gelijk antwoord | ✔ |
+| — | Buitentas: 12:00 / 250 g dichtstbij, gedeelde plek, afgekeurd = 0, opnieuw scoren zonder dubbeling | ✔ |
 | — | Code raden: na 30 foute codes per 10 min per IP geblokkeerd | ✔ |
 
 ## Belastingtest (`npm run load`): 100 deelnemers × 5 bliksemvragen
@@ -37,6 +42,9 @@ Doel “p95 onder 1 s” gehaald **in deze testomgeving**. Op echte wifi komt da
 - iPhone 13- en Pixel 7-emulatie: aanmelden met code, team kiezen, antwoorden, ontvangstbevestiging, niet-captain-weergave, onthulling; herladen hervat de sessie. Geen consolefouten.
 - TV 1920×1080: lobby met QR, vraag met timer, onthulling met verdeling, scorebord.
 - Echte iPhone/Android-toestellen, Safari en echte tv: **nog niet getest** — doen tijdens de generale repetitie.
+
+## Browsercheck fase 4
+- Voorbereiding op telefoon (stemmen, verhaal, missie), rankingvraag, vijf shots + onthulling, Dragons-verdeling, Douane-scherm: zonder consolefouten.
 
 ## Nog niet getest
 - Toetsenbord-only doorloop en schermlezer (componenten zijn native knoppen/inputs met labels; niet systematisch doorlopen).

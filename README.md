@@ -4,7 +4,7 @@
 
 Een eigen tv-spelshow: de tv toont de show, spelers antwoorden op hun telefoon (geen app nodig), quizmasters beheren inhoud en verloop. Eerste editie: *Muchacho’s — Vriendenweekend 2027*.
 
-## Wat er nu werkt (fase 1–3)
+## Wat er nu werkt (fase 1–4)
 
 - Avond aanmaken (beschermd met beheerwachtwoord), demo-editie met fictieve namen.
 - Rollen per avond via geheime links: eigenaar, inhoudsbeheerder, live host, spoilervrije organisator, tv-scherm. Links intrekbaar.
@@ -16,6 +16,7 @@ Een eigen tv-spelshow: de tv toont de show, spelers antwoorden op hun telefoon (
 - State-machine per vraag (klaar → open → gesloten → onthuld → gescoord), pauze met bevroren tijd, servertimer sluit automatisch.
 - Dubbelklik-beveiliging op hostacties, idempotente inzendingen, scorelogboek met correcties/bonussen en reden, ongeldig verklaren.
 - TV-scherm (lobby met QR, ronde-intro, vraag, onthulling met verdeling, scorebord, finale), host-bediening, quiz-editor met duurbewaking.
+- Spelvormen: Ranking de Boys, Shot in het duister, BAMIGO Dragons, Ken je kompaan, Buitentas met BAMIGO Douane; voorbereidingsportaal op de telefoon.
 - Gereedheidsoverzicht (alleen tellingen), vraagpakket export/import, uitslag-export, printbaar noodpakket, dupliceren zonder privédata, archiveren.
 
 Nog niet gebouwd: zie [docs/OPEN-PUNTEN.md](docs/OPEN-PUNTEN.md).
@@ -28,7 +29,7 @@ Vereist Node.js 22.13 of nieuwer (gebruikt de ingebouwde SQLite).
 npm install
 BAMIGO_ADMIN_PASSWORD=kies-iets npm start       # http://localhost:3000
 npm run demo                                     # maakt een demo-avond en print de links
-npm test                                         # 20 geautomatiseerde tests
+npm test                                         # 25 geautomatiseerde tests
 npm run load                                     # belastingtest: 100 deelnemers
 ```
 
