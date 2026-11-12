@@ -3,7 +3,7 @@ import { $, $$, esc, LETTERS, prefs, tokenFromHash, api, connect, toast, connBan
 
 const main = $('#main');
 const token = tokenFromHash('k', 'staffToken');
-let A, conn, view, tab = prefs.get('beheerTab', 'live');
+let A, conn, view, tab = prefs.get('beheerTab2', 'home');
 let editing = null;      // { kind: 'question'|'round', data }
 let busy = false;
 
@@ -47,18 +47,20 @@ function status(s, clock) {
 
 // ---------- tabs ----------
 function tabsFor(v) {
-  const t = [];
-  if (v.perms.live) t.push(['live', 'Live']);
-  t.push(['plan', v.perms.content ? 'Inhoud' : 'Planning']);
-  if (v.perms.people) t.push(['people', 'Teams & spelers']);
-  t.push(['ready', 'Gereedheid']);
-  if (v.missions || v.shots) t.push(['extra', 'Shots & Buitentas']);
+  const t = [['home', 'Start']];
+  if (v.perms.people) t.push(['people', 'Teams']);
+  t.push(['plan', v.perms.content ? 'Vragen' : 'Programma']);
+  if (v.missions || v.shots) t.push(['extra', 'Shots & opdrachten']);
+  t.push(['ready', 'Check']);
+  if (v.perms.live) t.push(['live', '▶ Quiz spelen']);
   if (v.perms.scores) t.push(['scores', 'Scores']);
-  if (v.perms.roles) t.push(['event', 'Avond & links']);
+  if (v.perms.roles) t.push(['event', 'Instellingen']);
   return t;
 }
 
 let lastTabs = '';
+const openDetails = new Set();
+function goTab(k) { tab = k; prefs.set('beheerTab2', tab); editing = null; lastTabs = ''; render(); window.scrollTo(0, 0); }
 function render() {
   const v = view;
   $('#evName').innerHTML = `${esc(v.event.name)} ${v.event.isDemo ? '<span class="demo-badge">Demo</span>' : ''}`;
@@ -69,12 +71,14 @@ function render() {
   if (tk !== lastTabs) {
     lastTabs = tk;
     $('#tabs').innerHTML = tabs.map(([k, l]) => `<button role="tab" aria-selected="${k === tab}" data-tab="${k}">${l}</button>`).join('');
-    $$('[data-tab]').forEach(b => b.onclick = () => { tab = b.dataset.tab; prefs.set('beheerTab', tab); editing = null; lastTabs = ''; render(); });
+    $$('[data-tab]').forEach(b => b.onclick = () => { tab = b.dataset.tab; prefs.set('beheerTab2', tab); editing = null; lastTabs = ''; render(); });
   }
   if (editing && (tab === 'plan' || tab === 'extra')) return; // formulier niet overschrijven tijdens bewerken
   const scrollY = window.scrollY;
   const focusId = document.activeElement?.id;
-  ({ live: liveTab, plan: planTab, people: peopleTab, ready: readyTab, scores: scoresTab, event: eventTab, extra: extraTab }[tab])(v);
+  ({ home: homeTab, live: liveTab, plan: planTab, people: peopleTab, ready: readyTab, scores: scoresTab, event: eventTab, extra: extraTab }[tab])(v);
+  $$('details[data-keep]').forEach(d => { if (openDetails.has(d.dataset.keep)) d.open = true; d.ontoggle = () => { d.open ? openDetails.add(d.dataset.keep) : openDetails.delete(d.dataset.keep); }; });
+  $$('[data-goto]').forEach(b => b.onclick = () => goTab(b.dataset.goto));
   if (focusId && document.getElementById(focusId)) document.getElementById(focusId).focus();
   window.scrollTo(0, scrollY);
 }
@@ -89,12 +93,54 @@ async function act(btn, fn, okMsg) {
 }
 const live = (action, extra = {}) => A.post('/api/staff/live', { action, seq: view.live.seq, ...extra });
 
+// ---------- START ----------
+function tvHref(v) { const t = prefs.get('tvToken.' + v.event.id, null); return t ? '/tv#k=' + encodeURIComponent(t) : '/tv'; }
+function homeTab(v) {
+  const r = v.readiness || {};
+  const n = (x, one, many) => `${x ?? 0} ${x === 1 ? one : many}`;
+  const qWarn = r.exampleQuestions ? `<span class="pill warn">${n(r.exampleQuestions, 'voorbeeldvraag', 'voorbeeldvragen')}</span>` : r.questionsWithoutAnswer ? `<span class="pill bad">${n(r.questionsWithoutAnswer, 'vraag', 'vragen')} zonder antwoord</span>` : '';
+  const item = (go, title, sub, extra = '') => `<button class="home-item" data-goto="${go}"><span class="grow"><b>${title}</b><span class="small muted">${sub}</span></span>${extra}<span class="arrow" aria-hidden="true">›</span></button>`;
+  main.innerHTML = `<div class="home">
+    <h1 class="home-title">Wat wil je doen?</h1>
+    <div class="home-grid">
+      <section class="home-step"><span class="home-num">1</span><h2>Voorbereiden</h2><p class="muted">Vooraf, rustig thuis.</p>
+        ${v.perms.people ? item('people', 'Teams en spelers', `${n(r.teams, 'team', 'teams')} · ${n(r.participants, 'speler', 'spelers')}`) : ''}
+        ${item('plan', v.perms.content ? 'Vragen en rondes' : 'Programma', `${n(v.rounds.length, 'ronde', 'rondes')} · ${n(r.questions, 'vraag', 'vragen')}`, qWarn)}
+        ${v.missions || v.shots ? item('extra', 'Shots en opdrachten', `${n(r.shotsSubmitted, 'shot', 'shots')} ingevuld · ${n(r.missions, 'opdracht', 'opdrachten')}`) : ''}
+        ${item('ready', 'Check: is alles klaar?', 'Overzicht van wat nog ontbreekt')}
+      </section>
+      ${v.perms.live ? `<section class="home-step main"><span class="home-num">2</span><h2>Quiz spelen</h2><p class="muted">Op de avond zelf.</p>
+        <ol class="home-howto">
+          <li><a class="btn ghost" href="${tvHref(v)}" target="_blank" rel="noopener">TV-scherm openen</a><span class="small muted">Zet dit venster op de tv.</span></li>
+          <li><span>Spelers scannen de QR-code op de tv, of gaan naar <b>${esc(location.host)}/speel</b> met code <b class="code">${esc(v.event.joinCode)}</b>.</span></li>
+          <li><button class="btn primary big" data-goto="live">Start de quiz</button></li>
+        </ol></section>` : ''}
+      <section class="home-step"><span class="home-num">3</span><h2>Na afloop</h2><p class="muted">Uitslag en bewaren.</p>
+        ${v.perms.scores ? item('scores', 'Scores', 'Stand, correcties en uitslag downloaden') : ''}
+        ${v.perms.roles ? item('event', 'Instellingen', 'Naam, links voor anderen, kopie maken') : ''}
+      </section>
+    </div></div>`;
+}
+
 // ---------- LIVE ----------
 const PHASE_LABEL = { idle: 'Geen vraag actief', ready: 'Klaar om te openen', open: 'Open', closed: 'Gesloten', revealed: 'Onthuld', scored: 'Gescoord' };
 const SCREEN_LABEL = { lobby: 'Lobby', round_intro: 'Ronde-intro', question: 'Vraag', scoreboard: 'Scorebord', break: 'Pauze', finale: 'Finale', shots_reveal: 'Shotonthulling' };
 
+const FLOW = ['Klaarzetten', 'Openen', 'Antwoorden', 'Onthullen', 'Punten'];
+const FLOW_AT = { idle: 0, ready: 1, open: 2, closed: 3, revealed: 4, scored: 5 };
+function explain(v) {
+  const p = v.live.phase; const q = v.question;
+  if (p === 'idle' || (p === 'scored' && !v.nextQuestionId)) return v.nextQuestionId ? 'Druk op de knop om de eerste vraag klaar te zetten. Spelers zien nog niets.' : 'Alle vragen zijn gespeeld. Zet het scorebord of de finale op de tv (bij “Meer opties”).';
+  if (p === 'ready') return 'De vraag staat klaar, maar is nog geheim. Druk op de knop: de tv telt af en de vraag verschijnt op tv en telefoons.';
+  if (p === 'open') return 'Spelers antwoorden nu op hun telefoon. De vraag sluit vanzelf als de tijd op is. Iedereen klaar? Dan mag je zelf sluiten.';
+  if (p === 'closed' && q?.type === 'shot') return 'Shots worden pas aan het eind van de ronde samen onthuld. Ga door naar de volgende shot.';
+  if (p === 'closed') return 'De vraag is dicht. Druk op de knop om het goede antwoord op de tv te laten zien.';
+  if (p === 'revealed') return 'Het antwoord staat op de tv. Druk op de knop om de punten bij te schrijven.';
+  return 'Klaar! Druk op de knop voor de volgende vraag. Tussendoor de stand laten zien? Kies “Scorebord” bij “Meer opties”.';
+}
 function primaryAction(v) {
   const p = v.live.phase;
+  if (p === 'closed' && v.question?.type === 'shot') return v.nextQuestionId ? ['next_question', 'Volgende shot klaarzetten'] : null;
   if (p === 'ready') return ['open', 'Open vraag voor iedereen'];
   if (p === 'open') return ['close', 'Sluit vraag nu'];
   if (p === 'closed') return ['reveal', 'Onthul antwoord'];
@@ -112,7 +158,9 @@ function liveTab(v) {
   main.innerHTML = `<div class="live-grid">
   <section>
     <div class="card">
-      <div class="state-line"><span class="pill">${SCREEN_LABEL[L.screen]}</span><span class="phase">${PHASE_LABEL[L.phase]}</span>
+      <ol class="flow">${FLOW.map((f, i) => `<li class="${i < FLOW_AT[L.phase] ? 'done' : i === FLOW_AT[L.phase] ? 'now' : ''}">${f}</li>`).join('')}</ol>
+      <p class="explain">${esc(explain(v))}</p>
+      <div class="state-line"><span class="pill">Op tv: ${SCREEN_LABEL[L.screen]}</span>
         ${L.paused ? '<span class="pill warn"><span class="dot"></span>Gepauzeerd</span>' : ''}
         ${L.phase === 'open' && L.deadline ? `<span class="timer" style="font-size:1.8rem" data-timer>--:--</span>` : ''}
         ${v.counts ? `<span class="pill">${v.counts.submitted}/${v.counts.expected} ingestuurd</span>` : ''}</div>
@@ -124,28 +172,33 @@ function liveTab(v) {
       ${L.message ? `<p class="notice warn small">${esc(L.message)}</p>` : ''}
       ${pa ? `<button id="primary" class="btn primary primary-action" data-act="${pa[0]}">${pa[1]}</button>` : '<p class="muted">Geen volgende vraag. Toon het scorebord of de finale.</p>'}
       <div class="row" style="margin-top:12px">
+        <a class="btn ghost small" href="${tvHref(v)}" target="_blank" rel="noopener">TV-scherm openen</a>
+        <span class="small muted">Spelcode <b class="code">${esc(v.event.joinCode)}</b></span>
+      </div>
+    </div>
+    <details class="card more" data-keep="liveMore"><summary>Meer opties (scorebord, pauze, vraag schrappen)</summary>
+      <p class="small muted" style="margin:12px 0 6px">Wat staat er op de tv?</p><div class="row">
+      <button class="btn ghost small" data-act="screen_scoreboard">Scorebord</button>
+      <button class="btn ghost small" data-act="screen_lobby">Lobby (QR-code)</button>
+      <button class="btn ghost small" data-act="screen_break">Pauze</button>
+      <button class="btn ghost small" data-act="screen_finale">Finale</button>
+      <select id="introSel" style="width:auto;min-width:200px"><option value="">Ronde-intro…</option>${v.rounds.map(r => `<option value="${r.id}">${esc(r.title)}</option>`).join('')}</select></div>
+      <p class="small muted" style="margin:14px 0 6px">Deze vraag</p><div class="row">
         ${L.phase === 'scored' ? '<button class="btn ghost small" data-act="score">Opnieuw scoren</button>' : ''}
         <button class="btn ghost small" data-act="${L.paused ? 'resume' : 'pause'}">${L.paused ? 'Hervat' : 'Pauzeer'}</button>
         ${q ? '<button class="btn danger small" data-act="void">Vraag ongeldig verklaren…</button>' : ''}
       </div>
-    </div>
-    ${(v.shotRounds || []).map(r => `<div class="card"><h3>${esc(r.title)}</h3><p class="small">${r.locked}/${r.total} shots vastgezet${r.revealed ? ' · onthuld' : ''}.</p>
+    </details>
+    ${(v.shotRounds || []).filter(r => r.id === L.round?.id || (r.locked === r.total && !r.revealed)).map(r => `<div class="card"><h3>${esc(r.title)}</h3><p class="small">${r.locked}/${r.total} shots gespeeld${r.revealed ? ' · onthuld' : ''}.</p>
       <button class="btn copper" data-shotreveal="${r.id}" ${r.locked < r.total || L.phase === 'open' ? 'disabled' : ''}>Shotonthulling${r.revealed ? ' opnieuw tonen' : ''}</button>
-      ${r.locked < r.total ? '<p class="small muted" style="margin:8px 0 0">Kan pas als alle shots zijn vastgezet (anders is het laatste antwoord gratis).</p>' : ''}</div>`).join('')}
-    <div class="card"><h3>Scherm op tv</h3><div class="row">
-      <button class="btn ghost small" data-act="screen_lobby">Lobby</button>
-      <button class="btn ghost small" data-act="screen_scoreboard">Scorebord</button>
-      <button class="btn ghost small" data-act="screen_break">Pauze</button>
-      <button class="btn ghost small" data-act="screen_finale">Finale</button>
-      <select id="introSel" style="width:auto;min-width:200px"><option value="">Ronde-intro…</option>${v.rounds.map(r => `<option value="${r.id}">${esc(r.title)}</option>`).join('')}</select></div>
-      <p class="small muted" style="margin:10px 0 0">TV-link: open <b>/tv</b> met de tv-link uit “Avond & links”.</p></div>
+      ${r.locked < r.total ? '<p class="small muted" style="margin:8px 0 0">Kan pas als alle shots gespeeld zijn.</p>' : ''}</div>`).join('')}
     ${subs.length || q ? `<div class="card"><h3>Inzendingen (${subs.length})</h3>${subsTable(v, qFull, subs)}</div>` : ''}
   </section>
   <section>
-    <div class="card"><h3>Vragen</h3><ul class="list qlist">${allQs.map(x => `<li class="${x.id === q?.id ? 'current' : ''}">
+    <details class="card more" data-keep="liveQs"><summary>Alle vragen (overslaan of terugspringen)</summary><ul class="list qlist">${allQs.map(x => `<li class="${x.id === q?.id ? 'current' : ''}">
       <span class="small muted">${esc(x.round.title.slice(0, 14))}</span><span class="t ${x.voided ? 'voided' : ''}">${esc(x.prompt || TYPE_LABEL[x.type])}</span>
       ${x.isExample ? '<span class="example-badge">vb</span>' : ''}
-      ${x.voided ? '<span class="small muted">vervallen</span>' : x.played ? '<span class="pill ok">gespeeld</span>' : `<button class="btn ghost small" data-prepare="${x.id}" ${L.phase === 'open' ? 'disabled' : ''}>Klaarzetten</button>`}</li>`).join('') || '<li class="muted">Nog geen vragen.</li>'}</ul></div>
+      ${x.voided ? '<span class="small muted">vervallen</span>' : x.played ? '<span class="pill ok">gespeeld</span>' : `<button class="btn ghost small" data-prepare="${x.id}" ${L.phase === 'open' ? 'disabled' : ''}>Klaarzetten</button>`}</li>`).join('') || '<li class="muted">Nog geen vragen.</li>'}</ul></details>
     <div class="card"><h3>Stand</h3><table class="board"><tbody>${v.scoreboard.teams.map(t => `<tr><td class="pos">${t.rank}</td><td>${esc(t.name)}</td><td class="pts">${t.points}</td></tr>`).join('')}</tbody></table></div>
     ${v.perms.scores ? adjustForm(v) : ''}
   </section></div>`;
@@ -187,14 +240,14 @@ function subsTable(v, q, subs) {
 }
 
 function adjustForm(v) {
-  return `<form id="adjust" class="card"><h3>Scorecorrectie / bonus</h3>
+  return `<details class="card more" data-keep="liveAdj"><summary>Punten corrigeren of bonus geven</summary><form id="adjust" style="margin-top:12px">
     <div class="field"><label for="adjTarget">Voor</label><select id="adjTarget" required><option value="">Kies…</option>
       <optgroup label="Teams">${v.teams.map(t => `<option value="t:${t.id}">${esc(t.name)}</option>`).join('')}</optgroup>
       <optgroup label="Individueel (Snelste Bamigo)">${v.teams.flatMap(t => t.members).concat(v.unassigned).map(p => `<option value="p:${p.id}">${esc(p.name)}</option>`).join('')}</optgroup></select></div>
     <div class="row"><div class="grow field"><label for="adjPts">Punten (+/−)</label><input id="adjPts" type="number" required step="1"></div>
       <div class="grow field"><label for="adjKind">Soort</label><select id="adjKind"><option value="correction">Correctie</option><option value="bonus">Bonus (bv. outfit)</option></select></div></div>
     <div class="field"><label for="adjReason">Reden (verplicht)</label><input id="adjReason" required maxlength="200"></div>
-    <button class="btn copper">Vastleggen</button></form>`;
+    <button class="btn copper">Vastleggen</button></form></details>`;
 }
 function bindAdjust() {
   const f = $('#adjust'); if (!f) return;
@@ -413,7 +466,7 @@ function scoresTab(v) {
 function myLinks(v) {
   const base = location.origin;
   const tv = prefs.get('tvToken.' + v.event.id, null);
-  return `<details class="card" style="margin:12px 0;padding:12px"><summary><b>Jouw links op dit apparaat</b> <span class="small muted">(klik om te tonen)</span></summary>
+  return `<details class="card" data-keep="myLinks" style="margin:0 0 16px"><summary><b>Jouw links</b> <span class="small muted">(beheer, tv en spelers; klik om te tonen)</span></summary>
     <p class="small" style="margin:10px 0 4px">Jouw beheerlink. Bewaar hem privé, bijv. in je wachtwoordmanager. Zonder deze link kom je op een ander apparaat niet binnen.</p>
     <div class="linkbox">${esc(base + '/beheer#k=' + token)}</div>
     ${tv ? `<p class="small" style="margin:10px 0 4px">TV-link (open op de laptop aan de tv):</p><div class="linkbox">${esc(base + '/tv#k=' + tv)}</div>`
@@ -424,33 +477,33 @@ const ROLE_INFO = { content: 'Inhoudsbeheerder — maakt vragen en ziet antwoord
   spoilerfree: 'Spoilervrije organisator — ziet planning en voortgang, geen inhoud. Voor wie zelf meespeelt.', display: 'TV-scherm — alleen de show.' };
 function eventTab(v) {
   const s = v.event.settings;
-  main.innerHTML = `<div class="grid2">
+  main.innerHTML = `${myLinks(v)}<div class="grid2">
   <form id="evForm" class="card"><h3>Avond</h3>
     <div class="field"><label for="eName">Naam</label><input id="eName" value="${esc(v.event.name)}" required></div>
     <div class="field"><label for="eSub">Ondertitel</label><input id="eSub" value="${esc(v.event.subtitle || '')}"></div>
     <div class="field"><label for="eStart">Datum & aanvang</label><input id="eStart" type="datetime-local" value="${esc(v.event.startsAt || '')}"></div>
-    <div class="row"><div class="grow field"><label for="eTarget">Doelduur (min)</label><input id="eTarget" type="number" value="${v.event.durationTarget}"></div>
+    <details data-keep="evMore"><summary>Meer instellingen</summary>
+    <div class="row" style="margin-top:12px"><div class="grow field"><label for="eTarget">Doelduur (min)</label><input id="eTarget" type="number" value="${v.event.durationTarget}"></div>
       <div class="grow field"><label for="eMax">Maximum (min)</label><input id="eMax" type="number" value="${v.event.durationMax}"></div></div>
     <div class="field"><label for="eCd">Aftellen vóór elke vraag (sec)</label><input id="eCd" type="number" min="0" max="10" value="${(s.countdownMs ?? 3000) / 1000}"></div>
     <label class="check"><input type="checkbox" id="eSelfTeam" ${s.selfTeam !== false ? 'checked' : ''}> Spelers kiezen zelf hun team bij aanmelden</label>
     <label class="check"><input type="checkbox" id="eOne" ${s.oneliners !== false ? 'checked' : ''}> Oneliners tonen</label>
-    <label class="check"><input type="checkbox" id="eDrinks" ${s.drinks !== false ? 'checked' : ''}> Drankonderdelen aan</label>
+    <label class="check"><input type="checkbox" id="eDrinks" ${s.drinks !== false ? 'checked' : ''}> Drankonderdelen aan</label></details>
     <button class="btn primary" style="margin-top:10px">Opslaan</button></form>
-  <section class="card"><h3>Toegangslinks</h3>
-    <p class="small muted">Iedere link geeft precies één rol. Wie de link heeft, heeft toegang: deel ze privé. Een link intrekken werkt direct.</p>
-    ${myLinks(v)}
+  <section class="card"><h3>Anderen toegang geven</h3>
+    <p class="small muted">Maak een link voor een medequizmaster of een extra tv. Deel hem privé.</p>
     <ul class="list">${(v.grants || []).map(g => `<li><span class="grow">${esc(g.label)} <span class="small muted">(${g.role})</span></span>${g.revoked ? '<span class="pill bad">ingetrokken</span>' : g.role === 'owner' ? '<span class="pill">jij</span>' : `<button class="btn danger small" data-revoke="${g.id}">Intrekken</button>`}</li>`).join('')}</ul>
     <form id="grantForm" style="margin-top:12px"><div class="row"><select id="gRole" class="grow">${Object.entries(ROLE_INFO).map(([r, t]) => `<option value="${r}">${t}</option>`).join('')}</select></div>
       <div class="row" style="margin-top:8px"><input id="gLabel" class="grow" placeholder="Naam, bijv. ‘Medequizmaster Sam’" maxlength="60"><button class="btn copper">Nieuwe link</button></div></form>
     <div id="grantOut"></div>
-    <p class="notice small" style="margin-top:14px">Zelf meespelen? Maak een spoilervrije link voor jezelf, geef de inhoudslink aan je medequizmaster en open deze eigenaarslink niet meer tijdens de voorbereiding. Wie vragen schrijft, kent ze — dat kan software niet wegnemen.</p>
+    <p class="small muted" style="margin-top:14px">Speel je zelf mee? Geef jezelf een spoilervrije link en laat een ander de vragen maken.</p>
   </section>
-  <section class="card"><h3>Hergebruik</h3><p class="small muted">Dupliceer voor een volgende avond. Antwoorden, stemmen, shots, bewijs en scores gaan nooit mee.</p>
+  <section class="card"><h3>Volgende keer</h3><details data-keep="evDup"><summary>Kopie maken voor een nieuwe avond</summary><p class="small muted">Scores en antwoorden van spelers gaan nooit mee.</p>
     <form id="dupForm"><div class="field"><label for="dName">Naam nieuwe avond</label><input id="dName" required value="${esc(v.event.name)} (kopie)"></div>
       <label class="check"><input type="checkbox" id="dQ" checked> Vragen en antwoordsleutels meenemen</label>
       <label class="check"><input type="checkbox" id="dT"> Teamnamen meenemen</label>
       <label class="check"><input type="checkbox" id="dP"> Namen van spelers meenemen</label>
-      <button class="btn copper">Dupliceren</button></form><div id="dupOut"></div>
+      <button class="btn copper">Kopie maken</button></form><div id="dupOut"></div></details>
     <hr style="border-color:var(--line);margin:18px 0"><button class="btn ghost small" id="archive">${v.event.status === 'archived' ? 'Archivering opheffen' : 'Avond archiveren'}</button></section></div>`;
   $('#evForm').onsubmit = e => { e.preventDefault(); act(e.submitter, () => A.patch('/api/staff/event', { name: $('#eName').value, subtitle: $('#eSub').value, startsAt: $('#eStart').value, durationTarget: +$('#eTarget').value, durationMax: +$('#eMax').value,
     settings: { countdownMs: Math.round(+$('#eCd').value * 1000), selfTeam: $('#eSelfTeam').checked, oneliners: $('#eOne').checked, drinks: $('#eDrinks').checked } }), 'Opgeslagen.'); };

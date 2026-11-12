@@ -29,3 +29,29 @@
 .ready-grid .n { font-family: var(--display); font-size: 2rem; }
 .voided { text-decoration: line-through; opacity: .55; }
 .live-grid > section { min-width: 0; }
+/* Startscherm */
+.home-title { margin: 8px 0 20px; }
+.home-grid { display: grid; grid-template-columns: 1fr 1.15fr 1fr; gap: 16px; align-items: start; }
+@media (max-width: 1000px) { .home-grid { grid-template-columns: 1fr; } }
+.home-step { position: relative; background: var(--raised); border: 1px solid var(--line); border-radius: 12px; padding: 22px 18px 18px; }
+.home-step.main { border-color: var(--copper); }
+.home-step h2 { margin: 0; font-size: 1.8rem; }
+.home-step > p { margin: 2px 0 14px; }
+.home-num { position: absolute; top: -14px; left: 18px; width: 30px; height: 30px; border-radius: 50%; background: var(--copper); color: var(--ivory); display: grid; place-items: center; font-weight: 700; }
+.home-item { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; background: var(--bg); color: var(--ivory); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; margin-top: 8px; cursor: pointer; font: inherit; min-height: 56px; }
+.home-item:hover, .home-item:focus-visible { border-color: var(--champagne); }
+.home-item b { display: block; }
+.home-item .arrow { font-size: 1.6rem; color: var(--muted); }
+.home-howto { margin: 0; padding-left: 22px; display: grid; gap: 14px; }
+.home-howto li { display: grid; gap: 4px; justify-items: start; }
+.home-howto .btn.big { min-height: 60px; font-size: 1.2rem; padding: 0 28px; }
+.code { font-family: ui-monospace, monospace; letter-spacing: .08em; color: var(--champagne); }
+/* Live: stappen en uitleg */
+.flow { display: flex; gap: 4px; list-style: none; padding: 0; margin: 0 0 12px; counter-reset: f; }
+.flow li { flex: 1; text-align: center; font-size: .78rem; color: var(--muted); padding: 8px 2px 0; border-top: 4px solid var(--line); counter-increment: f; }
+.flow li::before { content: counter(f) '. '; }
+.flow li.done { border-top-color: var(--champagne); color: var(--champagne); }
+.flow li.now { border-top-color: var(--copper); color: var(--ivory); font-weight: 700; }
+.explain { font-size: 1.05rem; margin: 0 0 12px; }
+details.more > summary, details > summary { cursor: pointer; font-weight: 600; min-height: 32px; }
+details.card.more { padding: 14px 18px; }
