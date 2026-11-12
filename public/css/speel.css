@@ -45,3 +45,11 @@
 .choice:not([disabled]):hover { border-color: var(--champagne); }
 .choice[aria-pressed="true"] { background: var(--copper-deep); border-color: var(--copper); }
 .choice.correct { border-color: var(--ok); }
+
+/* Teamadvies */
+.choice .grow { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.adv { font-size: .78rem; font-weight: 600; color: var(--champagne); }
+.choice[aria-pressed="true"] .adv { color: var(--ivory); }
+.adv-list { list-style: none; padding: 0; margin: 12px 0 0; display: grid; gap: 6px; }
+.adv-list li { display: flex; justify-content: space-between; gap: 10px; padding: 8px 12px; border-radius: 8px; background: var(--raised); }
+.banner-captain { display: grid; gap: 2px; padding: 12px 14px; margin-bottom: 14px; border-radius: 12px; background: var(--copper-deep); border: 1px solid var(--copper); }

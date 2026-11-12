@@ -48,3 +48,12 @@ body.tv { overflow: hidden; cursor: default; }
 .tv h1.q.xlong { font-size: 3.2vw; }
 .tv .revealed h1.q { font-size: 3.4vw; margin: 1vw 0; }
 .tv .revealed .tv-opt { padding: .7vw 1.2vw; font-size: 1.9vw; }
+
+.tv-banner { position: fixed; inset: 0; display: grid; place-items: center; align-content: center; gap: 1.5vw; z-index: 30; background: #151515e6;
+  animation: bannerOut .6s ease 7s forwards; }
+.tv-banner > div { background: var(--copper-deep); border: 2px solid var(--copper); border-radius: 1.2vw; padding: 2.4vw 4vw; text-align: center; box-shadow: 0 1vw 5vw #000c; max-width: 70vw; }
+.tv-banner .tag { color: var(--ivory); border-color: var(--ivory); }
+.tv-banner h2 { font-family: var(--display); font-size: 5vw; line-height: 1.05; margin: 1.2vw 0 .6vw; color: var(--ivory); }
+.tv-banner p { margin: 0; font-size: 1.6vw; color: var(--ivory); opacity: .9; }
+@keyframes bannerOut { to { opacity: 0; visibility: hidden; } }
+@media (prefers-reduced-motion: reduce) { .tv-banner { animation-duration: 0s; } }

@@ -181,3 +181,40 @@ test('vorige vraag: terugkijken toont de uitslag zonder opnieuw te openen of dub
   run('goto', { questionId: q2 });
   assert.equal(live.state(E).phase, 'ready');
 });
+
+test('teamadvies: teamgenoot tikt advies, captain beslist; na 3x fout gaat de captainrol naar de beste adviseur', () => {
+  const { db, live, E, T, P, run } = setup();
+  const r = C.upsertRound(db, E, { kind: 'quiz', title: 'Q' });
+  const cap = () => db.get('SELECT participant_id FROM memberships WHERE team_id = ? AND is_captain = 1', T.A).participant_id;
+  assert.equal(cap(), P.a1.id);
+  // a2 is geen captain: inzenden mag niet, advies wel
+  const qs = [0, 1, 2, 3].map(i => C.upsertQuestion(db, E, { roundId: r, type: 'mc', prompt: 'v' + i, options: ['goed', 'fout'], seconds: 30, points: 1, key: { correct: 0 } }));
+  for (const [i, qid] of qs.slice(0, 3).entries()) {
+    run('prepare', { questionId: qid }); run('open');
+    assert.throws(() => live.submit(E, P.a2, { questionId: qid, answer: 0 }));
+    live.advise(E, P.a2, { questionId: qid, answer: 0 });
+    live.advise(E, P.a2, { questionId: qid, answer: 0 }); // overschrijven mag
+    assert.throws(() => live.advise(E, P.a1, { questionId: qid, answer: 0 }), /captain/);
+    const view = playerView(live, { participant: P.a1, event: db.get('SELECT * FROM events WHERE id = ?', E) }, new Set());
+    assert.equal(view.advice.length, 1); assert.equal(view.advice[0].name, 'a2');
+    live.submit(E, P.a1, { questionId: qid, answer: 1 });
+    assert.throws(() => live.advise(E, P.a2, { questionId: qid, answer: 1 }));
+    run('close'); run('reveal'); run('score');
+    if (i < 2) assert.equal(cap(), P.a1.id, 'nog geen wissel na ' + (i + 1) + 'x fout');
+  }
+  assert.equal(cap(), P.a2.id, 'na 3x fout wordt a2 captain');
+  const b = live.state(E).banner; assert.ok(b && JSON.parse(b).changes[0].to === 'a2');
+  run('prepare', { questionId: qs[3] });
+  assert.equal(live.state(E).banner, null, 'melding verdwijnt bij de volgende vraag');
+});
+
+test('teamadvies: wissel staat uit als de avond dat zegt', () => {
+  const { db, live, E, T, P, run } = setup();
+  C.updateEvent(db, E, { settings: { autoCaptain: false } });
+  const r = C.upsertRound(db, E, { kind: 'quiz', title: 'Q' });
+  for (let i = 0; i < 3; i++) {
+    const qid = C.upsertQuestion(db, E, { roundId: r, type: 'tf', prompt: 'v' + i, seconds: 30, points: 1, key: { correct: 0 } });
+    run('prepare', { questionId: qid }); run('open'); live.submit(E, P.a1, { questionId: qid, answer: 1 }); run('close'); run('reveal'); run('score');
+  }
+  assert.equal(db.get('SELECT participant_id FROM memberships WHERE team_id = ? AND is_captain = 1', T.A).participant_id, P.a1.id);
+});

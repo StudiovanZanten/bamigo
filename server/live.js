@@ -5,6 +5,8 @@ import { HttpError, bad, deny, notFound } from './auth.js';
 import { judgeOpen, speedScore, competitionRanks, pointsForRank, sameArray } from './scoring.js';
 import * as M from './modules.js';
 
+export const ADVICE_TYPES = ['mc', 'tf', 'open', 'number', 'ranking'];
+export const CAPTAIN_STREAK = 3;
 const conflict = (msg, code = 'conflict') => { throw new HttpError(409, msg, code); };
 
 export const PHASES = ['idle', 'ready', 'open', 'closed', 'revealed', 'scored'];
@@ -43,8 +45,9 @@ export class Live {
   #set(eventId, patch, actor, action) {
     const s = this.state(eventId);
     const next = { ...s, ...patch, seq: s.seq + 1, updated_at: this.clock() };
-    this.db.run(`UPDATE live_state SET screen=?, round_id=?, question_id=?, phase=?, paused=?, open_at=?, deadline=?, paused_at=?, seq=?, message=?, updated_at=? WHERE event_id=?`,
-      next.screen, next.round_id, next.question_id, next.phase, next.paused, next.open_at, next.deadline, next.paused_at, next.seq, next.message, next.updated_at, eventId);
+    if ('question_id' in patch && patch.question_id !== s.question_id) next.banner = patch.banner ?? null;
+    this.db.run(`UPDATE live_state SET screen=?, round_id=?, question_id=?, phase=?, paused=?, open_at=?, deadline=?, paused_at=?, seq=?, message=?, banner=?, updated_at=? WHERE event_id=?`,
+      next.screen, next.round_id, next.question_id, next.phase, next.paused, next.open_at, next.deadline, next.paused_at, next.seq, next.message, next.banner ?? null, next.updated_at, eventId);
     this.audit(eventId, actor, action, patch);
     return next;
   }
@@ -103,7 +106,9 @@ export class Live {
         case 'score': {
           if (s.phase !== 'revealed' && s.phase !== 'scored') conflict('Onthul de vraag eerst.');
           this.scoreQuestion(eventId, s.question_id, actor);
-          return this.#set(eventId, { phase: 'scored' }, actor, action);
+          this.judgeAdvice(s.question_id);
+          const changes = this.rotateCaptains(eventId, s.question_id, actor);
+          return this.#set(eventId, { phase: 'scored', ...(changes.length ? { banner: JSON.stringify({ type: 'captain', changes }) } : {}) }, actor, action);
         }
         case 'goto': {
           // Terug naar een (eerder gespeelde) vraag. Gespeeld: opnieuw tonen met uitslag, zonder opnieuw te openen.
@@ -249,6 +254,17 @@ export class Live {
 
   // ---------- beoordelen en scoren ----------
   /** Automatische beoordeling; handmatige oordelen (judged_by) blijven staan. */
+  verdictFor(q, key, a) {
+    if (['ranking', 'shot', 'invest'].includes(q.type) || q.settings.kompaan || key.correct == null) return null;
+    switch (q.type) {
+      case 'mc': case 'tf': return (Array.isArray(key.correct) ? key.correct.includes(a) : a === key.correct) ? 'correct' : 'wrong';
+      case 'open': return judgeOpen(a, [String(key.correct), ...key.accepted]);
+      case 'number': return q.scoring === 'closest' ? null : (Math.abs(a - Number(key.correct)) <= (key.tolerance ?? 0) ? 'correct' : 'wrong');
+      case 'order': case 'match': return sameArray(a, key.correct) ? 'correct' : 'wrong';
+      default: return null;
+    }
+  }
+
   autoJudge(qid) {
     const q = this.question(qid); const key = this.answerKey(qid);
     for (const s of this.db.all('SELECT * FROM submissions WHERE question_id = ? AND judged_by IS NULL', qid)) {
@@ -264,6 +280,63 @@ export class Live {
       }
       this.db.run('UPDATE submissions SET verdict = ? WHERE id = ?', v, s.id);
     }
+  }
+
+  // ---------- teamadvies ----------
+  /** Teamgenoot (geen captain) tikt een advies aan. Telt niet voor punten; de captain beslist. */
+  advise(eventId, participant, { questionId, answer }) {
+    const t = this.clock();
+    this.db.tx(() => {
+      const s = this.state(eventId);
+      if (s.question_id !== questionId) conflict('Deze vraag is niet (meer) actief.', 'not_active');
+      const q = this.question(questionId);
+      if (q.scope !== 'team' || !ADVICE_TYPES.includes(q.type) || q.settings.kompaan) bad('Bij deze vraag kun je geen advies geven.');
+      const m = this.membership(participant.id);
+      if (!m) deny('Je zit nog niet in een team.');
+      if (m.is_captain) bad('Jij bent captain: stuur het teamantwoord in.');
+      if (s.phase !== 'open' || s.paused || t < s.open_at || (s.deadline && t > s.deadline)) conflict('De vraag is gesloten.', 'closed');
+      if (this.db.get('SELECT 1 FROM submissions WHERE question_id = ? AND owner_key = ?', questionId, 't:' + m.team_id)) conflict('Jullie captain heeft al ingestuurd.', 'done');
+      const clean = validateAnswer(q, answer, this.db, eventId, m);
+      this.db.run(`INSERT INTO advice (question_id, participant_id, team_id, event_id, answer, updated_at) VALUES (?,?,?,?,?,?)
+        ON CONFLICT(question_id, participant_id) DO UPDATE SET answer = excluded.answer, updated_at = excluded.updated_at`, questionId, participant.id, m.team_id, eventId, JSON.stringify(clean), t);
+    });
+    this.notify(eventId);
+  }
+
+  judgeAdvice(qid) {
+    const q = this.question(qid); const key = this.answerKey(qid);
+    for (const a of this.db.all('SELECT * FROM advice WHERE question_id = ?', qid))
+      this.db.run('UPDATE advice SET verdict = ? WHERE question_id = ? AND participant_id = ?', this.verdictFor(q, key, json(a.answer)), qid, a.participant_id);
+  }
+
+  /**
+   * Captain-wissel: na CAPTAIN_STREAK foute teamantwoorden op rij van dezelfde captain
+   * gaat de rol naar de teamgenoot met de meeste goede adviezen. Uit te zetten per avond.
+   */
+  rotateCaptains(eventId, qid, actor) {
+    const ev = this.db.get('SELECT settings FROM events WHERE id = ?', eventId);
+    if (json(ev.settings, {}).autoCaptain === false) return [];
+    const q = this.question(qid);
+    if (q.scope !== 'team' || q.scoring === 'closest' || !ADVICE_TYPES.includes(q.type)) return [];
+    const changes = [];
+    for (const sub of this.db.all('SELECT * FROM submissions WHERE question_id = ? AND team_id IS NOT NULL', qid)) {
+      const cap = this.db.get('SELECT m.*, p.name FROM memberships m JOIN participants p ON p.id = m.participant_id WHERE m.team_id = ? AND m.is_captain = 1', sub.team_id);
+      if (!cap || cap.participant_id !== sub.participant_id) continue;
+      const recent = this.db.all(`SELECT s.verdict FROM submissions s JOIN questions q ON q.id = s.question_id
+        WHERE s.team_id = ? AND s.participant_id = ? AND q.scope = 'team' AND q.voided_at IS NULL AND s.verdict IS NOT NULL AND s.received_at >= ?
+        ORDER BY s.received_at DESC LIMIT ?`, sub.team_id, cap.participant_id, cap.captain_since ?? 0, CAPTAIN_STREAK);
+      if (recent.length < CAPTAIN_STREAK || recent.some(r => r.verdict !== 'wrong')) continue;
+      const next = this.db.get(`SELECT m.participant_id, p.name,
+          (SELECT COUNT(*) FROM advice a WHERE a.participant_id = m.participant_id AND a.verdict = 'correct') AS good
+        FROM memberships m JOIN participants p ON p.id = m.participant_id
+        WHERE m.team_id = ? AND m.participant_id <> ? AND p.joined_at IS NOT NULL ORDER BY good DESC, p.name LIMIT 1`, sub.team_id, cap.participant_id);
+      if (!next) continue;
+      this.setCaptain(eventId, actor || 'auto', next.participant_id);
+      const team = this.db.get('SELECT name FROM teams WHERE id = ?', sub.team_id).name;
+      changes.push({ team, from: cap.name, to: next.name, good: next.good });
+      this.audit(eventId, actor, 'captain_auto', { teamId: sub.team_id, from: cap.participant_id, to: next.participant_id });
+    }
+    return changes;
   }
 
   judge(eventId, actor, submissionId, verdict) {
@@ -387,7 +460,7 @@ export class Live {
         if (st.phase === 'open') conflict('Draag de captainrol over als er geen vraag openstaat.');
       }
       this.db.run('UPDATE memberships SET is_captain = 0 WHERE team_id = ?', m.team_id);
-      this.db.run('UPDATE memberships SET is_captain = 1 WHERE participant_id = ?', participantId);
+      this.db.run('UPDATE memberships SET is_captain = 1, captain_since = ? WHERE participant_id = ?', this.clock(), participantId);
       this.audit(eventId, actor, 'captain', { participantId, teamId: m.team_id });
     });
     this.notify(eventId);

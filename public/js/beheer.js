@@ -490,6 +490,7 @@ function eventTab(v) {
       <div class="grow field"><label for="eMax">Maximum (min)</label><input id="eMax" type="number" value="${v.event.durationMax}"></div></div>
     <div class="field"><label for="eCd">Aftellen vóór elke vraag (sec)</label><input id="eCd" type="number" min="0" max="10" value="${(s.countdownMs ?? 3000) / 1000}"></div>
     <label class="check"><input type="checkbox" id="eSelfTeam" ${s.selfTeam !== false ? 'checked' : ''}> Spelers kiezen zelf hun team bij aanmelden</label>
+    <label class="check"><input type="checkbox" id="eAutoCap" ${s.autoCaptain !== false ? 'checked' : ''}> Captain-wissel na 3x fout op rij</label>
     <label class="check"><input type="checkbox" id="eOne" ${s.oneliners !== false ? 'checked' : ''}> Oneliners tonen</label>
     <label class="check"><input type="checkbox" id="eDrinks" ${s.drinks !== false ? 'checked' : ''}> Drankonderdelen aan</label></details>
     <button class="btn primary" style="margin-top:10px">Opslaan</button></form>
@@ -509,7 +510,7 @@ function eventTab(v) {
       <button class="btn copper">Kopie maken</button></form><div id="dupOut"></div></details>
     <hr style="border-color:var(--line);margin:18px 0"><button class="btn ghost small" id="archive">${v.event.status === 'archived' ? 'Archivering opheffen' : 'Avond archiveren'}</button></section></div>`;
   $('#evForm').onsubmit = e => { e.preventDefault(); act(e.submitter, () => A.patch('/api/staff/event', { name: $('#eName').value, subtitle: $('#eSub').value, startsAt: $('#eStart').value, durationTarget: +$('#eTarget').value, durationMax: +$('#eMax').value,
-    settings: { countdownMs: Math.round(+$('#eCd').value * 1000), selfTeam: $('#eSelfTeam').checked, oneliners: $('#eOne').checked, drinks: $('#eDrinks').checked } }), 'Opgeslagen.'); };
+    settings: { countdownMs: Math.round(+$('#eCd').value * 1000), selfTeam: $('#eSelfTeam').checked, autoCaptain: $('#eAutoCap').checked, oneliners: $('#eOne').checked, drinks: $('#eDrinks').checked } }), 'Opgeslagen.'); };
   $('#grantForm').onsubmit = async e => { e.preventDefault(); const r = await act(e.submitter, () => A.post('/api/staff/grants', { role: $('#gRole').value, label: $('#gLabel').value })); if (r) $('#grantOut').innerHTML = `<p class="small" style="margin-top:10px">Kopieer deze link nu; hij wordt niet opnieuw getoond:</p><div class="linkbox">${esc(r.url)}</div>`; };
   $$('[data-revoke]').forEach(b => b.onclick = () => { if (confirm('Link intrekken? Wie hem gebruikt, verliest direct toegang.')) act(b, () => A.post(`/api/staff/grants/${b.dataset.revoke}/revoke`), 'Ingetrokken.'); });
   $('#dupForm').onsubmit = async e => { e.preventDefault(); const r = await act(e.submitter, () => A.post('/api/staff/duplicate', { name: $('#dName').value, includeQuestions: $('#dQ').checked, includeTeams: $('#dT').checked, includeParticipants: $('#dP').checked }));

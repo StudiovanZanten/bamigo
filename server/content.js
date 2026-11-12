@@ -111,7 +111,7 @@ export function deleteParticipant(db, eventId, pid) {
 
 function promoteCaptain(db, teamId) {
   const next = db.get('SELECT participant_id FROM memberships WHERE team_id = ? ORDER BY participant_id LIMIT 1', teamId);
-  if (next) db.run('UPDATE memberships SET is_captain = 1 WHERE participant_id = ?', next.participant_id);
+  if (next) db.run('UPDATE memberships SET is_captain = 1, captain_since = ? WHERE participant_id = ?', Date.now(), next.participant_id);
 }
 
 /** Maak een persoonlijke deelnamelink (vervangt eerdere sessie van deze deelnemer). */
@@ -156,7 +156,7 @@ export function claimCaptainIfAbsent(db, pid) {
   const cap = db.get('SELECT p.joined_at FROM memberships m JOIN participants p ON p.id = m.participant_id WHERE m.team_id = ? AND m.is_captain = 1', m.team_id);
   if (cap && cap.joined_at) return;
   db.run('UPDATE memberships SET is_captain = 0 WHERE team_id = ?', m.team_id);
-  db.run('UPDATE memberships SET is_captain = 1 WHERE participant_id = ?', pid);
+  db.run('UPDATE memberships SET is_captain = 1, captain_since = ? WHERE participant_id = ?', Date.now(), pid);
 }
 
 export function markJoined(db, pid) {

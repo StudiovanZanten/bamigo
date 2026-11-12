@@ -30,7 +30,8 @@ function render() {
   else if (L.screen === 'shots_reveal') body = shotsReveal(v);
   else if (L.screen === 'break') body = `<div class="stage-body center fade-in"><div class="tag">Pauze</div><h1 class="intro-title">Even bijtanken.</h1><p class="intro-sub" style="margin:0 auto">${esc(L.message || 'Daarna gaan we verder. VAMOSSS!')}</p></div>`;
   else body = `<div class="stage-body center"><div class="brand xl">BAMIGO</div></div>`;
-  stage.innerHTML = head(v) + body + foot(v) + (L.paused ? '<div class="tv-paused"><div class="center"><h1>Gepauzeerd</h1><p class="intro-sub" style="margin:0 auto">De tijd staat stil.</p></div></div>' : '');
+  const banner = L.banner?.type === 'captain' && L.screen === 'question' ? `<div class="tv-banner fade-in">${L.banner.changes.map(c => `<div><span class="tag">Kapitein overboord!</span><h2>${esc(c.to)} neemt het roer over</h2><p>${esc(c.team)} · ${esc(c.from)} had 3x op rij fout</p></div>`).join('')}</div>` : '';
+  stage.innerHTML = head(v) + body + banner + foot(v) + (L.paused ? '<div class="tv-paused"><div class="center"><h1>Gepauzeerd</h1><p class="intro-sub" style="margin:0 auto">De tijd staat stil.</p></div></div>' : '');
   if (L.screen !== prevScreen && L.screen === 'question' && L.phase === 'open') sound.open();
   prevScreen = L.screen;
   const md = $('[data-media]'); if (md) mediaUrl(md.dataset.media, { 'x-staff-token': token }).then(u => { if (u) md.innerHTML = `<img src="${u}" alt="" style="max-height:40vh;max-width:100%;border-radius:6px">`; });

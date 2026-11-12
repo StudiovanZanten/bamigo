@@ -358,6 +358,14 @@ export async function buildApp({ dbFile = process.env.BAMIGO_DB || path.join(roo
           ack({ ok: true, duplicate: r.duplicate, receivedAt: r.submission.received_at, clientId: body?.clientId });
         } catch (e) { ack({ ok: false, error: e instanceof HttpError ? e.message : 'Serverfout', code: e.code || 'error', clientId: body?.clientId }); if (!(e instanceof HttpError)) console.error(e); }
       });
+      sock.on('advise', (body, ack) => {
+        if (typeof ack !== 'function') return;
+        try {
+          const p = playerByToken(db, sock.data.token); if (!p) throw new HttpError(401, 'Sessie ongeldig', 'unauthorized');
+          live.advise(p.event.id, p.participant, body || {});
+          ack({ ok: true });
+        } catch (e) { ack({ ok: false, error: e instanceof HttpError ? e.message : 'Serverfout', code: e.code || 'error' }); if (!(e instanceof HttpError)) console.error(e); }
+      });
       sock.on('disconnect', () => {
         if (pid) { const m = online.get(eid); if (m) { const n = (m.get(pid) ?? 1) - 1; if (n <= 0) m.delete(pid); else m.set(pid, n); } }
         live.notify(eid);

@@ -68,7 +68,7 @@ function revealInfo(live, s) {
 
 function liveInfo(live, s, t) {
   return { screen: s.screen, phase: s.phase, paused: !!s.paused, seq: s.seq, openAt: s.open_at, deadline: s.deadline,
-    pausedAt: s.paused_at, message: s.message, round: roundInfo(live.db, s.round_id) };
+    pausedAt: s.paused_at, message: s.message, round: roundInfo(live.db, s.round_id), banner: s.banner ? json(s.banner) : null };
 }
 
 function teamsWithMembers(db, eventId, online) {
@@ -101,7 +101,7 @@ export function playerView(live, { participant, event }, online, t = live.clock(
   const m = live.membership(participant.id);
   const team = m ? db.get('SELECT id, name, outfit FROM teams WHERE id = ?', m.team_id) : null;
   const q = publicQuestion(live, s, t);
-  let mine = null, result = null;
+  let mine = null, result = null, advice = null;
   if (q) {
     const owner = q.scope === 'team' ? (m ? 't:' + m.team_id : null) : 'p:' + participant.id;
     const sub = owner ? db.get('SELECT s.*, p.name AS by_name FROM submissions s LEFT JOIN participants p ON p.id = s.participant_id WHERE question_id = ? AND owner_key = ?', q.id, owner) : null;
@@ -114,6 +114,9 @@ export function playerView(live, { participant, event }, online, t = live.clock(
       }
     }
     result = revealInfo(live, s);
+    // Teamadvies: het hele team ziet wie wat aantikt (pas zichtbaar als de vraag zichtbaar is).
+    if (m && q.scope === 'team' && q.visible) advice = db.all(`SELECT a.participant_id AS id, p.name, a.answer FROM advice a JOIN participants p ON p.id = a.participant_id
+      WHERE a.question_id = ? AND a.team_id = ? ORDER BY a.updated_at`, q.id, m.team_id).map(r => ({ id: r.id, name: r.name, answer: json(r.answer), mine: r.id === participant.id }));
   }
   const showBoard = ['scoreboard', 'finale'].includes(s.screen);
   return {
@@ -121,7 +124,7 @@ export function playerView(live, { participant, event }, online, t = live.clock(
     me: { id: participant.id, name: participant.name, teamId: team?.id ?? null, teamName: team?.name ?? null, isCaptain: !!m?.is_captain, joinedAt: participant.joined_at },
     team: team ? { ...team, members: db.all(`SELECT p.id, p.name, m.is_captain FROM memberships m JOIN participants p ON p.id = m.participant_id WHERE m.team_id = ? ORDER BY p.name`, team.id)
       .map(x => ({ id: x.id, name: x.name, isCaptain: !!x.is_captain, online: online.has(x.id) })) } : null,
-    live: liveInfo(live, s, t), question: q, mine, result,
+    live: liveInfo(live, s, t), question: q, mine, result, advice,
     scoreboard: showBoard ? boardFor(live, event.id, { topTeams: 100, topPeople: 5, meId: participant.id }) : null,
     shotsReveal: s.screen === 'shots_reveal' ? M.shotsRevealData(db, event.id, s.round_id) : null,
     ownShot: q?.type === 'shot' && team ? !!db.get('SELECT 1 FROM shots WHERE team_id = ? AND number = ?', team.id, q.shotNumber) : false,
