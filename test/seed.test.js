@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { openDb, json } from '../server/db.js';
 import * as C from '../server/content.js';
-import { seedMuchachos, sealedBeforeFinal } from '../server/seed-muchachos.js';
+import { seedMuchachos, sealedBeforeFinal, seedMissions } from '../server/seed-muchachos.js';
 
 const dir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'seed');
 const quiet = { log: () => {} };
@@ -79,4 +79,19 @@ test('De jongens: wie moet nog wat, seintjes alleen naar wie het moet, bericht a
   await MSG.deliverDue(db, Date.now() + 1000, { push: false });
   assert.ok(MSG.playerMessages(db, r.event, b.participantId).some(m => m.title === 'Alleen voor Milan'));
   assert.ok(!MSG.playerMessages(db, r.event, a.participantId).some(m => m.title === 'Alleen voor Milan'));
+});
+
+test('Buitentas-missies: eenmalig, op volgorde, kassabon telt als tijd', async () => {
+  const M = await import('../server/modules.js');
+  const db = openDb(':memory:');
+  const r = seedMuchachos(db, dir, { now: Date.UTC(2026, 10, 12), ...quiet });
+  assert.equal(seedMissions(db, dir, quiet), 4);
+  assert.equal(seedMissions(db, dir, quiet), null);
+  const ms = db.all('SELECT * FROM missions WHERE event_id = ? ORDER BY sort', r.event);
+  assert.deepEqual(ms.map(m => m.kind), ['closest', 'closest', 'check', 'check']);
+  const teams = db.all('SELECT id FROM teams WHERE event_id = ? ORDER BY sort', r.event);
+  M.checkEvidence(db, r.event, ms[0].id, teams[0].id, { measured: '11:58', checked: true });
+  M.checkEvidence(db, r.event, ms[0].id, teams[1].id, { measured: '12:09', checked: true });
+  const res = M.scoreMission(db, r.event, ms[0].id, () => {});
+  assert.equal(res.find(x => x.rank === 1).team, 'Peter & Milan');
 });

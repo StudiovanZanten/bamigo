@@ -1621,5 +1621,31 @@
    "title": "Nog 7 dagen",
    "body": "Nog 7 dagen. Zaterdag 23 januari om 20:00 gaat het los. Vergeet de Buitentas niet: kassabon, 250 gram, mysterieus voorwerp en de krant. De vragen liggen klaar. Het bewijsmateriaal ook. Geen verdere vragen. VAMOSSS!"
   }
+ ],
+ "missions": [
+  {
+   "title": "Kassabon rond 12:00",
+   "description": "Een kassabon met een tijd zo dicht mogelijk bij 12:00. Maak een foto van de bon.",
+   "kind": "closest",
+   "target": "12:00",
+   "unit": "uu:mm"
+  },
+  {
+   "title": "Precies 250 gram",
+   "description": "Neem een voorwerp mee dat precies 250 gram weegt. Rinus weegt het op de avond.",
+   "kind": "closest",
+   "target": "250",
+   "unit": "gram"
+  },
+  {
+   "title": "Mysterieus huishoudelijk voorwerp",
+   "description": "Neem een huishoudelijk voorwerp mee waarvan niemand weet wat het is. Foto erbij.",
+   "kind": "check"
+  },
+  {
+   "title": "De krant van 28 december",
+   "description": "Koop met je duo de krant van maandag 28 december en neem hem mee. Je hebt hem nodig bij de Krantenjacht.",
+   "kind": "check"
+  }
  ]
 }

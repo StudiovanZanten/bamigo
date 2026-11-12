@@ -16,7 +16,7 @@ import { Live } from './live.js';
 import { playerView, displayView, staffView } from './views.js';
 import { exportResults, exportPack, importPack, emergencyPack } from './exporting.js';
 import { seedDemo } from './seed-demo.js';
-import { seedMuchachos, sealedBeforeFinal } from './seed-muchachos.js';
+import { seedMuchachos, sealedBeforeFinal, seedMissions } from './seed-muchachos.js';
 import * as M from './modules.js';
 import * as MSG from './messages.js';
 
@@ -31,6 +31,7 @@ export async function buildApp({ dbFile = process.env.BAMIGO_DB || path.join(roo
   const db = openDb(dbFile);
   const seedDir = process.env.BAMIGO_SEED || (process.env.NODE_ENV === 'production' ? path.join(root, 'seed') : null);
   if (seedDir) { try { seedMuchachos(db, seedDir); } catch (e) { console.error('Startinhoud niet ingeladen:', e.message); } }
+  if (seedDir) { try { seedMissions(db, seedDir); } catch (e) { console.error('Missies niet ingeladen:', e.message); } }
   if (seedDir) { try { sealedBeforeFinal(db); } catch (e) { console.error('Volgorde niet aangepast:', e.message); } }
   fs.mkdirSync(mediaDir, { recursive: true });
   if (!adminPassword) {

@@ -451,7 +451,7 @@ export function scoreMission(db, eventId, missionId, add) {
     const ranks = competitionRanks(valid, e => e.diff, false);
     const n = db.get('SELECT COUNT(*) n FROM teams WHERE event_id = ?', eventId).n;
     const scale = Array.from({ length: n }, (_, i) => Math.max(0, Math.min(m.max_points, n) - i));
-    for (const e of valid) { const p = pointsForRank(ranks.get(e), scale); if (p) add(e.team_id, `m:${m.id}:${e.team_id}`, p, `${m.title}: plek ${ranks.get(e)} (afwijking ${+e.diff.toFixed(2)}${m.unit ? ' ' + m.unit : ''})`); results.push({ team: e.team, points: p, rank: ranks.get(e) }); }
+    for (const e of valid) { const p = pointsForRank(ranks.get(e), scale); if (p) add(e.team_id, `m:${m.id}:${e.team_id}`, p, `${m.title}: plek ${ranks.get(e)} (afwijking ${+e.diff.toFixed(2)}${m.unit === 'uu:mm' ? ' min' : m.unit ? ' ' + m.unit : ''})`); results.push({ team: e.team, points: p, rank: ranks.get(e) }); }
   }
   db.run('UPDATE missions SET scored_at = ? WHERE id = ?', Date.now(), m.id);
   return results;

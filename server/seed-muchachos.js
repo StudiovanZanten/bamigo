@@ -8,6 +8,7 @@ import { json } from './db.js';
 import * as C from './content.js';
 import { importPack } from './exporting.js';
 import { upsertMessage, localToEpoch, epochToLocal } from './messages.js';
+import { upsertMission } from './modules.js';
 
 const KEY = 'seed:muchachos:v1';
 
@@ -88,4 +89,27 @@ export function sealedBeforeFinal(db, { log = console.log } = {}) {
   });
   if (moved) log(`Verzegelde ronde vóór de Finale gezet (${moved}).`);
   return moved;
+}
+
+/** Buitentas-missies (per duo, met foto als bewijs). Eenmalig; missies die er op titel al staan worden overgeslagen. */
+export function seedMissions(db, dir, { log = console.log } = {}) {
+  const KEY3 = 'seed:muchachos:missions:v1';
+  const file = path.join(dir, 'muchachos.json');
+  if (!fs.existsSync(file) || db.get('SELECT 1 FROM kv WHERE key = ?', KEY3)) return null;
+  const list = JSON.parse(fs.readFileSync(file, 'utf8')).missions || [];
+  let added = 0;
+  db.tx(() => {
+    const ev = db.get('SELECT value FROM kv WHERE key = ?', KEY);
+    const E = ev ? JSON.parse(ev.value).event : null;
+    if (E && db.get('SELECT 1 FROM events WHERE id = ?', E)) {
+      const have = new Set(db.all('SELECT title FROM missions WHERE event_id = ?', E).map(m => m.title.toLowerCase()));
+      list.forEach((m, i) => {
+        if (have.has(m.title.toLowerCase())) return;
+        const mid = upsertMission(db, E, m); db.run('UPDATE missions SET sort = ? WHERE id = ?', (i + 1) * 10, mid); added++;
+      });
+    }
+    db.run('INSERT INTO kv (key, value) VALUES (?, ?)', KEY3, JSON.stringify({ added }));
+  });
+  if (added) log(`Buitentas-missies ingeladen: ${added}.`);
+  return added;
 }
