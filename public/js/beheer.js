@@ -31,7 +31,7 @@ function setupScreen() {
     const P = api({ 'x-admin-password': $('#pw').value });
     try {
       const r = demo ? await P.post('/api/demo') : await P.post('/api/events', { name: $('#nm').value, startsAt: $('#dt').value || null });
-      prefs.set('displayToken', r.displayToken);
+      prefs.set('displayToken', r.displayToken); prefs.set('tvToken.' + r.eventId, r.displayToken);
       location.href = '/beheer#k=' + r.ownerToken; location.reload();
     } catch (err) { $('#err').hidden = false; $('#err').textContent = err.message; }
   };
@@ -409,6 +409,17 @@ function scoresTab(v) {
 }
 
 // ---------- AVOND & LINKS ----------
+// Links die op dit apparaat bewaard zijn. De server kent alleen hashes, dus elders zijn ze niet terug te halen.
+function myLinks(v) {
+  const base = location.origin;
+  const tv = prefs.get('tvToken.' + v.event.id, null);
+  return `<details class="card" style="margin:12px 0;padding:12px"><summary><b>Jouw links op dit apparaat</b> <span class="small muted">(klik om te tonen)</span></summary>
+    <p class="small" style="margin:10px 0 4px">Jouw beheerlink. Bewaar hem privé, bijv. in je wachtwoordmanager. Zonder deze link kom je op een ander apparaat niet binnen.</p>
+    <div class="linkbox">${esc(base + '/beheer#k=' + token)}</div>
+    ${tv ? `<p class="small" style="margin:10px 0 4px">TV-link (open op de laptop aan de tv):</p><div class="linkbox">${esc(base + '/tv#k=' + tv)}</div>`
+      : '<p class="small muted" style="margin:10px 0 0">Geen TV-link op dit apparaat. Maak hieronder een nieuwe link met rol “TV-scherm”.</p>'}
+    <p class="small" style="margin:10px 0 4px">Spelers: ${esc(base)}/speel met code <b>${esc(v.event.joinCode)}</b>.</p></details>`;
+}
 const ROLE_INFO = { content: 'Inhoudsbeheerder — maakt vragen en ziet antwoorden. Geef deze aan je medequizmaster.', host: 'Live host — bedient de avond; ziet antwoorden pas na sluiten.',
   spoilerfree: 'Spoilervrije organisator — ziet planning en voortgang, geen inhoud. Voor wie zelf meespeelt.', display: 'TV-scherm — alleen de show.' };
 function eventTab(v) {
@@ -427,6 +438,7 @@ function eventTab(v) {
     <button class="btn primary" style="margin-top:10px">Opslaan</button></form>
   <section class="card"><h3>Toegangslinks</h3>
     <p class="small muted">Iedere link geeft precies één rol. Wie de link heeft, heeft toegang: deel ze privé. Een link intrekken werkt direct.</p>
+    ${myLinks(v)}
     <ul class="list">${(v.grants || []).map(g => `<li><span class="grow">${esc(g.label)} <span class="small muted">(${g.role})</span></span>${g.revoked ? '<span class="pill bad">ingetrokken</span>' : g.role === 'owner' ? '<span class="pill">jij</span>' : `<button class="btn danger small" data-revoke="${g.id}">Intrekken</button>`}</li>`).join('')}</ul>
     <form id="grantForm" style="margin-top:12px"><div class="row"><select id="gRole" class="grow">${Object.entries(ROLE_INFO).map(([r, t]) => `<option value="${r}">${t}</option>`).join('')}</select></div>
       <div class="row" style="margin-top:8px"><input id="gLabel" class="grow" placeholder="Naam, bijv. ‘Medequizmaster Sam’" maxlength="60"><button class="btn copper">Nieuwe link</button></div></form>
