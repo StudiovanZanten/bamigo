@@ -124,10 +124,24 @@ export function validateModuleAnswer(db, q, answer, eventId, membership) {
         if (!Array.isArray(answer) || answer.length !== n || new Set(answer).size !== n) bad(`Zet alle ${n} teams in een volgorde.`);
         return answer.map(t => { if (!db.get('SELECT 1 FROM teams WHERE id = ? AND event_id = ?', String(t), eventId)) bad('Onbekend team.'); return String(t); });
       }
-      const i = Number(answer); if (!Number.isInteger(i) || i < 0 || i >= n) bad('Kies een plek.');
-      return i;
+      const obj = answer && typeof answer === 'object';
+      const i = Number(obj ? answer.place : answer); if (!Number.isInteger(i) || i < 0 || i >= n) bad('Kies een plek.');
+      if (!q.settings.pledge) return i;
+      const pledge = String((obj ? answer.pledge : '') ?? '').trim().slice(0, 200);
+      return { place: i, pledge };
     }
     case 'invest': {
+      if (q.settings.pitch) {
+        // Biedronde per pitch: één bedrag op het team dat nu pitcht, uit je resterende budget.
+        const pt = q.settings.pitchTeam; if (!pt) bad('De quizmaster heeft nog niet gekozen wie er pitcht.');
+        if (membership && membership.team_id === pt) bad('Jullie pitchen zelf. Bieden kan bij de andere pitches.');
+        const st = pitchStatus(db, q, membership ? 't:' + membership.team_id : 'host', membership?.team_id ?? null);
+        const amt = Number(answer && typeof answer === 'object' ? answer.amount : answer);
+        if (!Number.isInteger(amt) || amt < 0 || amt % DRAGONS_STEP) bad(`Bieden in stappen van €${DRAGONS_STEP}.`);
+        if (amt > st.remaining) bad(`Zoveel hebben jullie niet meer (nog €${st.remaining.toLocaleString('nl-NL')}).`);
+        if (st.mustAll && amt !== st.remaining) bad(`Laatste kans: jullie resterende €${st.remaining.toLocaleString('nl-NL')} moet er helemaal in.`);
+        return { amount: amt };
+      }
       const a = answer && typeof answer === 'object' ? answer : bad('Ongeldige verdeling.');
       const out = {}; let sum = 0;
       for (const [tid, v] of Object.entries(a)) {
@@ -161,7 +175,38 @@ export function checkModuleSubmit(db, q, participant, membership) {
 
 // ---------- scoren per type ----------
 /** Geeft true als de vraag door een module is gescoord. `add(teamId, participantId, board, sourceSuffix, points, reason)` */
+/** Alle pitches (biedronde-vragen) van dezelfde Dragons-ronde. */
+export function pitchQuestions(db, roundId) {
+  return db.all("SELECT * FROM questions WHERE round_id = ? AND type = 'invest' AND voided_at IS NULL ORDER BY sort, id", roundId)
+    .map(x => ({ ...x, settings: json(x.settings, {}) })).filter(x => x.settings.pitch);
+}
+/** Resterend budget en of dit de laatste biedkans is (dan moet alles erin). owner: 't:<team>' of 'host'. */
+export function pitchStatus(db, q, owner, teamId) {
+  const all = pitchQuestions(db, q.round_id);
+  const budget = q.settings.budget || DRAGONS_BUDGET;
+  let spent = 0;
+  for (const p of all) if (p.id !== q.id) { const s = db.get('SELECT answer FROM submissions WHERE question_id = ? AND owner_key = ?', p.id, owner); if (s) spent += JSON.parse(s.answer).amount || 0; }
+  const future = all.filter(p => p.id !== q.id && !p.locked_at);
+  const pitched = new Set(all.filter(p => p.locked_at || p.id === q.id).map(p => p.settings.pitchTeam).filter(Boolean));
+  const later = future.length - (teamId && !pitched.has(teamId) ? 1 : 0); // één van de komende pitches is van jezelf
+  return { budget, remaining: budget - spent, mustAll: later <= 0, later, pitchTeam: q.settings.pitchTeam || null };
+}
+function pitchTotals(db, q) {
+  const all = pitchQuestions(db, q.round_id);
+  const teams = db.all('SELECT id, name FROM teams WHERE event_id = ?', q.event_id);
+  return { all, rows: all.filter(p => p.settings.pitchTeam).map(p => ({ teamId: p.settings.pitchTeam, name: teams.find(t => t.id === p.settings.pitchTeam)?.name ?? '?', item: p.prompt,
+    total: db.all('SELECT answer FROM submissions WHERE question_id = ?', p.id).reduce((s, x) => s + (JSON.parse(x.answer).amount || 0), 0) })) };
+}
+
 export function scoreModule(db, q, key, subs, add) {
+  if (q.type === 'invest' && q.settings?.pitch) {
+    const { all, rows } = pitchTotals(db, q);
+    if (all.some(p => p.id !== q.id && !p.locked_at)) return true; // punten pas na de laatste pitch
+    const ranks = competitionRanks(rows, r => r.total);
+    const scale = q.settings.scale || [5, 4, 3, 2, 1];
+    for (const r of rows) { const p = pointsForRank(ranks.get(r), scale); if (p && r.total > 0) add(r.teamId, null, 'team', 't:' + r.teamId, p, `Dragons: €${r.total.toLocaleString('nl-NL')} opgehaald met “${r.item}” (plek ${ranks.get(r)})`); }
+    return true;
+  }
   if (q.type === 'envelope') return true; // punten pas bij het openen van de enveloppen
   if (q.type === 'ranking' && (q.settings?.top || 1) > 1) {
     const top = q.settings.top; const { ranked, valid } = rankingTop(db, q.id);
@@ -235,12 +280,17 @@ export function openEnvelopes(db, eventId, q, t, actor, hostName) {
   const bonus = q.settings.bonus ?? 2;
   const list = teams.map(tm => {
     const sub = db.get('SELECT answer FROM submissions WHERE question_id = ? AND owner_key = ?', q.id, 't:' + tm.id);
-    const predicted = sub ? JSON.parse(sub.answer) + 1 : null;
+    const a = sub ? JSON.parse(sub.answer) : null;
+    const predicted = a == null ? null : (typeof a === 'object' ? a.place : a) + 1;
+    const pledge = a && typeof a === 'object' ? a.pledge || '' : '';
     const rank = ranks.get(tm); const hit = predicted === rank;
     if (hit && bonus) db.run(`INSERT INTO score_events (id, event_id, team_id, board, question_id, source_key, points, reason, kind, created_by, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
       id('e_'), eventId, tm.id, 'team', q.id, `env:${q.id}:${tm.id}`, bonus, `BAMIGO Envelop: plek ${predicted} voorspeld en gehaald`, 'bonus', actor, t);
-    return { teamId: tm.id, name: tm.name, predicted, rank, points: tm.points, hit, bonus: hit ? bonus : 0 };
+    return { teamId: tm.id, name: tm.name, predicted, rank, points: tm.points, hit, bonus: hit ? bonus : 0, pledge };
   });
+  // Alleen de belofte van de laatste plek wordt onthuld (die moet hem ook uitvoeren); de rest blijft geheim.
+  const last = Math.max(...list.map(r => r.rank));
+  for (const r of list) { r.last = r.rank === last && list.length > 1; if (!r.last) delete r.pledge; }
   list.sort((a, b) => b.rank - a.rank || a.name.localeCompare(b.name)); // laatste plek eerst, winnaar als laatste
   const hs = db.get("SELECT answer FROM submissions WHERE question_id = ? AND owner_key = 'host'", q.id);
   let host = null;
@@ -263,6 +313,11 @@ export function revealModule(db, q) {
   if (q.type === 'ranking') {
     const { rows, winners, valid } = rankingTotals(db, q.id);
     return { ranking: { top: rows.slice(0, 5).map(r => ({ name: r.name, votes: r.votes, winner: winners.includes(r.id) })), valid, skipped: valid === 0 } };
+  }
+  if (q.type === 'invest' && q.settings?.pitch) {
+    const { all, rows } = pitchTotals(db, q);
+    if (all.some(p => p.id !== q.id && !p.locked_at)) return { pitchHidden: true, pitchesLeft: all.filter(p => p.id !== q.id && !p.locked_at).length };
+    return { invest: rows.map(r => ({ name: `${r.name} · ${r.item}`, total: r.total })).sort((a, b) => b.total - a.total) };
   }
   if (q.type === 'invest') {
     const teams = db.all('SELECT id, name FROM teams WHERE event_id = ? ORDER BY sort, name', q.event_id);

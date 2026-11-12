@@ -40,17 +40,46 @@ function uniqueCode(db) {
 }
 
 /** Eigen vragenlijst vooraf: [{ id, q }], max 15 vragen. Id's blijven gelijk zodat antwoorden blijven kloppen. */
+export const QN_TYPES = ['open', 'number', 'scale', 'time', 'muchacho', 'section'];
+/** Spelersdossier: vragen (en kopjes 'section') met een type. Oude lijsten [{id,q}] blijven werken als 'open'. */
 export function cleanQuestionnaire(list) {
   if (!Array.isArray(list)) return [];
   const seen = new Set();
-  return list.map(x => ({ id: String(x?.id || '').replace(/[^a-z0-9_-]/gi, '').slice(0, 20) || id('v'), q: String(x?.q || '').trim().slice(0, 200) }))
-    .filter(x => x.q && !seen.has(x.id) && seen.add(x.id)).slice(0, 15);
+  return list.map(x => {
+    const type = QN_TYPES.includes(x?.type) ? x.type : 'open';
+    const item = { id: String(x?.id || '').replace(/[^a-z0-9_-]/gi, '').slice(0, 24) || id('v'), type, q: String(x?.q ?? x?.title ?? '').trim().slice(0, 240) };
+    const help = String(x?.help ?? x?.text ?? '').trim().slice(0, 400); if (help) item.help = help;
+    if (type === 'muchacho' && x?.why) item.why = typeof x.why === 'string' && x.why.trim() ? x.why.trim().slice(0, 120) : 'Waarom?';
+    if (type === 'number' && x?.unit) item.unit = String(x.unit).trim().slice(0, 12);
+    return item;
+  }).filter(x => x.q && !seen.has(x.id) && seen.add(x.id)).slice(0, 40);
+}
+export function cleanDossier(d) {
+  const part = p => p && typeof p === 'object' ? { title: String(p.title ?? '').trim().slice(0, 80), text: String(p.text ?? '').trim().slice(0, 600) } : null;
+  return { intro: part(d?.intro), outro: part(d?.outro) };
+}
+/** Controleer één antwoord uit het dossier. Leeg → undefined (= niet ingevuld). */
+export function cleanDossierAnswer(db, eventId, item, v) {
+  if (v == null || v === '') return undefined;
+  switch (item.type) {
+    case 'number': { const x = Number(String(v).replace(/\./g, '').replace(',', '.').replace(/[^0-9.-]/g, '')); if (!Number.isFinite(x)) bad(`“${item.q}”: vul een getal in.`); return String(x); }
+    case 'scale': { const x = Number(v); if (!Number.isInteger(x) || x < 1 || x > 10) bad(`“${item.q}”: kies 1 t/m 10.`); return String(x); }
+    case 'time': { const m = String(v).match(/^(\d{1,2}):(\d{2})$/); if (!m || +m[1] > 23 || +m[2] > 59) bad(`“${item.q}”: kies een tijd.`); return `${m[1].padStart(2, '0')}:${m[2]}`; }
+    case 'muchacho': {
+      const pick = String(v?.pick ?? v ?? ''); if (!pick) return undefined;
+      if (!db.get('SELECT 1 FROM participants WHERE id = ? AND event_id = ?', pick, eventId)) bad('Onbekende Muchacho.');
+      return { pick, why: String(v?.why ?? '').trim().slice(0, 300) };
+    }
+    case 'section': return undefined;
+    default: { const s = String(v).trim().slice(0, 500); return s || undefined; }
+  }
 }
 
 export function updateEvent(db, eventId, body) {
   const ev = db.get('SELECT * FROM events WHERE id = ?', eventId) || notFound();
   const settings = { ...json(ev.settings, {}), ...(body.settings && typeof body.settings === 'object' ? body.settings : {}) };
   if (body.settings && 'questionnaire' in body.settings) settings.questionnaire = cleanQuestionnaire(body.settings.questionnaire);
+  if (body.settings && 'dossier' in body.settings) settings.dossier = cleanDossier(body.settings.dossier);
   db.run(`UPDATE events SET name=?, subtitle=?, starts_at=?, duration_target=?, duration_max=?, mode=?, status=?, settings=?, updated_at=? WHERE id=?`,
     str(body.name, 120) ?? ev.name, body.subtitle !== undefined ? str(body.subtitle, 200) : ev.subtitle, body.startsAt !== undefined ? str(body.startsAt, 40) : ev.starts_at,
     int(body.durationTarget, 10, 600, ev.duration_target), int(body.durationMax, 10, 600, ev.duration_max),
@@ -217,7 +246,7 @@ export function upsertQuestion(db, eventId, body) {
   const settings = body.settings && typeof body.settings === 'object' ? { ...body.settings } : {};
   if (type === 'shot') { const n = Number(settings.shotNumber); if (!Number.isInteger(n) || n < 1 || n > 50) bad('Geef het shotnummer op (1, 2, 3…).'); settings.shotNumber = n; }
   if (type === 'invest') settings.budget = 10000;
-  if (type === 'envelope') { const b = Number(settings.bonus ?? 2); settings.bonus = Number.isInteger(b) && b >= 0 && b <= 20 ? b : 2; }
+  if (type === 'envelope') { const b = Number(settings.bonus ?? 2); settings.bonus = Number.isInteger(b) && b >= 0 && b <= 20 ? b : 2; settings.pledge = !!settings.pledge; }
   if (['shot', 'invest', 'envelope'].includes(type) && scope !== 'team') bad('Deze spelvorm is een teamvraag.');
   if (settings.kompaan && scope !== 'individual') bad('Ken je kompaan: teamgenoten antwoorden ieder zelf (kies "Iedereen zelf").');
   if (settings.kompaan && !['mc', 'tf', 'open'].includes(type)) bad('Ken je kompaan werkt met meerkeuze, waar/niet waar of open.');

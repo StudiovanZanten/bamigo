@@ -42,8 +42,10 @@ export function publicQuestion(live, s, t) {
     top: q.type === 'ranking' ? (q.settings.top || 1) : null,
     candidates: visible && q.type === 'ranking' ? live.db.all('SELECT id, name FROM participants WHERE event_id = ? ORDER BY name', q.event_id) : null,
     teams: visible && ['shot', 'invest'].includes(q.type) ? live.db.all('SELECT id, name FROM teams WHERE event_id = ? ORDER BY sort, name', q.event_id) : null,
+    pitch: q.type === 'invest' && q.settings.pitch ? { team: q.settings.pitchTeam ? live.db.get('SELECT id, name FROM teams WHERE id = ?', q.settings.pitchTeam) : null } : null,
     budget: q.type === 'invest' ? (q.settings.budget || M.DRAGONS_BUDGET) : null, step: q.type === 'invest' ? M.DRAGONS_STEP : null,
     shotNumber: q.type === 'shot' ? q.settings.shotNumber : null,
+    pledge: q.type === 'envelope' ? !!q.settings.pledge : null,
     // Allergenen moeten vóór het proeven controleerbaar zijn, ook al verraadt dat iets.
     allergens: q.type === 'shot' ? (live.db.get('SELECT allergens FROM shots WHERE event_id = ? AND number = ?', q.event_id, q.settings.shotNumber)?.allergens ?? 'nog niet ingevuld — vraag de organisatie') : null,
     number: pos.indexOf(q.id) + 1, of: pos.length,
@@ -136,6 +138,7 @@ export function playerView(live, { participant, event }, online, t = live.clock(
     scoreboard: showBoard ? boardFor(live, event.id, { topTeams: 100, topPeople: 5, meId: participant.id }) : null,
     shotsReveal: s.screen === 'shots_reveal' ? M.shotsRevealData(db, event.id, s.round_id) : null,
     messages: MSG.playerMessages(db, event.id),
+    pitchStatus: q?.pitch && m ? M.pitchStatus(db, live.question(q.id), 't:' + m.team_id, m.team_id) : null,
     ownShot: q?.type === 'shot' && team ? !!db.get('SELECT 1 FROM shots WHERE team_id = ? AND number = ?', team.id, q.shotNumber) : false,
     kompaan: q?.kompaan && team ? { pair: M.kompaanPair(db, { ...live.question(q.id), event_id: event.id }, team.id).map(p => ({ id: p.id, name: p.name })) } : null,
     prep: prepView(live, event, participant, team),
@@ -194,6 +197,8 @@ export function staffView(live, { event, role, grant }, online, joinUrl, t = liv
   if (host || full) {
     view.question = publicQuestion(live, s, t);
     view.sealed = sealedNow;
+    if (view.question?.pitch) { const pq = live.question(view.question.id); view.pitchStatus = M.pitchStatus(db, pq, 'host', null);
+      view.pitchDone = M.pitchQuestions(db, pq.round_id).filter(p => p.id !== pq.id && p.settings.pitchTeam).map(p => p.settings.pitchTeam); }
     const env = db.get("SELECT id FROM questions WHERE event_id = ? AND type = 'envelope' AND voided_at IS NULL ORDER BY sort, id LIMIT 1", event.id);
     if (env) { const eq = live.question(env.id); view.envelope = { id: eq.id, filled: !!eq.locked_at, opened: !!eq.settings.envelopes,
       count: db.get("SELECT COUNT(*) AS n FROM submissions WHERE question_id = ? AND owner_key != 'host'", eq.id).n,
@@ -239,11 +244,19 @@ export function staffView(live, { event, role, grant }, online, joinUrl, t = liv
 /** Gereedheid: alleen tellingen, dus ook veilig voor de spoilervrije organisator. */
 /** Alle antwoorden op de vragenlijst vooraf, per vraag (alleen voor wie inhoud mag zien). */
 function questionnaireOverview(db, event) {
-  const questions = json(event.settings, {}).questionnaire || [];
-  const people = db.all(`SELECT p.name, p.profile, t.name AS team FROM participants p LEFT JOIN memberships m ON m.participant_id = p.id LEFT JOIN teams t ON t.id = m.team_id
-    WHERE p.event_id = ? ORDER BY p.name`, event.id).map(p => ({ name: p.name, team: p.team, prof: json(p.profile, {}) }));
+  const questions = (json(event.settings, {}).questionnaire || []).filter(q => q.type !== 'section');
+  const people = db.all(`SELECT p.id, p.name, p.profile, t.name AS team FROM participants p LEFT JOIN memberships m ON m.participant_id = p.id LEFT JOIN teams t ON t.id = m.team_id
+    WHERE p.event_id = ? ORDER BY p.name`, event.id).map(p => ({ id: p.id, name: p.name, team: p.team, prof: json(p.profile, {}) }));
   return {
-    questions: questions.map(q => ({ ...q, answers: people.filter(p => p.prof.answers?.[q.id]).map(p => ({ name: p.name, team: p.team, answer: p.prof.answers[q.id] })) })),
+    questions: questions.map(q => {
+      const fmt = a => q.type === 'muchacho' ? `${people.find(x => x.id === a?.pick)?.name ?? '?'}${a?.why ? ' — ' + a.why : ''}` : q.type === 'scale' ? `${a}/10` : q.type === 'number' && q.unit ? `${q.unit} ${a}` : String(a);
+      const answers = people.filter(p => p.prof.answers?.[q.id] != null).map(p => ({ name: p.name, team: p.team, answer: fmt(p.prof.answers[q.id]) }));
+      let tally = null;
+      if (q.type === 'muchacho') { const c = new Map(); for (const p of people) { const pick = p.prof.answers?.[q.id]?.pick; if (pick) c.set(pick, (c.get(pick) || 0) + 1); }
+        tally = [...c].map(([id, n]) => ({ name: people.find(x => x.id === id)?.name ?? '?', n })).sort((a, b) => b.n - a.n); }
+      if (q.type === 'scale' || q.type === 'number') { const xs = answers.map(a => Number(String(people.find(p => p.name === a.name).prof.answers[q.id]))).filter(Number.isFinite); if (xs.length) tally = [{ name: 'gemiddeld', n: Math.round(xs.reduce((s, x) => s + x, 0) / xs.length * 10) / 10 }]; }
+      return { ...q, answers, tally };
+    }),
     stories: people.filter(p => p.prof.story || p.prof.limits).map(p => ({ name: p.name, story: p.prof.story || '', limits: p.prof.limits || '' })),
     filled: people.filter(p => p.prof.done).length, total: people.length,
   };
@@ -284,6 +297,6 @@ function prepView(live, event, participant, team) {
     .map(m => { const e = team ? db.get('SELECT value, note, media_id, checked FROM evidence WHERE mission_id = ? AND team_id = ?', m.id, team.id) : null;
       return { id: m.id, title: m.title, description: m.description, kind: m.kind, target: m.target, unit: m.unit, closed: !!m.scored_at, mine: e ? { value: e.value, note: e.note, hasPhoto: !!e.media_id, checked: !!e.checked } : null }; });
   const profile = json(participant.profile, {});
-  return { ranking, candidates: people.filter(p => settings.selfVote || p.id !== participant.id), profile: { story: profile.story || '', limits: profile.limits || '', answers: profile.answers || {}, questions: settings.questionnaire || [], done: !!profile.done },
+  return { ranking, candidates: people.filter(p => settings.selfVote || p.id !== participant.id), profile: { story: profile.story || '', limits: profile.limits || '', answers: profile.answers || {}, questions: settings.questionnaire || [], dossier: settings.dossier || null, done: !!profile.done },
     shot: hasShotRound && team ? (shot || {}) : null, missions };
 }

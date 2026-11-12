@@ -150,10 +150,25 @@ export async function buildApp({ dbFile = process.env.BAMIGO_DB || path.join(roo
   // ---------- voorbereiding (speler) ----------
   const myTeam = p => live.membership(p.participant.id) || deny('Je zit nog niet in een team.');
   app.post('/api/player/vote', async req => { const p = player(req); M.castVote(db, p.event.id, p.participant, req.body || {}); touch(p.event.id); return { ok: true }; });
+  // Spelersdossier: per scherm opslaan (samenvoegen), 'done' bij het afsluitscherm.
+  app.post('/api/player/dossier', async req => {
+    const p = player(req); const b = req.body || {};
+    const qs = json(p.event.settings, {}).questionnaire || [];
+    const prof = json(db.get('SELECT profile FROM participants WHERE id = ?', p.participant.id).profile, {});
+    const answers = { ...(prof.answers || {}) };
+    for (const [k, v] of Object.entries(b.answers || {})) {
+      const item = qs.find(q => q.id === k); if (!item) continue;
+      const c = C.cleanDossierAnswer(db, p.event.id, item, v);
+      if (c === undefined) delete answers[k]; else answers[k] = c;
+    }
+    const next = { ...prof, answers, ...(b.limits !== undefined ? { limits: String(b.limits).slice(0, 500) } : {}), ...(b.done ? { done: true } : {}) };
+    db.run('UPDATE participants SET profile = ? WHERE id = ?', JSON.stringify(next), p.participant.id);
+    touch(p.event.id); return { ok: true };
+  });
   app.post('/api/player/profile', async req => {
     const p = player(req); const b = req.body || {};
     const qs = json(p.event.settings, {}).questionnaire || [];
-    const answers = Object.fromEntries(qs.map(q => [q.id, String(b.answers?.[q.id] ?? '').trim().slice(0, 300)]).filter(([, a]) => a));
+    const answers = Object.fromEntries(qs.map(q => [q.id, C.cleanDossierAnswer(db, p.event.id, q, b.answers?.[q.id])]).filter(([, a]) => a !== undefined));
     const prof = { ...json(p.participant.profile, {}), story: String(b.story ?? '').slice(0, 1000), limits: String(b.limits ?? '').slice(0, 500), answers, done: !!b.done };
     db.run('UPDATE participants SET profile = ? WHERE id = ?', JSON.stringify(prof), p.participant.id);
     touch(p.event.id); return { ok: true };

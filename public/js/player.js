@@ -1,6 +1,7 @@
 // Spelersomgeving: aanmelden via code/QR, sessie hervatten, antwoorden met echte ontvangstbevestiging.
 import { $, $$, esc, LETTERS, prefs, tokenFromHash, api, connect, toast, connBanner, fmtTime, mascot, sound, mediaUrl, ROUND_LABEL } from './common.js';
 import { rouletteDriver } from './roulette.js';
+import { openDossier } from './dossier.js';
 
 const app = $('#app');
 let token = tokenFromHash('t', 'playerToken');
@@ -101,7 +102,7 @@ function render() {
   if (q?.id !== draft.qid) { draft = { qid: q?.id ?? null, choice: null, picks: [], text: '', bet: null, order: q?.options ? q.options.map((_, i) => i) : null, shot: { flavor: '', base: '', teamId: '' }, invest: {} }; sending = null; }
   if (q?.options && !draft.order) draft.order = q.options.map((_, i) => i);
   // Structuursleutel: alleen opnieuw opbouwen als er echt iets verandert (behoudt focus en invoer).
-  const key = JSON.stringify([L.screen, L.phase, L.paused, L.seq, q?.id, q?.visible, v.mine, v.me, v.team?.members, sending, v.result && v.result.total, v.scoreboard, L.message, v.advice, L.banner, v.messages, pushState]);
+  const key = JSON.stringify([L.screen, L.phase, L.paused, L.seq, q?.id, q?.visible, v.mine, v.me, v.team?.members, sending, v.result && v.result.total, v.scoreboard, L.message, v.advice, L.banner, v.messages, pushState, v.pitchStatus, q?.pitch]);
   renderPrep(v);
   if (key === lastKey) return;
   const focusId = document.activeElement?.id;
@@ -122,6 +123,7 @@ function render() {
   else body = lobbyScreen(v);
   app.innerHTML = head + body + (L.paused ? `<div class="paused" role="alertdialog" aria-label="Gepauzeerd"><div><h1>Gepauzeerd</h1><p class="muted">De host heeft het spel even stilgezet. De tijd staat stil.</p></div></div>` : '');
   bind(v, q);
+  { const pl = $('#pledge'); if (pl) pl.oninput = () => { draft.text = pl.value; }; }
   $$('[data-open-task]').forEach(b => b.onclick = () => openTask(b.dataset.openTask));
   $$('[data-push-on]').forEach(b => b.onclick = () => { b.disabled = true; enablePush(); });
   $$('[data-push-off]').forEach(b => b.onclick = disablePush);
@@ -292,8 +294,9 @@ function questionScreen(v, q) {
     const chosen = mine ? mine.answer : advising ? myAdvice?.answer : draft.choice;
     out += `<div class="choices" role="group" aria-label="Kies een naam">${q.candidates.map(c => `<button class="choice" data-cand="${c.id}" aria-pressed="${chosen === c.id}" ${tappable ? '' : 'disabled'}><span>${esc(c.name)}</span>${advTag(c.id)}<span class="mark">${chosen === c.id ? (mine ? '✓ Ingestuurd' : advising ? 'Jouw advies' : '● Gekozen') : ''}</span></button>`).join('')}</div>`;
   } else if (q.type === 'mc' || q.type === 'tf' || q.type === 'envelope') {
+    if (q.type === 'envelope' && q.pledge && !notCaptain) out += `<div class="field" style="margin:0 0 12px"><label for="pledge">Als wij laatste worden, dan…</label><input id="pledge" maxlength="200" placeholder="…doen we een rondje push-ups voor de hele groep" value="${esc(mine ? mine.answer?.pledge || '' : draft.text)}" ${mine ? 'disabled' : ''}></div>`;
     if (q.type === 'envelope') out += `<p class="notice small">✉️ ${notCaptain ? 'Tik aan waar jullie volgens jou eindigen; de captain kiest.' : 'Op welke plek eindigt jullie team?'} Verzegeld: niemand ziet het, ook de quizmaster niet. Precies goed = bonuspunten bij de uitslag.</p>`;
-    const chosen = mine ? mine.answer : advising ? myAdvice?.answer : draft.choice;
+    const chosen = mine ? (mine.answer && typeof mine.answer === 'object' ? mine.answer.place : mine.answer) : advising ? myAdvice?.answer : draft.choice;
     const correct = revealed ? [].concat(v.result?.correct) : [];
     out += `<div class="choices" role="group" aria-label="Antwoorden">${q.options.map((o, i) => {
       const cls = revealed ? (correct.includes(i) ? 'correct' : chosen === i ? 'wrong' : '') : '';
@@ -380,7 +383,7 @@ function bind(v, q) {
   const ans = $('#ans'); if (ans) ans.oninput = () => { draft.text = ans.value; const sb = $('#submitBtn'); if (sb) sb.disabled = !ans.value.trim(); };
   if (ans) ans.onkeydown = e => { if (e.key === 'Enter' && ans.value.trim()) $('#submitBtn')?.click(); };
   const sb = $('#submitBtn'); if (sb) sb.onclick = () => {
-    const a = q.type === 'ranking' && q.top > 1 ? draft.picks : ['mc', 'tf', 'ranking', 'envelope'].includes(q.type) ? draft.choice : q.type === 'order' ? draft.order : draft.text;
+    const a = q.type === 'envelope' && q.pledge ? { place: draft.choice, pledge: ($('#pledge')?.value || draft.text || '').trim() } : q.type === 'ranking' && q.top > 1 ? draft.picks : ['mc', 'tf', 'ranking', 'envelope'].includes(q.type) ? draft.choice : q.type === 'order' ? draft.order : draft.text;
     send(q, a);
   };
   const md = $('[data-media]'); if (md) mediaUrl(md.dataset.media, { 'x-player-token': token }).then(u => { if (u) md.innerHTML = `<img src="${u}" alt="Afbeelding bij de vraag" style="max-width:100%;border-radius:6px">`; });
@@ -450,6 +453,7 @@ function bindShot(q) {
 }
 
 function investQuestion(v, q, mine, canAnswer, notCaptain) {
+  if (q.pitch) return pitchQuestion(v, q, mine, canAnswer, notCaptain);
   const alloc = mine ? mine.answer : draft.invest;
   const total = Object.values(alloc).reduce((a, b) => a + b, 0);
   const left = q.budget - total;
@@ -467,7 +471,32 @@ function investQuestion(v, q, mine, canAnswer, notCaptain) {
   if (['revealed', 'scored'].includes(v.live.phase)) out += revealExtra(v, q);
   return out;
 }
+const eurP = n => '€' + Number(n).toLocaleString('nl-NL');
+function pitchQuestion(v, q, mine, canAnswer, notCaptain) {
+  const pt = q.pitch.team; const st = v.pitchStatus;
+  const ownPitch = pt && pt.id === v.me.teamId;
+  let out = `<div class="pitch-head"><span class="small muted">Pitch door</span><b>${pt ? esc(pt.name) : 'nog onbekend'}</b></div>`;
+  if (ownPitch) return out + `<div class="notice">🎤 Jullie pitchen! Overtuig de Dragons. Na jullie pitch bieden de andere teams geheim.</div>`;
+  if (!st) return out;
+  if (draft.bid == null) draft.bid = st.mustAll ? st.remaining : 0;
+  const bid = mine ? mine.answer.amount : st.mustAll ? st.remaining : draft.bid;
+  out += `<div class="budget"><span>Jullie budget</span><b>${eurP(st.remaining)}</b><span class="small muted">${st.mustAll ? 'Laatste kans: alles moet erin!' : `nog ${st.later + 1} biedkans${st.later ? 'en' : ''} (deze meegerekend)`}</span></div>
+    <div class="bid ${mine ? 'done' : ''}">${canAnswer && !st.mustAll ? `<button class="btn ghost" data-bid="-1" aria-label="${eurP(q.step)} minder">−</button>` : ''}
+      <span class="bid-amt" aria-live="polite">${eurP(bid)}</span>
+      ${canAnswer && !st.mustAll ? `<button class="btn ghost" data-bid="1" aria-label="${eurP(q.step)} meer">+</button>` : ''}</div>
+    ${canAnswer && !st.mustAll ? `<div class="row" style="justify-content:center;gap:6px">${[0, 1000, 2500, 5000].filter(x => x <= st.remaining).map(x => `<button class="btn ghost small" data-bidset="${x}">${eurP(x)}</button>`).join('')}<button class="btn ghost small" data-bidset="${st.remaining}">Alles</button></div>` : ''}`;
+  if (v.live.phase === 'open' && !mine && !notCaptain) out += `<button id="bidSubmit" class="btn primary block big" style="margin-top:14px">Bod vastzetten</button>`;
+  if (mine) out += `<div class="receipt" role="status">✓ Bod van ${eurP(mine.answer.amount)} vastgezet. Geheim tot na de laatste pitch.</div>`;
+  if (sending?.status === 'error') out += `<div class="receipt err" role="alert">${esc(sending.error)}</div>`;
+  if (v.live.phase === 'open' && !mine && notCaptain) out += `<p class="notice">De captain zet het bod vast. Overleg maar.</p>`;
+  if (['revealed', 'scored'].includes(v.live.phase)) out += v.result?.pitchHidden ? `<p class="notice">Biedingen binnen. Totalen blijven geheim tot na de laatste pitch.</p>` : revealExtra(v, q);
+  return out;
+}
+
 function bindInvest(q) {
+  $$('[data-bid]').forEach(b => b.onclick = () => { const st = view.pitchStatus; draft.bid = Math.max(0, Math.min(st.remaining, (draft.bid || 0) + Number(b.dataset.bid) * q.step)); lastKey = ''; render(); });
+  $$('[data-bidset]').forEach(b => b.onclick = () => { draft.bid = Number(b.dataset.bidset); lastKey = ''; render(); });
+  const bs = $('#bidSubmit'); if (bs) bs.onclick = () => send(q, { amount: view.pitchStatus?.mustAll ? view.pitchStatus.remaining : draft.bid || 0 });
   $$('[data-inv]').forEach(b => b.onclick = () => {
     const t = b.dataset.inv, d = Number(b.dataset.d) * q.step;
     const total = Object.values(draft.invest).reduce((a, x) => a + x, 0);
@@ -530,7 +559,10 @@ function renderPrep(v) {
     ${openVotes.map(r => `<div class="field"><label for="rv_${r.id}">${esc(r.prompt)}</label><select id="rv_${r.id}" data-vote="${r.id}">
       <option value="" ${!r.voted ? 'selected' : ''}>Kies…</option><option value="skip" ${r.voted && !r.choiceId ? 'selected' : ''}>Overslaan</option>
       ${P.candidates.map(c => `<option value="${c.id}" ${r.choiceId === c.id ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select></div>`).join('')}`) : ''}
-  ${task('prof', pr.questions.length ? 'Vragenlijst' : 'Over jou', pr.done, pr.done ? 'Ingevuld' : pr.questions.length ? `${pr.questions.length} korte vragen, alles optioneel` : 'Optioneel, voor de quizmasters', `<form id="profForm">
+  ${pr.questions.length ? (() => { const qs = pr.questions.filter(q => q.type !== 'section'); const n = qs.filter(q => pr.answers[q.id] != null).length;
+    return `<button class="task dossier-task" id="openDossier"><span class="tick ${pr.done ? 'ok' : ''}" aria-hidden="true">${pr.done ? '✓' : ''}</span>
+    <span class="grow"><b>${esc(pr.dossier?.intro?.title || 'BAMIGO Spelersdossier')}</b><span class="small muted">${pr.done ? 'Ingestuurd · tik om na te kijken' : n ? `${n} van ${qs.length} beantwoord · verder waar je was` : `${qs.length} vragen · ± ${Math.max(2, Math.round(qs.length / 3))} minuten`}</span></span>
+    <span class="dz-pill">Vertrouwelijk</span><span class="chev" aria-hidden="true">›</span></button>`; })() : task('prof', 'Over jou', pr.done, pr.done ? 'Ingevuld' : 'Optioneel, voor de quizmasters', `<form id="profForm">
     ${pr.questions.length ? `<p class="small muted">Je antwoorden kunnen in de quiz terugkomen. Alleen de quizmaster ziet van wie ze zijn.</p>` : ''}
     ${pr.questions.map(q => `<div class="field"><label for="pq_${q.id}">${esc(q.q)}</label><input id="pq_${q.id}" data-pq="${q.id}" maxlength="300" value="${esc(pr.answers[q.id] || '')}"></div>`).join('')}
     <div class="field"><label for="pStory">Een verhaal dat we mogen gebruiken</label><textarea id="pStory" maxlength="1000">${esc(pr.story)}</textarea></div>
@@ -554,6 +586,7 @@ function renderPrep(v) {
     if (!s.value) return;
     try { await A.post('/api/player/vote', { questionId: s.dataset.vote, choiceId: s.value === 'skip' ? null : s.value }); toast('Stem opgeslagen. Geheim, uiteraard.'); prepDirty = false; } catch (e) { toast(e.message, 'bad'); }
   });
+  const od = $('#openDossier', el); if (od) od.onclick = () => openDossier(P.profile, P.candidates, body => A.post('/api/player/dossier', body));
   const pf = $('#profForm', el); if (pf) pf.onsubmit = async e => { e.preventDefault(); try { const answers = {}; $$('[data-pq]', pf).forEach(i => { answers[i.dataset.pq] = i.value; });
     await A.post('/api/player/profile', { story: $('#pStory').value, limits: $('#pLim').value, answers, done: true }); prepDirty = false; toast('Opgeslagen.'); } catch (err) { toast(err.message, 'bad'); } };
   const sf = $('#shotForm', el); if (sf) sf.onsubmit = async e => { e.preventDefault(); const b = {}; $$('[data-shot]', sf).forEach(i => b[i.dataset.shot] = i.value);

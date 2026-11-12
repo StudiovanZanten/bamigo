@@ -97,3 +97,6 @@ body.tv { overflow: hidden; cursor: default; }
 .env-next { font-family: var(--display); font-size: 2.4vw; color: var(--copper-text); margin: 0; }
 @keyframes envShake { 0%, 100% { transform: rotate(0); } 25% { transform: rotate(-3deg); } 75% { transform: rotate(3deg); } }
 @keyframes rlBump { from { transform: scale(1.4); } to { transform: scale(1); } }
+.env-pledge { margin-top: 1vw; background: var(--copper-deep); border: 2px solid var(--copper); border-radius: 1vw; padding: 1.2vw 2.4vw; max-width: 70vw; display: grid; gap: .5vw; animation: fadein .6s ease-out .8s both; }
+.env-pledge span { font-size: 1.4vw; letter-spacing: .05em; color: var(--ivory); opacity: .85; }
+.env-pledge b { font-family: var(--display); font-weight: 400; font-size: 3.4vw; line-height: 1.1; color: var(--ivory); }

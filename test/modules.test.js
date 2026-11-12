@@ -377,3 +377,79 @@ test('De BAMIGO Envelop: verzegeld (ook voor host), stand vastzetten, +2 bij exa
   assert.deepEqual(pts(), { A: 12, B: 8, C: 6, D: 1, E: 0 });
   assert.throws(() => live.hostEnvelope(E, 'test', [T.A, T.B, T.C, T.D, T.E]), /envelop-vraag|al open/);
 });
+
+test('Dragons-biedronde: pitch kiezen/loten, resterend budget, laatste kans alles erin, niet op eigen pitch, totalen pas na laatste pitch', () => {
+  const { db, live, E, T, P, run, pts, ev, clock } = setup();
+  const r = C.upsertRound(db, E, { title: 'Dragons', kind: 'dragons' });
+  const items = ['Opblaasbare kano', 'Gouden tandenstoker', 'Bierfiets', 'Karaokemicrofoon', 'Badeend XXL'];
+  const qs = items.map(it => C.upsertQuestion(db, E, { roundId: r, type: 'invest', scope: 'team', prompt: it, seconds: 60, settings: { pitch: true } }));
+  const order = [T.A, T.B, T.C, T.D, T.E];
+  const caps = { [T.A]: P.a1, [T.B]: P.b1, [T.C]: P.c1, [T.D]: P.d1, [T.E]: P.e1 };
+  const bids = { 0: { B: 2000, C: 1000, D: 0, E: 5000 }, 1: { A: 4000, C: 3000, D: 2000, E: 0 }, 2: { A: 1000, B: 3000, D: 1000, E: 1000 }, 3: { A: 2000, B: 0, C: 0, E: 0 } };
+  for (const [i, q] of qs.entries()) {
+    run('prepare', { questionId: q });
+    if (i === 0) assert.throws(() => run('open'), /pitcht/);
+    run('pitch_team', { message: order[i] });
+    if (i === 1) assert.throws(() => run('pitch_team', { message: T.A }), /al gepitcht/);
+    run('open'); clock.add(10);
+    assert.throws(() => live.submit(E, caps[order[i]], { questionId: q, answer: { amount: 500 } }), /pitchen zelf/);
+    const bidFor = i < 4 ? bids[i] : null;
+    for (const [tn, t] of Object.entries(T)) {
+      if (t === order[i]) continue;
+      const st = playerView(live, { participant: caps[t], event: ev() }, new Set()).pitchStatus;
+      if (i === 4) {
+        assert.ok(st.mustAll, 'laatste kans voor ' + tn);
+        assert.throws(() => live.submit(E, caps[t], { questionId: q, answer: { amount: 0 } }), /Laatste kans/);
+        live.submit(E, caps[t], { questionId: q, answer: { amount: st.remaining } });
+      } else {
+        if (tn === 'E' && i === 3) assert.ok(st.mustAll, 'E pitcht zelf als laatste: dit is zijn laatste biedkans');
+        if (tn === 'A' && i === 3) assert.ok(!st.mustAll);
+        assert.throws(() => live.submit(E, caps[t], { questionId: q, answer: { amount: 750 } }), /stappen/);
+        live.submit(E, caps[t], { questionId: q, answer: { amount: st.mustAll ? st.remaining : bidFor[tn] } });
+      }
+    }
+    if (i === 0) live.hostInvest(E, 'test', { amount: 10000 }); // Rinus zet alles op A
+    run('close'); run('reveal');
+    const res = displayView(live, ev(), new Set(), 'x').result;
+    if (i < 4) { assert.ok(res.pitchHidden); assert.ok(!JSON.stringify(res).includes('2000')); }
+    run('score');
+    if (i < 4) assert.deepEqual(pts(), { A: 0, B: 0, C: 0, D: 0, E: 0 });
+  }
+  // A: 2000+1000+0+5000+10000(Rinus)=18000; B: 4000+3000+2000+0=9000; C: 1000+3000+1000+1000=6000; D: 2000+0+0+0=2000;
+  // D: 2000 + E's verplichte restant 4000 = 6000. E (laatste pitch, iedereen restant): A 3000 + B 5000 + C 6000 + D 7000 = 21000
+  assert.deepEqual(pts(), { E: 5, A: 4, B: 3, C: 2, D: 2 });
+});
+
+test('Spelersdossier: typen, schoonmaken, opslaan per antwoord, overzicht met telling; envelop-belofte alleen van de laatste', async () => {
+  const { db, live, E, T, P, run, ev, clock } = setup();
+  const items = C.cleanQuestionnaire([{ type: 'section', q: 'Deel 1 · Profiel' }, { id: 'drie', type: 'open', q: 'Drie woorden' }, { id: 'fout', type: 'number', q: 'Hoeveel?', unit: '€' },
+    { id: 'kennis', type: 'scale', q: 'Cijfer?' }, { id: 'bed', type: 'time', q: 'Hoe laat?' }, { id: 'beroemd', type: 'muchacho', q: 'Wie wordt beroemd?', why: 'En waarmee?' }, { id: 'raar', type: 'foo', q: 'Onbekend type' }]);
+  assert.equal(items[0].type, 'section'); assert.equal(items.at(-1).type, 'open'); assert.equal(items[5].why, 'En waarmee?');
+  C.updateEvent(db, E, { settings: { questionnaire: items, dossier: { intro: { title: 'Dossier', text: 'Vertrouwelijk' } } } });
+  const one = (id, v) => C.cleanDossierAnswer(db, E, items.find(x => x.id === id), v);
+  assert.equal(one('fout', '1.500'), '1500'); assert.throws(() => one('kennis', 11), /1 t\/m 10/); assert.equal(one('bed', '1:30'), '01:30');
+  assert.throws(() => one('beroemd', { pick: 'nope' }), /Onbekende/);
+  const pr = (p, a) => db.run('UPDATE participants SET profile = ? WHERE id = ?', JSON.stringify({ answers: a, done: true }), p.id);
+  pr(P.a1, { beroemd: one('beroemd', { pick: P.b1.id, why: 'TikTok' }), kennis: '8' }); pr(P.a2, { beroemd: one('beroemd', { pick: P.b1.id }), kennis: '6' });
+  const ov = staffView(live, { event: ev(), role: 'owner', grant: { label: 'E' } }, new Set(), 'x').questionnaire;
+  const b = ov.questions.find(q => q.id === 'beroemd');
+  assert.deepEqual(b.tally, [{ name: 'b1', n: 2 }]); assert.ok(b.answers[0].answer.includes('TikTok'));
+  assert.equal(ov.questions.find(q => q.id === 'kennis').tally[0].n, 7);
+  assert.ok(!ov.questions.some(q => q.type === 'section'));
+  const pv = playerView(live, { participant: P.c1, event: ev() }, new Set());
+  assert.equal(pv.prep.profile.dossier.intro.title, 'Dossier');
+  // belofte
+  const r = C.upsertRound(db, E, { title: 'Intro', kind: 'intro' });
+  const q = C.upsertQuestion(db, E, { roundId: r, type: 'envelope', scope: 'team', prompt: 'Plek?', seconds: 60, settings: { pledge: true } });
+  run('prepare', { questionId: q }); run('open'); clock.add(10);
+  live.submit(E, P.a1, { questionId: q, answer: { place: 0, pledge: 'Wij doen de afwas' } });
+  live.submit(E, P.e1, { questionId: q, answer: { place: 4, pledge: 'Wij zingen het Wilhelmus' } });
+  run('close');
+  db.run("INSERT INTO score_events (id, event_id, team_id, board, points, reason, kind, created_at) VALUES ('x1',?,?,'team',5,'t','manual',1)", E, T.A);
+  for (const t of [T.B, T.C, T.D]) db.run("INSERT INTO score_events (id, event_id, team_id, board, points, reason, kind, created_at) VALUES (?,?,?,'team',2,'t','manual',1)", 'x' + t, E, t);
+  run('envelopes_open');
+  const d = displayView(live, ev(), new Set(), 'x').live.envelopes;
+  const e = d.list.find(x => x.name === 'E'), a = d.list.find(x => x.name === 'A');
+  assert.ok(e.last && e.hit); assert.equal(e.pledge, 'Wij zingen het Wilhelmus');
+  assert.ok(a.hit); assert.equal(a.pledge, undefined, 'belofte van niet-laatsten blijft geheim');
+});

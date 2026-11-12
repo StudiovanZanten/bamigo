@@ -182,6 +182,7 @@ function liveTab(v) {
         <span class="small muted">Spelcode <b class="code">${esc(v.event.joinCode)}</b></span>
       </div>
     </div>
+    ${pitchCard(v)}
     ${hostInvestCard(v)}
     ${envelopeCard(v)}
     ${rouletteCard(v)}
@@ -264,8 +265,26 @@ function bindEnvelope(v) {
 
 // ---------- DRAGONS: QUIZMASTER INVESTEERT ----------
 let hiDraft = null; // { qid, amounts }
+function pitchCard(v) {
+  const q = v.question; if (!q?.pitch || v.live.phase !== 'ready') return '';
+  const done = new Set(v.pitchDone || []);
+  return `<div class="card roulette-card"><h3 style="margin:0 0 6px">🎤 Wie pitcht dit ding?</h3>
+    <p class="small muted" style="margin:0 0 10px">Het ding verschijnt pas op tv als je de vraag opent. Kies een team of laat BAMIGO loten (alleen teams die nog niet pitchten).</p>
+    <div class="row" style="gap:6px">${v.teams.map(t => `<button class="btn ${q.pitch.team?.id === t.id ? 'primary' : 'ghost'} small" data-pitch="${t.id}" ${done.has(t.id) ? 'disabled title="Heeft al gepitcht"' : ''}>${esc(t.name)}</button>`).join('')}
+      <button class="btn copper small" data-pitch="random">🎲 Loten</button></div>
+    ${q.pitch.team ? `<p class="small" style="margin:10px 0 0">Gekozen: <b>${esc(q.pitch.team.name)}</b>. Open nu de vraag.</p>` : ''}</div>`;
+}
 function hostInvestCard(v) {
   const q = v.question;
+  if (q?.pitch && ['open', 'closed'].includes(v.live.phase)) {
+    const st = v.pitchStatus; const mine = (v.submissions || []).find(s => s.owner === 'host');
+    if (!st) return '';
+    const eur = n => '€' + Number(n).toLocaleString('nl-NL');
+    return `<div class="card roulette-card"><div class="row" style="justify-content:space-between;align-items:baseline"><h3 style="margin:0">Jouw bod als Dragon</h3>${mine ? '<span class="pill ok"><span class="dot"></span>ingestuurd</span>' : ''}</div>
+      <p class="small muted" style="margin:6px 0 10px">Op ${esc(q.pitch.team?.name || '?')}. Je hebt nog <b>${eur(st.remaining)}</b>${st.mustAll ? ' en dit is je laatste kans: alles moet erin.' : `, nog ${st.later} pitch${st.later === 1 ? '' : 'es'} hierna.`}</p>
+      <div class="row" style="align-items:center"><input id="hiBid" type="number" min="0" step="500" max="${st.remaining}" value="${st.mustAll ? st.remaining : (mine?.answer?.amount ?? '')}" ${st.mustAll ? 'readonly' : ''} placeholder="0" style="width:160px">
+      <button class="btn copper" id="hiBidGo">${mine ? 'Bod bijwerken' : 'Bod insturen'}</button></div></div>`;
+  }
   if (!q || q.type !== 'invest' || !['open', 'closed'].includes(v.live.phase)) return '';
   const mine = (v.submissions || []).find(s => s.owner === 'host');
   const budget = q.budget || 10000, step = q.step || 500;
@@ -279,6 +298,8 @@ function hostInvestCard(v) {
       <button class="btn copper" id="hiGo">${mine ? 'Investering bijwerken' : 'Investering insturen'}</button></div></div>`;
 }
 function bindHostInvest(v) {
+  $$('[data-pitch]').forEach(b => b.onclick = () => act(b, () => live('pitch_team', { message: b.dataset.pitch }), b.dataset.pitch === 'random' ? 'Geloot!' : 'Gekozen.'));
+  if ($('#hiBidGo')) $('#hiBidGo').onclick = e => act(e.target, () => A.post('/api/staff/live', { action: 'host_invest', answer: { amount: Number($('#hiBid').value) || 0 } }), 'Bod vastgelegd.');
   if (!$('#hiGo')) return;
   const q = v.question; const budget = q.budget || 10000;
   $$('[data-hi]').forEach(i => i.oninput = () => {
@@ -293,7 +314,8 @@ function bindHostInvest(v) {
 }
 
 // ---------- SHOT-ROULETTE ----------
-let rlEx = null, rlHost = null; // lokale keuze 'doet niet mee' (overleeft verversen van het scherm)
+let rlEx = null, rlHost = null;
+const QN_LABEL = { open: 'open', number: 'getal', scale: 'cijfer 1–10', time: 'tijd', muchacho: 'kies een Muchacho' }; // lokale keuze 'doet niet mee' (overleeft verversen van het scherm)
 const RL_TASKS = ['Neem een shotje!', 'Neem 3 slokken!', 'Neem een 0.0-shotje!'];
 function rouletteCard(v) {
   const r = v.live.roulette; const ex = rlEx ?? v.event.settings?.rouletteExclude ?? [];
@@ -390,7 +412,7 @@ function planTab(v) {
   </div>
   ${!v.perms.answers ? '<p class="notice small">Je ziet de planning zonder vragen of antwoorden. Zo blijft het een verrassing.</p>' : ''}
   ${v.questionnaire && (v.questionnaire.questions.length || v.questionnaire.stories.length) ? `<details class="card more" data-keep="qnAns" style="margin-bottom:14px"><summary>Antwoorden vragenlijst vooraf (${v.questionnaire.filled} van ${v.questionnaire.total} ingevuld)</summary>
-    ${v.questionnaire.questions.map(q => `<h4 style="margin:16px 0 6px">${esc(q.q)}</h4>${q.answers.length ? `<table class="subs"><tbody>${q.answers.map(a => `<tr><td style="width:30%"><b>${esc(a.name)}</b>${a.team ? `<br><span class="small muted">${esc(a.team)}</span>` : ''}</td><td>${esc(a.answer)}</td></tr>`).join('')}</tbody></table>` : '<p class="small muted">Nog geen antwoorden.</p>'}`).join('')}
+    ${v.questionnaire.questions.map(q => `<h4 style="margin:16px 0 6px">${esc(q.q)}</h4>${q.tally?.length ? `<p class="small" style="margin:0 0 6px;color:var(--champagne)">${q.tally.map(t => `${esc(t.name)}: <b>${t.n}</b>`).join(' · ')}</p>` : ''}${q.answers.length ? `<table class="subs"><tbody>${q.answers.map(a => `<tr><td style="width:30%"><b>${esc(a.name)}</b>${a.team ? `<br><span class="small muted">${esc(a.team)}</span>` : ''}</td><td>${esc(a.answer)}</td></tr>`).join('')}</tbody></table>` : '<p class="small muted">Nog geen antwoorden.</p>'}`).join('')}
     ${v.questionnaire.stories.length ? `<h4 style="margin:16px 0 6px">Verhalen en humorgrenzen</h4><table class="subs"><tbody>${v.questionnaire.stories.map(p => `<tr><td style="width:30%"><b>${esc(p.name)}</b></td><td>${esc(p.story)}${p.limits ? `<br><span class="small" style="color:var(--warn)">Liever niet: ${esc(p.limits)}</span>` : ''}</td></tr>`).join('')}</tbody></table>` : ''}
   </details>` : ''}
   <div id="editorSlot"></div>
@@ -609,10 +631,13 @@ function eventTab(v) {
     <label class="check"><input type="checkbox" id="eOne" ${s.oneliners !== false ? 'checked' : ''}> Oneliners tonen</label>
     <label class="check"><input type="checkbox" id="eDrinks" ${s.drinks !== false ? 'checked' : ''}> Drankonderdelen aan</label></details>
     <button class="btn primary" style="margin-top:10px">Opslaan</button></form>
-  <section class="card"><h3>Vragenlijst vooraf</h3>
-    <p class="small muted">Spelers vullen dit vooraf in op hun telefoon (alles optioneel). Eén vraag per regel.</p>
-    <form id="qnForm"><textarea id="qnText" rows="7" placeholder="Wat was je eerste concert?">${esc((s.questionnaire || []).map(x => x.q).join('\n'))}</textarea>
-    <button class="btn copper" style="margin-top:10px">Vragenlijst opslaan</button></form>
+  <section class="card"><h3>Spelersdossier (vragenlijst vooraf)</h3>
+    <p class="small muted">Spelers vullen dit vooraf in op hun telefoon: één vraag per scherm, met delen en voortgang. Alles optioneel.</p>
+    ${(s.questionnaire || []).length ? `<ol class="small qn-list">${s.questionnaire.map(x => x.type === 'section' ? `</ol><p class="small" style="margin:10px 0 4px"><b>${esc(x.q)}</b></p><ol class="small qn-list">` : `<li>${esc(x.q)} <span class="muted">· ${QN_LABEL[x.type] || 'open'}</span></li>`).join('')}</ol>` : '<p class="small muted">Nog geen vragen.</p>'}
+    <details data-keep="qnEdit"><summary class="small">Dossier aanpassen of plakken</summary>
+      <p class="small muted">Plak het dossier als lijst (JSON), bijvoorbeeld van de vragen-assistent. Typen: open, number, scale (1–10), time, muchacho (kies een Muchacho), section (kopje).</p>
+      <form id="qnForm"><textarea id="qnText" rows="10" style="font-family:monospace;font-size:.8rem">${esc(JSON.stringify({ intro: s.dossier?.intro || undefined, outro: s.dossier?.outro || undefined, items: s.questionnaire || [] }, null, 1))}</textarea>
+      <button class="btn copper" style="margin-top:10px">Dossier opslaan</button></form></details>
     ${v.questionnaire ? `<p class="small muted" style="margin:10px 0 0">${v.questionnaire.filled} van ${v.questionnaire.total} spelers hebben hem ingevuld. Antwoorden staan bij Vragen.</p>` : ''}</section>
   <section class="card"><h3>Anderen toegang geven</h3>
     <p class="small muted">Maak een link voor een medequizmaster of een extra tv. Deel hem privé.</p>
@@ -632,9 +657,10 @@ function eventTab(v) {
   $('#evForm').onsubmit = e => { e.preventDefault(); act(e.submitter, () => A.patch('/api/staff/event', { name: $('#eName').value, subtitle: $('#eSub').value, startsAt: $('#eStart').value, durationTarget: +$('#eTarget').value, durationMax: +$('#eMax').value,
     settings: { countdownMs: Math.round(+$('#eCd').value * 1000), selfTeam: $('#eSelfTeam').checked, autoCaptain: $('#eAutoCap').checked, oneliners: $('#eOne').checked, drinks: $('#eDrinks').checked } }), 'Opgeslagen.'); };
   $('#qnForm').onsubmit = e => { e.preventDefault();
-    const old = s.questionnaire || [];
-    const list = $('#qnText').value.split('\n').map(x => x.trim()).filter(Boolean).map(q => ({ id: old.find(o => o.q === q)?.id || '', q }));
-    act(e.submitter, () => A.patch('/api/staff/event', { settings: { questionnaire: list } }), 'Vragenlijst opgeslagen.'); };
+    let d; try { d = JSON.parse($('#qnText').value); } catch { return toast('Dit is geen geldige lijst. Controleer haakjes en aanhalingstekens.', 'bad'); }
+    const items = Array.isArray(d) ? d : d.items || [];
+    const settings = { questionnaire: items, ...(Array.isArray(d) ? {} : { dossier: { intro: d.intro, outro: d.outro } }) };
+    act(e.submitter, () => A.patch('/api/staff/event', { settings }), 'Dossier opgeslagen.'); };
   $('#grantForm').onsubmit = async e => { e.preventDefault(); const r = await act(e.submitter, () => A.post('/api/staff/grants', { role: $('#gRole').value, label: $('#gLabel').value })); if (r) $('#grantOut').innerHTML = `<p class="small" style="margin-top:10px">Kopieer deze link nu; hij wordt niet opnieuw getoond:</p><div class="linkbox">${esc(r.url)}</div>`; };
   $$('[data-revoke]').forEach(b => b.onclick = () => { if (confirm('Link intrekken? Wie hem gebruikt, verliest direct toegang.')) act(b, () => A.post(`/api/staff/grants/${b.dataset.revoke}/revoke`), 'Ingetrokken.'); });
   $('#dupForm').onsubmit = async e => { e.preventDefault(); const r = await act(e.submitter, () => A.post('/api/staff/duplicate', { name: $('#dName').value, includeQuestions: $('#dQ').checked, includeTeams: $('#dT').checked, includeParticipants: $('#dP').checked }));

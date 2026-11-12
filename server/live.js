@@ -87,6 +87,7 @@ export class Live {
           return this.#set(eventId, { screen: 'question', round_id: q.round_id, question_id: q.id, phase: 'ready', open_at: null, deadline: null, paused: 0, paused_at: null }, actor, action);
         }
         case 'open': {
+          { const oq = s.question_id && this.question(s.question_id); if (oq?.type === 'invest' && oq.settings.pitch && !oq.settings.pitchTeam) conflict('Kies eerst wie er pitcht (of laat BAMIGO loten).'); }
           if (s.phase !== 'ready') conflict('Vraag kan alleen vanuit "klaar" worden geopend.');
           const q = this.question(s.question_id);
           const ev = this.db.get('SELECT settings FROM events WHERE id = ?', eventId);
@@ -125,6 +126,20 @@ export class Live {
           const phase = q.type === 'shot' || q.type === 'envelope' ? 'closed' : scored ? 'scored' : 'revealed';
           if (phase === 'revealed') this.autoJudge(q.id);
           return this.#set(eventId, { screen: 'question', round_id: q.round_id, question_id: q.id, phase, open_at: null, deadline: null, paused: 0, paused_at: null }, actor, action);
+        }
+        case 'pitch_team': {
+          // Dragons-biedronde: wie pitcht deze vraag? Een team-id of 'random' (loting onder wie nog niet pitchte).
+          const q = s.question_id ? this.question(s.question_id) : null;
+          if (!q || q.type !== 'invest' || !q.settings.pitch) bad('Er staat geen pitch klaar.');
+          if (s.phase !== 'ready') conflict('Kies wie pitcht voordat je de vraag opent.');
+          const done = new Set(M.pitchQuestions(this.db, q.round_id).filter(p => p.id !== q.id && p.settings.pitchTeam).map(p => p.settings.pitchTeam));
+          const teams = this.db.all('SELECT id FROM teams WHERE event_id = ?', eventId).map(x => x.id);
+          let tid = message;
+          if (tid === 'random') { const free = teams.filter(x => !done.has(x)); if (!free.length) bad('Alle teams hebben al gepitcht.'); tid = free[randomInt(free.length)]; }
+          if (!teams.includes(tid)) bad('Onbekend team.');
+          if (done.has(tid)) conflict('Dit team heeft al gepitcht.');
+          this.db.run('UPDATE questions SET settings = ? WHERE id = ?', JSON.stringify({ ...q.settings, pitchTeam: tid }), q.id);
+          return this.#set(eventId, {}, actor, action);
         }
         case 'envelopes_open': {
           if (s.phase === 'open') conflict('Sluit eerst de open vraag.');

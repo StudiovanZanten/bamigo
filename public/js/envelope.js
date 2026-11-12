@@ -6,12 +6,14 @@ const ord = n => (n == null ? '?' : n + 'e');
 
 /** Fase-sleutel voor een moment (alleen opnieuw tekenen als die verandert). */
 export function envelopeKey(data, elapsed) {
-  const n = data.list.length;
   if (elapsed < START) return 'intro';
-  const i = Math.floor((elapsed - START) / D);
-  if (i >= n) return 'done';
-  const e = (elapsed - START) % D;
-  return `${i}:${e < OPEN ? 0 : e < SHOW ? 1 : 2}`;
+  let t = elapsed - START;
+  for (const [i, r] of data.list.entries()) {
+    const d = D + (r.last && r.pledge ? 6000 : 0); // belofte van de laatste plek krijgt extra leestijd
+    if (t < d) return `${i}:${t < OPEN ? 0 : t < SHOW ? 1 : 2}`;
+    t -= d;
+  }
+  return 'done';
 }
 
 export function envelopeHtml(data, key) {
@@ -22,6 +24,7 @@ export function envelopeHtml(data, key) {
     <table class="board env-table"><thead><tr><th>Team</th><th>Voorspeld</th><th>Werd</th><th></th></tr></thead><tbody>${list.slice().reverse().map(r => `<tr class="${r.hit ? 'hit' : ''}">
       <td>${esc(r.name)}</td><td>${r.predicted ? ord(r.predicted) : '—'}</td><td>${ord(r.rank)}</td><td>${r.hit ? `+${r.bonus} bonus` : ''}</td></tr>`).join('')}</tbody></table>
     ${data.host ? `<p class="intro-sub env-host">${esc(data.host.name)} voorspelde: ${data.host.rows.map(r => `<b class="${r.rank === r.predicted ? 'ok' : ''}">${r.predicted}. ${esc(r.name)}</b>`).join(' · ')} <span>(${data.host.hits} van ${data.host.rows.length} goed)</span></p>` : ''}
+    ${list.filter(r => r.last && r.pledge).map(r => `<p class="env-host"><b>Belofte van ${esc(r.name)}:</b> ${esc(r.pledge)}</p>`).join('')}
     <p class="env-next">Nu: de definitieve eindstand. VAMOSSS!</p></div>`;
   const [i, sub] = key.split(':').map(Number);
   const r = list[i];
@@ -29,7 +32,8 @@ export function envelopeHtml(data, key) {
   const line = sub === 0 ? `<p class="env-line">Envelop van</p>`
     : sub === 1 ? `<p class="env-line">voorspelde…</p><div class="env-big">${r.predicted ? `plek ${r.predicted}` : 'niks (geen envelop!)'}</div>`
     : `<p class="env-line">voorspelde plek ${r.predicted ?? '—'}… en werd</p><div class="env-big ${r.hit ? 'hit' : 'miss'}">${ord(r.rank)}!</div>
-       <div class="env-verdict ${r.hit ? 'hit' : ''}">${r.hit ? `Precies goed: +${r.bonus} bonuspunten` : 'Mis. Helaas, pindakaas.'}</div>`;
+       <div class="env-verdict ${r.hit ? 'hit' : ''}">${r.hit ? `Precies goed: +${r.bonus} bonuspunten` : 'Mis. Helaas, pindakaas.'}</div>
+       ${r.last && r.pledge ? `<div class="env-pledge"><span>Laatste plek. Jullie beloofden: “Als wij laatste worden, dan…”</span><b>${esc(r.pledge)}</b></div>` : ''}`;
   return `<div class="env-wrap"><div class="env-card ${sub ? 'open' : ''}">${envelopeSvg(sub > 0)}<h2 class="env-team">${esc(r.name)}</h2>${line}</div>
     ${done.length ? `<div class="env-done">${done.map(d => `<span class="${d.hit ? 'hit' : ''}">${esc(d.name)}: ${d.predicted ?? '—'} → ${ord(d.rank)}${d.hit ? ' ✓' : ''}</span>`).join('')}</div>` : ''}</div>`;
 }
