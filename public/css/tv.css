@@ -100,3 +100,24 @@ body.tv { overflow: hidden; cursor: default; }
 .env-pledge { margin-top: 1vw; background: var(--copper-deep); border: 2px solid var(--copper); border-radius: 1vw; padding: 1.2vw 2.4vw; max-width: 70vw; display: grid; gap: .5vw; animation: fadein .6s ease-out .8s both; }
 .env-pledge span { font-size: 1.4vw; letter-spacing: .05em; color: var(--ivory); opacity: .85; }
 .env-pledge b { font-family: var(--display); font-weight: 400; font-size: 3.4vw; line-height: 1.1; color: var(--ivory); }
+
+/* Van wie is deze carrière? */
+.cv { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 2vw; margin-top: 1.4vw; align-items: start; }
+.cv:not(.done) { grid-template-columns: 1fr; }
+.cv-list { list-style: none; margin: 0; padding: 0; display: grid; gap: .7vw; }
+.cv-row { display: grid; grid-template-columns: 3.2vw 1fr auto; align-items: center; gap: 1.2vw; padding: 1vw 1.4vw; border-radius: 12px;
+  background: rgba(255,255,255,.04); border: 1px dashed rgba(255,255,255,.18); color: rgba(255,255,255,.35); font-size: 1.9vw; transition: all .5s; }
+.cv-row.on { background: var(--raised, #2a2018); border: 1px solid var(--line, rgba(255,255,255,.15)); color: inherit; }
+.cv-row.new { border-color: var(--copper, #bf5b2c); box-shadow: 0 0 0 3px rgba(191,91,44,.35); animation: cvIn .7s ease-out; }
+.cv-n { font-family: var(--display); font-size: 2.2vw; color: var(--copper-text, #e08a5a); text-align: center; }
+.cv-p { font-size: 1.2vw; letter-spacing: .1em; text-transform: uppercase; opacity: .7; }
+.cv-who { display: grid; gap: .4vw; margin-bottom: 1vw; animation: cvIn .9s ease-out; }
+.cv-who span { font-size: 1.3vw; letter-spacing: .2em; text-transform: uppercase; opacity: .7; }
+.cv-who b { font-family: var(--display); font-size: 5vw; line-height: 1; color: var(--copper-text, #e08a5a); }
+.cv-board td { font-size: 1.5vw; } .cv-board tr.hit td { color: var(--ok, #6fcf97); }
+@keyframes cvIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+
+.stage-body.revealed .cv.done { margin-top: .6vw; }
+.cv.done .cv-list { gap: .4vw; } .cv.done .cv-row { font-size: 1.25vw; padding: .5vw 1vw; grid-template-columns: 2.2vw 1fr auto; }
+.cv.done .cv-n { font-size: 1.5vw; } .cv.done .cv-p { font-size: .9vw; }
+.board.cv-board td { font-size: 1.5vw; padding: .55vw .8vw; } .cv-own { font-size: 1vw; opacity: .6; font-family: var(--body); }

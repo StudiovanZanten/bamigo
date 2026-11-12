@@ -40,12 +40,15 @@ export function publicQuestion(live, s, t) {
     right: visible && q.type === 'match' ? (q.settings.right || []) : null,
     kompaan: !!q.settings.kompaan,
     top: q.type === 'ranking' ? (q.settings.top || 1) : null,
-    candidates: visible && q.type === 'ranking' ? live.db.all('SELECT id, name FROM participants WHERE event_id = ? ORDER BY name', q.event_id) : null,
+    candidates: visible && ['ranking', 'career'].includes(q.type) ? live.db.all('SELECT id, name FROM participants WHERE event_id = ? ORDER BY name', q.event_id) : null,
     teams: visible && ['shot', 'invest'].includes(q.type) ? live.db.all('SELECT id, name FROM teams WHERE event_id = ? ORDER BY sort, name', q.event_id) : null,
     pitch: q.type === 'invest' && q.settings.pitch ? { team: q.settings.pitchTeam ? live.db.get('SELECT id, name FROM teams WHERE id = ?', q.settings.pitchTeam) : null } : null,
     budget: q.type === 'invest' ? (q.settings.budget || M.DRAGONS_BUDGET) : null, step: q.type === 'invest' ? M.DRAGONS_STEP : null,
     shotNumber: q.type === 'shot' ? q.settings.shotNumber : null,
     pledge: q.type === 'envelope' ? !!q.settings.pledge : null,
+    // Carrière: alleen de hints die al op tv staan, nooit de volgende.
+    career: q.type === 'career' ? { clues: visible ? q.settings.clues.slice(0, M.careerShown(q, s, t)) : [], total: q.settings.clues.length, auto: q.settings.clueSeconds || 0,
+      scale: q.settings.scale, ownTeam: !!q.settings.ownTeam } : null,
     // Allergenen moeten vóór het proeven controleerbaar zijn, ook al verraadt dat iets.
     allergens: q.type === 'shot' ? (live.db.get('SELECT allergens FROM shots WHERE event_id = ? AND number = ?', q.event_id, q.settings.shotNumber)?.allergens ?? 'nog niet ingevuld — vraag de organisatie') : null,
     number: pos.indexOf(q.id) + 1, of: pos.length,
@@ -197,6 +200,7 @@ export function staffView(live, { event, role, grant }, online, joinUrl, t = liv
   if (host || full) {
     view.question = publicQuestion(live, s, t);
     view.sealed = sealedNow;
+    if (view.question?.career) view.careerAll = live.question(view.question.id).settings.clues;
     if (view.question?.pitch) { const pq = live.question(view.question.id); view.pitchStatus = M.pitchStatus(db, pq, 'host', null);
       view.pitchDone = M.pitchQuestions(db, pq.round_id).filter(p => p.id !== pq.id && p.settings.pitchTeam).map(p => p.settings.pitchTeam); }
     const env = db.get("SELECT id FROM questions WHERE event_id = ? AND type = 'envelope' AND voided_at IS NULL ORDER BY sort, id LIMIT 1", event.id);

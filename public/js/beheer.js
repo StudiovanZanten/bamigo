@@ -183,6 +183,7 @@ function liveTab(v) {
       </div>
     </div>
     ${pitchCard(v)}
+    ${careerCard(v)}
     ${hostInvestCard(v)}
     ${envelopeCard(v)}
     ${rouletteCard(v)}
@@ -265,6 +266,15 @@ function bindEnvelope(v) {
 
 // ---------- DRAGONS: QUIZMASTER INVESTEERT ----------
 let hiDraft = null; // { qid, amounts }
+function careerCard(v) {
+  const q = v.question; if (!q?.career || !v.careerAll) return '';
+  const shown = q.career.clues.length; const open = v.live.phase === 'open';
+  return `<div class="card roulette-card"><div class="row" style="justify-content:space-between;align-items:baseline"><h3 style="margin:0">💼 Van wie is deze carrière?</h3>
+    <span class="small muted">${open ? `hint ${shown} van ${q.career.total} op tv` : ''}</span></div>
+    <ol class="qn-list" style="margin:8px 0 10px">${v.careerAll.map((t, i) => `<li style="${i < shown || !open ? '' : 'opacity:.5'}">${esc(t)} <span class="small muted">(${q.career.scale?.[i] ?? 0} pt)</span></li>`).join('')}</ol>
+    ${open && !q.career.auto ? `<button class="btn copper" id="clueNext" ${shown >= q.career.total ? 'disabled' : ''}>Volgende hint op tv</button>` : ''}
+    ${q.career.auto ? `<p class="small muted" style="margin:0">Automatisch: elke ${q.career.auto} s een nieuwe hint.</p>` : ''}</div>`;
+}
 function pitchCard(v) {
   const q = v.question; if (!q?.pitch || v.live.phase !== 'ready') return '';
   const done = new Set(v.pitchDone || []);
@@ -298,6 +308,7 @@ function hostInvestCard(v) {
       <button class="btn copper" id="hiGo">${mine ? 'Investering bijwerken' : 'Investering insturen'}</button></div></div>`;
 }
 function bindHostInvest(v) {
+  if ($('#clueNext')) $('#clueNext').onclick = e => act(e.target, () => live('clue_next'), 'Hint op tv.');
   $$('[data-pitch]').forEach(b => b.onclick = () => act(b, () => live('pitch_team', { message: b.dataset.pitch }), b.dataset.pitch === 'random' ? 'Geloot!' : 'Gekozen.'));
   if ($('#hiBidGo')) $('#hiBidGo').onclick = e => act(e.target, () => A.post('/api/staff/live', { action: 'host_invest', answer: { amount: Number($('#hiBid').value) || 0 } }), 'Bod vastgelegd.');
   if (!$('#hiGo')) return;
@@ -476,7 +487,7 @@ function openQuestionEditor(q) {
     <div class="field"><label for="qPrompt">Vraag</label><input id="qPrompt" required maxlength="500" value="${esc(q.prompt || '')}"></div>
     <div class="row"><div class="grow field"><label for="qQuote">Citaat / app-bericht (optioneel)</label><input id="qQuote" value="${esc(q.quote || '')}"></div>
       <div class="grow field"><label for="qCtx">Context / bron (alleen beheer en onthulling)</label><input id="qCtx" value="${esc(q.context || '')}"></div></div>
-    <div class="field" id="optWrap"><label for="qOpts">Keuzes (één per regel)</label><textarea id="qOpts">${esc((q.options || []).join('\n'))}</textarea></div>
+    <div class="field" id="optWrap"><label for="qOpts" id="qOptsLbl">Keuzes (één per regel)</label><textarea id="qOpts">${esc((q.type === 'career' ? q.settings?.clues || [] : q.options || []).join('\n'))}</textarea></div>
     <div class="row">
       <div class="grow field"><label for="qCorrect" id="qCorrectLbl">Juiste antwoord</label><span id="qCorrectSlot"></span></div>
       <div class="grow field" id="accWrap"><label for="qAcc">Ook goed (varianten, één per regel)</label><textarea id="qAcc">${esc((k.accepted || []).join('\n'))}</textarea></div>
@@ -501,8 +512,10 @@ function openQuestionEditor(q) {
     $('#qCorrectSlot').closest('.field').hidden = special || $('#qKomp').checked;
     if (special) $('#qScope').value = 'team';
     if ($('#qKomp').checked) $('#qScope').value = 'individual';
-    $('#modHelp').textContent = { ranking: 'Teams voorspellen wie de groep het vaakst koos. Spelers stemmen vooraf in de voorbereiding. Standaard 2 punten.', shot: 'Per shot: 1 punt voor hoofdsmaak, basisdrank en team. Toegestane varianten stel je in bij Shots & Buitentas. Onthulling pas na het laatste shot.', invest: 'Elk team verdeelt €10.000 fictief over andere teams. Ontvangen bedrag → 5-4-3-2-1 punten.', envelope: 'Speel aan het begin: elk team voorspelt verzegeld zijn eindplek. Bij de uitslag open je de enveloppen; precies goed = 2 bonuspunten.' }[t] || '';
-    $('#optWrap').hidden = !['mc', 'order'].includes(t);
+    $('#modHelp').textContent = { ranking: 'Teams voorspellen wie de groep het vaakst koos. Spelers stemmen vooraf in de voorbereiding. Standaard 2 punten.', shot: 'Per shot: 1 punt voor hoofdsmaak, basisdrank en team. Toegestane varianten stel je in bij Shots & Buitentas. Onthulling pas na het laatste shot.', invest: 'Elk team verdeelt €10.000 fictief over andere teams. Ontvangen bedrag → 5-4-3-2-1 punten.', envelope: 'Speel aan het begin: elk team voorspelt verzegeld zijn eindplek. Bij de uitslag open je de enveloppen; precies goed = 2 bonuspunten.', career: 'Hints van vaag naar duidelijk (één per regel). Jij zet ze één voor één op tv; teams kiezen één Muchacho. Goed bij hint 1 = meeste punten. Bij juiste antwoord: de naam van de Muchacho.' }[t] || '';
+    $('#optWrap').hidden = !['mc', 'order', 'career'].includes(t);
+    $('#qOptsLbl').textContent = t === 'career' ? 'Hints (één per regel, van vaag naar duidelijk)' : 'Keuzes (één per regel)';
+    if (t === 'career') $('#qScope').value = 'team';
     $('#accWrap').hidden = t !== 'open';
     $('#tolWrap').hidden = t !== 'number';
     const opts = t === 'tf' ? ['Waar', 'Niet waar'] : $('#qOpts').value.split('\n').map(s => s.trim()).filter(Boolean);
@@ -527,6 +540,7 @@ function openQuestionEditor(q) {
     if (t === 'mc' || t === 'tf') correct = correct === '' ? null : Number(correct);
     if (t === 'order') { correct = options.map((_, i) => i); const sh = shuffle(options.map((_, i) => i)); const shuffled = sh.map(i => options[i]); correct = options.map(o => shuffled.indexOf(o)); options = shuffled; }
     if (t === 'number') correct = correct === '' ? null : correct;
+    if (t === 'career') { settings.clues = options; options = []; correct = correct?.trim() || null; }
     let mediaId;
     const file = $('#qMedia').files[0];
     if (file) { const fd = new FormData(); fd.append('file', file); try { mediaId = (await A.post('/api/staff/media', fd)).id; } catch (err) { toast(err.message, 'bad'); return; } }

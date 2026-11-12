@@ -13,7 +13,7 @@ const str = (v, max = 500) => (v == null ? null : String(v).trim().slice(0, max)
 const int = (v, min, max, dflt) => { const n = Number(v); return Number.isInteger(n) ? Math.min(max, Math.max(min, n)) : dflt; };
 
 export const ROUND_KINDS = ['quiz', 'brocode', 'ranking', 'kompaan', 'shots', 'missions', 'dragons', 'search', 'bluff', 'lightning', 'final', 'break', 'intro'];
-export const QUESTION_TYPES = ['mc', 'tf', 'open', 'number', 'order', 'match', 'ranking', 'shot', 'invest', 'envelope'];
+export const QUESTION_TYPES = ['mc', 'tf', 'open', 'number', 'order', 'match', 'ranking', 'shot', 'invest', 'envelope', 'career'];
 
 export const DEFAULT_SETTINGS = {
   theme: 'koper', countdownMs: 3000, humor: true, adultTopics: true, drinks: true, sound: true, oneliners: true,
@@ -247,7 +247,16 @@ export function upsertQuestion(db, eventId, body) {
   if (type === 'shot') { const n = Number(settings.shotNumber); if (!Number.isInteger(n) || n < 1 || n > 50) bad('Geef het shotnummer op (1, 2, 3…).'); settings.shotNumber = n; }
   if (type === 'invest') settings.budget = 10000;
   if (type === 'envelope') { const b = Number(settings.bonus ?? 2); settings.bonus = Number.isInteger(b) && b >= 0 && b <= 20 ? b : 2; settings.pledge = !!settings.pledge; }
-  if (['shot', 'invest', 'envelope'].includes(type) && scope !== 'team') bad('Deze spelvorm is een teamvraag.');
+  if (type === 'career') {
+    const clues = (Array.isArray(settings.clues) ? settings.clues : []).map(c => String(c ?? '').trim().slice(0, 200)).filter(Boolean).slice(0, 8);
+    if (clues.length < 2) bad('Geef minstens twee hints (van vaag naar duidelijk).');
+    settings.clues = clues;
+    settings.clueSeconds = int(settings.clueSeconds, 0, 300, 0);
+    settings.scale = Array.isArray(settings.scale) && settings.scale.length ? settings.scale.map(x => int(x, 0, 50, 0)).slice(0, 8) : clues.map((_, i) => clues.length - i);
+    settings.ownTeam = !!settings.ownTeam;
+    delete settings.cluesShown;
+  }
+  if (['shot', 'invest', 'envelope', 'career'].includes(type) && scope !== 'team') bad('Deze spelvorm is een teamvraag.');
   if (settings.kompaan && scope !== 'individual') bad('Ken je kompaan: teamgenoten antwoorden ieder zelf (kies "Iedereen zelf").');
   if (settings.kompaan && !['mc', 'tf', 'open'].includes(type)) bad('Ken je kompaan werkt met meerkeuze, waar/niet waar of open.');
   return db.tx(() => {
@@ -275,7 +284,7 @@ export function upsertQuestion(db, eventId, body) {
         if (Array.isArray(correct) ? !correct.every(ok) : (correct !== null && !ok(correct))) bad('Juiste antwoord valt buiten de keuzes.');
       }
       if (type === 'number' && correct !== null && correct !== '') { correct = Number(String(correct).replace(',', '.')); if (!Number.isFinite(correct)) bad('Juiste antwoord moet een getal zijn.'); }
-      if (type === 'open' && correct !== null) correct = String(correct).slice(0, 200);
+      if ((type === 'open' || type === 'career') && correct !== null) correct = String(correct).slice(0, 200);
       const accepted = Array.isArray(k.accepted) ? k.accepted.map(a => String(a).slice(0, 200)).filter(a => a.trim()).slice(0, 30) : [];
       db.run(`INSERT INTO answer_keys (question_id, correct, accepted, explanation, tolerance) VALUES (?,?,?,?,?)
         ON CONFLICT(question_id) DO UPDATE SET correct = excluded.correct, accepted = excluded.accepted, explanation = excluded.explanation, tolerance = excluded.tolerance`,

@@ -105,6 +105,27 @@ export function kompaanPair(db, q, teamId) {
 
 const sameAnswer = (q, a, b) => (q.type === 'mc' || q.type === 'tf') ? a === b : judgeOpen(a, [b]) === 'correct';
 
+// ---------- Van wie is deze carrière? ----------
+/** De deelnemer om wie het gaat: key.correct is een deelnemer-id of (makkelijker in een pakket) zijn naam. */
+export function careerSubject(db, q, key) {
+  const c = key?.correct; if (c == null || c === '') return null;
+  const people = db.all('SELECT p.id, p.name, m.team_id FROM participants p LEFT JOIN memberships m ON m.participant_id = p.id WHERE p.event_id = ?', q.event_id);
+  return people.find(p => p.id === c) || people.find(p => normalize(p.name) === normalize(String(c))) || null;
+}
+/** Hoeveel hints staan er nu (of stonden er bij een inzending) op tv? Handmatig via de host, of automatisch per clueSeconds. */
+export function careerShown(q, s, t) {
+  const n = q.settings.clues?.length || 0;
+  if (['revealed', 'scored'].includes(s.phase)) return n;
+  if (!['open', 'closed'].includes(s.phase) || !s.open_at) return 0;
+  const sec = q.settings.clueSeconds || 0;
+  if (sec > 0) {
+    const now = s.phase === 'closed' ? (s.deadline || t) : s.paused ? s.paused_at : t;
+    return Math.min(n, 1 + Math.floor(Math.max(0, now - s.open_at) / (sec * 1000)));
+  }
+  return Math.min(n, Math.max(1, q.settings.cluesShown || 1));
+}
+export const careerPoints = (q, clue) => q.settings.scale?.[clue - 1] ?? 0;
+
 // ---------- validatie per type ----------
 export function validateModuleAnswer(db, q, answer, eventId, membership) {
   switch (q.type) {
@@ -116,6 +137,11 @@ export function validateModuleAnswer(db, q, answer, eventId, membership) {
       const flavor = String(a.flavor || '').trim().slice(0, 100), base = String(a.base || '').trim().slice(0, 100);
       if (!flavor && !base && !teamId) bad('Vul minstens één onderdeel in.');
       return { flavor, base, teamId: teamId || null };
+    }
+    case 'career': {
+      const pid = String(answer && typeof answer === 'object' ? answer.pick : answer ?? '');
+      if (!db.get('SELECT 1 FROM participants WHERE id = ? AND event_id = ?', pid, eventId)) bad('Kies een Muchacho.');
+      return pid;
     }
     case 'envelope': {
       const n = db.get('SELECT COUNT(*) AS n FROM teams WHERE event_id = ?', eventId).n;
@@ -208,6 +234,17 @@ export function scoreModule(db, q, key, subs, add) {
     return true;
   }
   if (q.type === 'envelope') return true; // punten pas bij het openen van de enveloppen
+  if (q.type === 'career') {
+    const who = careerSubject(db, q, key);
+    for (const s of subs) {
+      if (s.owner_key === 'host' || s.verdict !== 'correct') continue;
+      const a = JSON.parse(s.answer); const clue = a.clue || 1;
+      if (who && who.team_id === s.team_id && !q.settings.ownTeam) continue; // je eigen teamgenoot raden telt niet
+      const p = careerPoints(q, clue);
+      if (p) add(s.team_id, null, 'team', s.owner_key, p, `Carrière geraden bij hint ${clue}`);
+    }
+    return true;
+  }
   if (q.type === 'ranking' && (q.settings?.top || 1) > 1) {
     const top = q.settings.top; const { ranked, valid } = rankingTop(db, q.id);
     for (const s of subs) {
@@ -313,6 +350,17 @@ export function revealModule(db, q) {
   if (q.type === 'ranking') {
     const { rows, winners, valid } = rankingTotals(db, q.id);
     return { ranking: { top: rows.slice(0, 5).map(r => ({ name: r.name, votes: r.votes, winner: winners.includes(r.id) })), valid, skipped: valid === 0 } };
+  }
+  if (q.type === 'career') {
+    const who = careerSubject(db, q, { correct: db.get('SELECT correct FROM answer_keys WHERE question_id = ?', q.id)?.correct ? JSON.parse(db.get('SELECT correct FROM answer_keys WHERE question_id = ?', q.id).correct) : null });
+    const teams = db.all('SELECT id, name FROM teams WHERE event_id = ? ORDER BY sort, name', q.event_id);
+    const names = new Map(db.all('SELECT id, name FROM participants WHERE event_id = ?', q.event_id).map(p => [p.id, p.name]));
+    const subs = db.all("SELECT team_id, answer, verdict FROM submissions WHERE question_id = ? AND owner_key != 'host'", q.id);
+    return { career: { name: who?.name ?? null, clues: q.settings.clues, teams: teams.map(t => {
+      const s = subs.find(x => x.team_id === t.id); const a = s ? JSON.parse(s.answer) : null;
+      const own = !!(who && who.team_id === t.id && !q.settings.ownTeam);
+      return { team: t.name, pick: a ? names.get(a.pick) ?? '?' : null, clue: a?.clue ?? null, correct: s?.verdict === 'correct', own, points: s?.verdict === 'correct' && !own ? careerPoints(q, a.clue || 1) : 0 };
+    }) } };
   }
   if (q.type === 'invest' && q.settings?.pitch) {
     const { all, rows } = pitchTotals(db, q);

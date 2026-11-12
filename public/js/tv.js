@@ -23,7 +23,7 @@ const foot = v => `<div class="stage-foot">${v.teams.length} teams. Alles op het
 
 function render() {
   const v = view; const L = v.live; const q = v.question;
-  const key = JSON.stringify([L.screen, L.phase, L.paused, L.seq, q?.visible, v.counts, v.result?.total, v.teams, v.scoreboard]);
+  const key = JSON.stringify([L.screen, L.phase, L.paused, L.seq, q?.visible, v.counts, v.result?.total, v.teams, v.scoreboard, q?.career?.clues?.length]);
   if (key === lastKey) return; lastKey = key;
   let body = '';
   if (L.screen === 'lobby') body = lobby(v);
@@ -84,8 +84,10 @@ function question(v, q) {
   if (q.type === 'envelope') reveal = `<p class="intro-sub">Captains: op welke plek eindigt jullie team? Je voorspelling gaat verzegeld de envelop in. Pas bij de uitslag gaat hij open. Precies goed = bonuspunten.</p>${L.phase === 'closed' ? '<p class="counter">Verzegeld. Tot de uitslag!</p>' : ''}`;
   if (q.pitch && !revealed) reveal = `<p class="intro-sub">${q.pitch.team ? `Pitch door <b>${esc(q.pitch.team.name)}</b>. ` : ''}Alle andere teams${v.live ? '' : ''} bieden geheim uit hun resterende budget. De totalen blijven geheim tot na de laatste pitch.</p>`;
   else if (q.type === 'invest' && !revealed) reveal = `<p class="intro-sub">Verdeel ${eur(q.budget)} fictief over de andere teams. Alles blijft geheim tot de onthulling.</p>`;
+  if (q.career) reveal = careerTv(q, L, r0, revealed);
   if (q.kompaan && !revealed) reveal = '<p class="intro-sub">Ken je kompaan: de aangewezen teamgenoten antwoorden ieder zelf. Niet overleggen!</p>';
   if (revealed && r0.pitchHidden) reveal = `<p class="intro-sub">Biedingen binnen. Nog ${r0.pitchesLeft} pitch${r0.pitchesLeft === 1 ? '' : 'es'} te gaan. Wie haalt het meeste op? Dat blijft nog even geheim.</p>`;
+  else if (revealed && q.career) { /* al gezet */ }
   else if (revealed && (r0.ranking || r0.invest || r0.kompaan)) {
     if (r0.ranking?.topN) reveal = r0.ranking.skipped ? '<p class="intro-sub">Geen geldige stemmen: deze vraag vervalt.</p>' : `<div class="tv-podium">${r0.ranking.top.filter(x => x.winner).slice().reverse().map((x, i) => `<div class="pod pod-${x.rank}" style="animation-delay:${i * 0.9}s"><span class="r">${x.rank}</span><span class="n">${esc(x.name)}</span><span class="v">${x.votes} ${x.votes === 1 ? 'stem' : 'stemmen'}</span></div>`).join('')}</div>`;
     else if (r0.ranking) reveal = r0.ranking.skipped ? '<p class="intro-sub">Geen geldige stemmen: deze vraag vervalt.</p>' : bars(r0.ranking.top.map(x => ({ label: x.name + (x.winner ? '  🏆' : ''), value: x.votes, hl: x.winner })), x => x + (x === 1 ? ' stem' : ' stemmen'));
@@ -102,8 +104,21 @@ function question(v, q) {
   const len = (q.prompt || '').length;
   return `<div class="stage-body ${revealed ? 'revealed' : ''}">${tag}
     <div class="q-row"><div style="flex:1"><h1 class="q ${len > 90 ? 'xlong' : len > 50 ? 'long' : ''}">${esc(q.prompt)}</h1>${q.quote ? `<div class="quote">${esc(q.quote)}</div>` : ''}${q.media ? `<div data-media="${q.media.id}"></div>` : ''}</div>${right}
-    ${revealed ? `<div class="host-mascot">${mascot(v.result?.correctCount ? 'goed' : 'verrast')}</div>` : ''}</div>
+    ${revealed && !q.career ? `<div class="host-mascot">${mascot(v.result?.correctCount ? 'goed' : 'verrast')}</div>` : ''}</div>
     ${opts}${reveal}${dots}</div>`;
+}
+
+/** Van wie is deze carrière? Hints als een cv dat zich regel voor regel vult; daarna de onthulling. */
+function careerTv(q, L, r0, revealed) {
+  const c = q.career; const all = revealed && r0.career ? r0.career.clues : c.clues;
+  const rows = Array.from({ length: c.total }, (_, i) => {
+    const txt = all[i]; const last = !revealed && i === c.clues.length - 1;
+    return `<li class="cv-row ${txt ? 'on' : ''} ${last ? 'new' : ''}"><span class="cv-n">${i + 1}</span><span class="cv-t">${txt ? esc(txt) : 'Nog geheim'}</span><span class="cv-p">${c.scale?.[i] ?? ''} pt</span></li>`;
+  }).join('');
+  const who = revealed && r0.career ? `<div><div class="cv-who"><span>Dit is de carrière van</span><b>${esc(r0.career.name || '?')}</b></div>
+    <table class="board cv-board"><tbody>${r0.career.teams.map(t => `<tr class="${t.correct && !t.own ? 'hit' : ''}"><td>${esc(t.team)}</td><td>${t.pick ? esc(t.pick) : '—'}</td><td>${t.clue ? `bij hint ${t.clue}` : ''}</td><td class="pts">${t.own ? '<span class="cv-own">eigen team</span>' : t.correct ? '+' + t.points : ''}</td></tr>`).join('')}</tbody></table></div>` : '';
+  const sub = revealed ? '' : `<p class="counter">${c.auto ? `Elke ${c.auto} seconden een nieuwe hint.` : 'De quizmaster geeft de hints.'} Hoe eerder jullie vastzetten, hoe meer punten. Eén keer kiezen!</p>`;
+  return `<div class="cv ${revealed ? 'done' : ''}"><ol class="cv-list">${rows}</ol>${who}</div>${sub}`;
 }
 
 function board(v) {

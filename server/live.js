@@ -8,7 +8,7 @@ import { randomInt } from 'node:crypto';
 
 export const ROULETTE_TASKS = ['Neem een shotje!', 'Neem 3 slokken!', 'Neem een 0.0-shotje!'];
 
-export const ADVICE_TYPES = ['mc', 'tf', 'open', 'number', 'ranking', 'envelope'];
+export const ADVICE_TYPES = ['mc', 'tf', 'open', 'number', 'ranking', 'envelope', 'career'];
 export const CAPTAIN_STREAK = 3;
 const conflict = (msg, code = 'conflict') => { throw new HttpError(409, msg, code); };
 
@@ -84,6 +84,7 @@ export class Live {
           const q = this.db.get('SELECT id, round_id, voided_at FROM questions WHERE id = ? AND event_id = ?', questionId, eventId) || notFound('Vraag niet gevonden');
           if (q.voided_at) conflict('Deze vraag is ongeldig verklaard.');
           if (this.db.get('SELECT 1 FROM submissions WHERE question_id = ? LIMIT 1', q.id)) conflict('Deze vraag is al gespeeld. Kies een andere vraag (of verklaar hem ongeldig).');
+          { const cq = this.question(q.id); if (cq.type === 'career' && cq.settings.cluesShown) { const { cluesShown, ...rest } = cq.settings; this.db.run('UPDATE questions SET settings = ? WHERE id = ?', JSON.stringify(rest), q.id); } }
           return this.#set(eventId, { screen: 'question', round_id: q.round_id, question_id: q.id, phase: 'ready', open_at: null, deadline: null, paused: 0, paused_at: null }, actor, action);
         }
         case 'open': {
@@ -126,6 +127,16 @@ export class Live {
           const phase = q.type === 'shot' || q.type === 'envelope' ? 'closed' : scored ? 'scored' : 'revealed';
           if (phase === 'revealed') this.autoJudge(q.id);
           return this.#set(eventId, { screen: 'question', round_id: q.round_id, question_id: q.id, phase, open_at: null, deadline: null, paused: 0, paused_at: null }, actor, action);
+        }
+        case 'clue_next': {
+          // Carrière: volgende hint op tv (handmatige modus).
+          const q = s.question_id ? this.question(s.question_id) : null;
+          if (!q || q.type !== 'career') bad('Er staat geen carrièrevraag klaar.');
+          if (s.phase !== 'open') conflict('Open eerst de vraag.');
+          if (q.settings.clueSeconds) conflict('De hints komen bij deze vraag automatisch.');
+          const n = M.careerShown(q, s, t); if (n >= q.settings.clues.length) conflict('Alle hints staan al op tv.');
+          this.db.run('UPDATE questions SET settings = ? WHERE id = ?', JSON.stringify({ ...q.settings, cluesShown: n + 1 }), q.id);
+          return this.#set(eventId, {}, actor, action);
         }
         case 'pitch_team': {
           // Dragons-biedronde: wie pitcht deze vraag? Een team-id of 'random' (loting onder wie nog niet pitchte).
@@ -217,6 +228,11 @@ export class Live {
     if (s.phase !== 'open' || s.paused) return;
     const t = this.clock();
     if (s.open_at > t) this.timers.set(eventId + 'open', setTimeout(() => this.notify(eventId), s.open_at - t + 5));
+    { // carrière met automatische hints: telefoons en tv bijwerken bij elke nieuwe hint
+      const q = s.question_id && this.question(s.question_id); const sec = q?.type === 'career' ? q.settings.clueSeconds : 0;
+      for (const k of [...this.timers.keys()].filter(k => k.startsWith(eventId + 'clue'))) { clearTimeout(this.timers.get(k)); this.timers.delete(k); }
+      if (sec) for (let i = 1; i < q.settings.clues.length; i++) { const at = s.open_at + i * sec * 1000; if (at > t) this.timers.set(eventId + 'clue' + i, setTimeout(() => this.notify(eventId), at - t + 5)); }
+    }
     if (s.deadline) this.timers.set(eventId + 'close', setTimeout(() => this.autoClose(eventId, s.seq), Math.max(0, s.deadline - t) + 20));
   }
 
@@ -262,7 +278,8 @@ export class Live {
       if (s.deadline && t > s.deadline) conflict('Te laat: de tijd was om.', 'late');
       if (q.scope === 'individual' && participant.joined_at && participant.joined_at > s.open_at) conflict('Je doet mee vanaf de volgende vraag.', 'late_join');
       M.checkModuleSubmit(this.db, q, participant, m);
-      const clean = validateAnswer(q, answer, this.db, eventId, m);
+      let clean = validateAnswer(q, answer, this.db, eventId, m);
+      if (q.type === 'career') clean = { pick: clean, clue: M.careerShown(q, s, t) }; // vroeg vastzetten = meer punten
       let b = null;
       if (bet !== undefined && bet !== null) {
         if (!q.allow_bet) bad('Inzetten is bij deze vraag niet toegestaan.');
@@ -285,6 +302,7 @@ export class Live {
   /** Automatische beoordeling; handmatige oordelen (judged_by) blijven staan. */
   verdictFor(q, key, a) {
     if (['ranking', 'shot', 'invest', 'envelope'].includes(q.type) || q.settings.kompaan || key.correct == null) return null;
+    if (q.type === 'career') { const who = M.careerSubject(this.db, q, key); return who ? ((a?.pick ?? a) === who.id ? 'correct' : 'wrong') : null; }
     switch (q.type) {
       case 'mc': case 'tf': return (Array.isArray(key.correct) ? key.correct.includes(a) : a === key.correct) ? 'correct' : 'wrong';
       case 'open': return judgeOpen(a, [String(key.correct), ...key.accepted]);
@@ -305,6 +323,7 @@ export class Live {
         case 'open': v = judgeOpen(a, [...(key.correct != null ? [String(key.correct)] : []), ...key.accepted]); break;
         case 'number': v = q.scoring === 'closest' ? null : (Math.abs(a - Number(key.correct)) <= (key.tolerance ?? 0) ? 'correct' : 'wrong'); break;
         case 'order': case 'match': v = sameArray(a, key.correct) ? 'correct' : 'wrong'; break;
+        case 'career': v = this.verdictFor(q, key, a); break;
         default: v = null;
       }
       this.db.run('UPDATE submissions SET verdict = ? WHERE id = ?', v, s.id);

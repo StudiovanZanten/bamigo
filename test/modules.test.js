@@ -453,3 +453,45 @@ test('Spelersdossier: typen, schoonmaken, opslaan per antwoord, overzicht met te
   assert.ok(e.last && e.hit); assert.equal(e.pledge, 'Wij zingen het Wilhelmus');
   assert.ok(a.hit); assert.equal(a.pledge, undefined, 'belofte van niet-laatsten blijft geheim');
 });
+
+test('Van wie is deze carrière: hints één voor één, niets vooruit lekken, vroeg goed = meer punten, eigen teamgenoot telt niet', () => {
+  const { db, live, E, P, run, pts, ev, clock } = setup();
+  const r = C.upsertRound(db, E, { title: 'Carrière', kind: 'quiz' });
+  assert.throws(() => C.upsertQuestion(db, E, { roundId: r, type: 'career', prompt: 'Van wie?', settings: { clues: ['één'] } }), /twee hints/);
+  const q = C.upsertQuestion(db, E, { roundId: r, type: 'career', scope: 'team', prompt: 'Van wie is deze carrière?', seconds: 0,
+    settings: { clues: ['Bijbaan: vakkenvuller', 'Opleiding: HBO', 'Baan: accountmanager', 'Droom: profvoetballer'] }, key: { correct: 'B1' } });
+  run('prepare', { questionId: q });
+  assert.deepEqual(playerView(live, { participant: P.a1, event: ev() }, new Set()).question.career.clues, []);
+  run('open'); clock.add(10);
+  const pv = playerView(live, { participant: P.a1, event: ev() }, new Set()).question;
+  assert.deepEqual(pv.career.clues, ['Bijbaan: vakkenvuller']); assert.ok(!JSON.stringify(pv).includes('HBO'));
+  assert.ok(pv.candidates.length >= 10);
+  live.submit(E, P.a1, { questionId: q, answer: P.b1.id });            // A: goed bij hint 1 = 4
+  assert.throws(() => live.submit(E, P.c1, { questionId: q, answer: 'nope' }), /Muchacho/);
+  run('clue_next');
+  live.submit(E, P.c1, { questionId: q, answer: P.d2.id });            // C: fout
+  run('clue_next');
+  live.submit(E, P.b1, { questionId: q, answer: P.b1.id });            // B: eigen teamgenoot, telt niet
+  live.submit(E, P.d1, { questionId: q, answer: P.b1.id });            // D: goed bij hint 3 = 2
+  const tv = displayView(live, ev(), new Set(), 'x').question.career;
+  assert.equal(tv.clues.length, 3);
+  run('clue_next'); assert.throws(() => run('clue_next'), /Alle hints/);
+  run('close'); run('reveal'); run('score');
+  assert.deepEqual(pts(), { A: 4, D: 2, B: 0, C: 0, E: 0 });
+  const res = displayView(live, ev(), new Set(), 'x').result.career;
+  assert.equal(res.name, 'b1'); assert.equal(res.clues.length, 4);
+  assert.ok(res.teams.find(t => t.team === 'B').own);
+});
+
+test('Carrière met automatische hints: hint volgt de klok', () => {
+  const { db, live, E, P, run, pts, ev, clock } = setup();
+  const r = C.upsertRound(db, E, { title: 'Carrière', kind: 'quiz' });
+  const q = C.upsertQuestion(db, E, { roundId: r, type: 'career', scope: 'team', prompt: 'Van wie?', seconds: 0, settings: { clues: ['a', 'b', 'c'], clueSeconds: 20 }, key: { correct: P.c2.id } });
+  run('prepare', { questionId: q }); run('open'); clock.add(10);
+  assert.throws(() => run('clue_next'), /automatisch/);
+  clock.add(25_000);
+  assert.equal(playerView(live, { participant: P.a1, event: ev() }, new Set()).question.career.clues.length, 2);
+  live.submit(E, P.a1, { questionId: q, answer: P.c2.id });
+  run('close'); run('reveal'); run('score');
+  assert.equal(pts().A, 2);
+});
