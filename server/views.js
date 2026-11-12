@@ -204,6 +204,7 @@ export function staffView(live, { event, role, grant }, online, joinUrl, t = liv
     view.shots = db.all('SELECT s.*, t.name AS team FROM shots s JOIN teams t ON t.id = s.team_id WHERE s.event_id = ? ORDER BY s.number IS NULL, s.number, t.name', event.id)
       .map(x => ({ ...x, accepted_flavors: json(x.accepted_flavors, []), accepted_bases: json(x.accepted_bases, []) }));
     view.shotWarnings = M.shotWarnings(db, event.id);
+    view.questionnaire = questionnaireOverview(db, event);
     view.rankingTotals = db.all("SELECT id, prompt FROM questions WHERE event_id = ? AND type = 'ranking'", event.id).map(q => ({ id: q.id, prompt: q.prompt, ...M.rankingTotals(db, q.id) }));
   }
   if (host || full) {
@@ -218,6 +219,18 @@ export function staffView(live, { event, role, grant }, online, joinUrl, t = liv
 }
 
 /** Gereedheid: alleen tellingen, dus ook veilig voor de spoilervrije organisator. */
+/** Alle antwoorden op de vragenlijst vooraf, per vraag (alleen voor wie inhoud mag zien). */
+function questionnaireOverview(db, event) {
+  const questions = json(event.settings, {}).questionnaire || [];
+  const people = db.all(`SELECT p.name, p.profile, t.name AS team FROM participants p LEFT JOIN memberships m ON m.participant_id = p.id LEFT JOIN teams t ON t.id = m.team_id
+    WHERE p.event_id = ? ORDER BY p.name`, event.id).map(p => ({ name: p.name, team: p.team, prof: json(p.profile, {}) }));
+  return {
+    questions: questions.map(q => ({ ...q, answers: people.filter(p => p.prof.answers?.[q.id]).map(p => ({ name: p.name, team: p.team, answer: p.prof.answers[q.id] })) })),
+    stories: people.filter(p => p.prof.story || p.prof.limits).map(p => ({ name: p.name, story: p.prof.story || '', limits: p.prof.limits || '' })),
+    filled: people.filter(p => p.prof.done).length, total: people.length,
+  };
+}
+
 export function readiness(db, eventId, full) {
   const one = (sql, ...p) => db.get(sql, ...p).n;
   const r = {
@@ -253,6 +266,6 @@ function prepView(live, event, participant, team) {
     .map(m => { const e = team ? db.get('SELECT value, note, media_id, checked FROM evidence WHERE mission_id = ? AND team_id = ?', m.id, team.id) : null;
       return { id: m.id, title: m.title, description: m.description, kind: m.kind, target: m.target, unit: m.unit, closed: !!m.scored_at, mine: e ? { value: e.value, note: e.note, hasPhoto: !!e.media_id, checked: !!e.checked } : null }; });
   const profile = json(participant.profile, {});
-  return { ranking, candidates: people.filter(p => settings.selfVote || p.id !== participant.id), profile: { story: profile.story || '', limits: profile.limits || '', done: !!profile.done },
+  return { ranking, candidates: people.filter(p => settings.selfVote || p.id !== participant.id), profile: { story: profile.story || '', limits: profile.limits || '', answers: profile.answers || {}, questions: settings.questionnaire || [], done: !!profile.done },
     shot: hasShotRound && team ? (shot || {}) : null, missions };
 }

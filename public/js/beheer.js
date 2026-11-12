@@ -282,6 +282,10 @@ function planTab(v) {
       <button class="btn ghost small" id="emergency">Noodpakket (print)</button></div>` : ''}
   </div>
   ${!v.perms.answers ? '<p class="notice small">Je ziet de planning zonder vragen of antwoorden. Zo blijft het een verrassing.</p>' : ''}
+  ${v.questionnaire && (v.questionnaire.questions.length || v.questionnaire.stories.length) ? `<details class="card more" data-keep="qnAns" style="margin-bottom:14px"><summary>Antwoorden vragenlijst vooraf (${v.questionnaire.filled} van ${v.questionnaire.total} ingevuld)</summary>
+    ${v.questionnaire.questions.map(q => `<h4 style="margin:16px 0 6px">${esc(q.q)}</h4>${q.answers.length ? `<table class="subs"><tbody>${q.answers.map(a => `<tr><td style="width:30%"><b>${esc(a.name)}</b>${a.team ? `<br><span class="small muted">${esc(a.team)}</span>` : ''}</td><td>${esc(a.answer)}</td></tr>`).join('')}</tbody></table>` : '<p class="small muted">Nog geen antwoorden.</p>'}`).join('')}
+    ${v.questionnaire.stories.length ? `<h4 style="margin:16px 0 6px">Verhalen en humorgrenzen</h4><table class="subs"><tbody>${v.questionnaire.stories.map(p => `<tr><td style="width:30%"><b>${esc(p.name)}</b></td><td>${esc(p.story)}${p.limits ? `<br><span class="small" style="color:var(--warn)">Liever niet: ${esc(p.limits)}</span>` : ''}</td></tr>`).join('')}</tbody></table>` : ''}
+  </details>` : ''}
   <div id="editorSlot"></div>
   ${v.rounds.map((r, i) => `<section class="round">
     <header><span class="pill">${esc(ROUND_LABEL[r.kind] || r.kind)}</span><h3>${esc(r.title)}</h3><span class="muted small">${r.minutes} min · ${r.questionCount} vragen</span>
@@ -497,6 +501,11 @@ function eventTab(v) {
     <label class="check"><input type="checkbox" id="eOne" ${s.oneliners !== false ? 'checked' : ''}> Oneliners tonen</label>
     <label class="check"><input type="checkbox" id="eDrinks" ${s.drinks !== false ? 'checked' : ''}> Drankonderdelen aan</label></details>
     <button class="btn primary" style="margin-top:10px">Opslaan</button></form>
+  <section class="card"><h3>Vragenlijst vooraf</h3>
+    <p class="small muted">Spelers vullen dit vooraf in op hun telefoon (alles optioneel). Eén vraag per regel.</p>
+    <form id="qnForm"><textarea id="qnText" rows="7" placeholder="Wat was je eerste concert?">${esc((s.questionnaire || []).map(x => x.q).join('\n'))}</textarea>
+    <button class="btn copper" style="margin-top:10px">Vragenlijst opslaan</button></form>
+    ${v.questionnaire ? `<p class="small muted" style="margin:10px 0 0">${v.questionnaire.filled} van ${v.questionnaire.total} spelers hebben hem ingevuld. Antwoorden staan bij Vragen.</p>` : ''}</section>
   <section class="card"><h3>Anderen toegang geven</h3>
     <p class="small muted">Maak een link voor een medequizmaster of een extra tv. Deel hem privé.</p>
     <ul class="list">${(v.grants || []).map(g => `<li><span class="grow">${esc(g.label)} <span class="small muted">(${g.role})</span></span>${g.revoked ? '<span class="pill bad">ingetrokken</span>' : g.role === 'owner' ? '<span class="pill">jij</span>' : `<button class="btn danger small" data-revoke="${g.id}">Intrekken</button>`}</li>`).join('')}</ul>
@@ -514,6 +523,10 @@ function eventTab(v) {
     <hr style="border-color:var(--line);margin:18px 0"><button class="btn ghost small" id="archive">${v.event.status === 'archived' ? 'Archivering opheffen' : 'Avond archiveren'}</button></section></div>`;
   $('#evForm').onsubmit = e => { e.preventDefault(); act(e.submitter, () => A.patch('/api/staff/event', { name: $('#eName').value, subtitle: $('#eSub').value, startsAt: $('#eStart').value, durationTarget: +$('#eTarget').value, durationMax: +$('#eMax').value,
     settings: { countdownMs: Math.round(+$('#eCd').value * 1000), selfTeam: $('#eSelfTeam').checked, autoCaptain: $('#eAutoCap').checked, oneliners: $('#eOne').checked, drinks: $('#eDrinks').checked } }), 'Opgeslagen.'); };
+  $('#qnForm').onsubmit = e => { e.preventDefault();
+    const old = s.questionnaire || [];
+    const list = $('#qnText').value.split('\n').map(x => x.trim()).filter(Boolean).map(q => ({ id: old.find(o => o.q === q)?.id || '', q }));
+    act(e.submitter, () => A.patch('/api/staff/event', { settings: { questionnaire: list } }), 'Vragenlijst opgeslagen.'); };
   $('#grantForm').onsubmit = async e => { e.preventDefault(); const r = await act(e.submitter, () => A.post('/api/staff/grants', { role: $('#gRole').value, label: $('#gLabel').value })); if (r) $('#grantOut').innerHTML = `<p class="small" style="margin-top:10px">Kopieer deze link nu; hij wordt niet opnieuw getoond:</p><div class="linkbox">${esc(r.url)}</div>`; };
   $$('[data-revoke]').forEach(b => b.onclick = () => { if (confirm('Link intrekken? Wie hem gebruikt, verliest direct toegang.')) act(b, () => A.post(`/api/staff/grants/${b.dataset.revoke}/revoke`), 'Ingetrokken.'); });
   $('#dupForm').onsubmit = async e => { e.preventDefault(); const r = await act(e.submitter, () => A.post('/api/staff/duplicate', { name: $('#dName').value, includeQuestions: $('#dQ').checked, includeTeams: $('#dT').checked, includeParticipants: $('#dP').checked }));

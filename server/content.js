@@ -39,9 +39,18 @@ function uniqueCode(db) {
   throw new Error('Kon geen unieke code maken');
 }
 
+/** Eigen vragenlijst vooraf: [{ id, q }], max 15 vragen. Id's blijven gelijk zodat antwoorden blijven kloppen. */
+export function cleanQuestionnaire(list) {
+  if (!Array.isArray(list)) return [];
+  const seen = new Set();
+  return list.map(x => ({ id: String(x?.id || '').replace(/[^a-z0-9_]/gi, '').slice(0, 20) || id('v'), q: String(x?.q || '').trim().slice(0, 200) }))
+    .filter(x => x.q && !seen.has(x.id) && seen.add(x.id)).slice(0, 15);
+}
+
 export function updateEvent(db, eventId, body) {
   const ev = db.get('SELECT * FROM events WHERE id = ?', eventId) || notFound();
   const settings = { ...json(ev.settings, {}), ...(body.settings && typeof body.settings === 'object' ? body.settings : {}) };
+  if (body.settings && 'questionnaire' in body.settings) settings.questionnaire = cleanQuestionnaire(body.settings.questionnaire);
   db.run(`UPDATE events SET name=?, subtitle=?, starts_at=?, duration_target=?, duration_max=?, mode=?, status=?, settings=?, updated_at=? WHERE id=?`,
     str(body.name, 120) ?? ev.name, body.subtitle !== undefined ? str(body.subtitle, 200) : ev.subtitle, body.startsAt !== undefined ? str(body.startsAt, 40) : ev.starts_at,
     int(body.durationTarget, 10, 600, ev.duration_target), int(body.durationMax, 10, 600, ev.duration_max),

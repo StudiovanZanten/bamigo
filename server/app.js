@@ -151,7 +151,9 @@ export async function buildApp({ dbFile = process.env.BAMIGO_DB || path.join(roo
   app.post('/api/player/vote', async req => { const p = player(req); M.castVote(db, p.event.id, p.participant, req.body || {}); touch(p.event.id); return { ok: true }; });
   app.post('/api/player/profile', async req => {
     const p = player(req); const b = req.body || {};
-    const prof = { ...json(p.participant.profile, {}), story: String(b.story ?? '').slice(0, 1000), limits: String(b.limits ?? '').slice(0, 500), done: !!b.done };
+    const qs = json(p.event.settings, {}).questionnaire || [];
+    const answers = Object.fromEntries(qs.map(q => [q.id, String(b.answers?.[q.id] ?? '').trim().slice(0, 300)]).filter(([, a]) => a));
+    const prof = { ...json(p.participant.profile, {}), story: String(b.story ?? '').slice(0, 1000), limits: String(b.limits ?? '').slice(0, 500), answers, done: !!b.done };
     db.run('UPDATE participants SET profile = ? WHERE id = ?', JSON.stringify(prof), p.participant.id);
     touch(p.event.id); return { ok: true };
   });

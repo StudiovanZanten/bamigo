@@ -418,7 +418,9 @@ function renderPrep(v) {
     ${openVotes.map(r => `<div class="field"><label for="rv_${r.id}">${esc(r.prompt)}</label><select id="rv_${r.id}" data-vote="${r.id}">
       <option value="" ${!r.voted ? 'selected' : ''}>Kies…</option><option value="skip" ${r.voted && !r.choiceId ? 'selected' : ''}>Overslaan</option>
       ${P.candidates.map(c => `<option value="${c.id}" ${r.choiceId === c.id ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select></div>`).join('')}`) : ''}
-  ${task('prof', 'Over jou', pr.done, pr.done ? 'Ingevuld' : 'Optioneel, voor de quizmasters', `<form id="profForm">
+  ${task('prof', pr.questions.length ? 'Vragenlijst' : 'Over jou', pr.done, pr.done ? 'Ingevuld' : pr.questions.length ? `${pr.questions.length} korte vragen, alles optioneel` : 'Optioneel, voor de quizmasters', `<form id="profForm">
+    ${pr.questions.length ? `<p class="small muted">Je antwoorden kunnen in de quiz terugkomen. Alleen de quizmaster ziet van wie ze zijn.</p>` : ''}
+    ${pr.questions.map(q => `<div class="field"><label for="pq_${q.id}">${esc(q.q)}</label><input id="pq_${q.id}" data-pq="${q.id}" maxlength="300" value="${esc(pr.answers[q.id] || '')}"></div>`).join('')}
     <div class="field"><label for="pStory">Een verhaal dat we mogen gebruiken</label><textarea id="pStory" maxlength="1000">${esc(pr.story)}</textarea></div>
     <div class="field"><label for="pLim">Waar moet de humor bij jou wegblijven?</label><input id="pLim" maxlength="500" value="${esc(pr.limits)}"></div>
     <button class="btn copper">${pr.done ? 'Bijwerken' : 'Opslaan'}</button></form>`)}
@@ -440,7 +442,8 @@ function renderPrep(v) {
     if (!s.value) return;
     try { await A.post('/api/player/vote', { questionId: s.dataset.vote, choiceId: s.value === 'skip' ? null : s.value }); toast('Stem opgeslagen. Geheim, uiteraard.'); prepDirty = false; } catch (e) { toast(e.message, 'bad'); }
   });
-  const pf = $('#profForm', el); if (pf) pf.onsubmit = async e => { e.preventDefault(); try { await A.post('/api/player/profile', { story: $('#pStory').value, limits: $('#pLim').value, done: true }); prepDirty = false; toast('Opgeslagen.'); } catch (err) { toast(err.message, 'bad'); } };
+  const pf = $('#profForm', el); if (pf) pf.onsubmit = async e => { e.preventDefault(); try { const answers = {}; $$('[data-pq]', pf).forEach(i => { answers[i.dataset.pq] = i.value; });
+    await A.post('/api/player/profile', { story: $('#pStory').value, limits: $('#pLim').value, answers, done: true }); prepDirty = false; toast('Opgeslagen.'); } catch (err) { toast(err.message, 'bad'); } };
   const sf = $('#shotForm', el); if (sf) sf.onsubmit = async e => { e.preventDefault(); const b = {}; $$('[data-shot]', sf).forEach(i => b[i.dataset.shot] = i.value);
     try { await A.post('/api/player/shot', b); prepDirty = false; toast('Shot opgeslagen. Mondje dicht.'); } catch (err) { toast(err.message, 'bad'); } };
   $$('[data-mission]', el).forEach(f => f.onsubmit = async e => { e.preventDefault();

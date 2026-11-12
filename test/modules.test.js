@@ -237,3 +237,15 @@ test('ranking top 3: 2 pt per goede plek, 1 pt als de naam wel in de top 3 staat
   run('close'); run('reveal'); run('score');
   const p = pts(); assert.equal(p.A, 6); assert.equal(p.B, 2); assert.equal(p.C, 0);
 });
+
+test('vragenlijst vooraf: id\'s blijven stabiel en het overzicht toont antwoorden per vraag', () => {
+  const { db, E } = setup();
+  C.updateEvent(db, E, { settings: { questionnaire: [{ q: 'Eerste concert?' }, { q: '' }, { q: 'Domste aankoop?' }] } });
+  const qs = JSON.parse(db.get('SELECT settings FROM events WHERE id = ?', E).settings).questionnaire;
+  assert.equal(qs.length, 2); assert.ok(qs[0].id);
+  C.updateEvent(db, E, { settings: { questionnaire: [{ id: qs[1].id, q: 'Domste aankoop?' }, { id: qs[0].id, q: 'Eerste concert?' }] } });
+  const qs2 = JSON.parse(db.get('SELECT settings FROM events WHERE id = ?', E).settings).questionnaire;
+  assert.deepEqual(qs2.map(x => x.id), [qs[1].id, qs[0].id]);
+  C.updateEvent(db, E, { name: 'Andere naam', settings: { drinks: false } });
+  assert.equal(JSON.parse(db.get('SELECT settings FROM events WHERE id = ?', E).settings).questionnaire.length, 2, 'andere instellingen opslaan wist de vragenlijst niet');
+});

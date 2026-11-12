@@ -7,7 +7,8 @@ import { createEvent, upsertTeam, upsertParticipant, upsertRound, upsertQuestion
 import { saveShot, adminShot, upsertMission } from './modules.js';
 
 export function seedDemo(db, { name = 'DEMO — Muchacho’s Vriendenweekend' } = {}) {
-  const { event, ownerToken, displayToken } = createEvent(db, { name, subtitle: 'Demo-editie · fictieve namen', isDemo: true, startsAt: '2027-01-23T20:00' });
+  const { event, ownerToken, displayToken } = createEvent(db, { name, subtitle: 'Demo-editie · fictieve namen', isDemo: true, startsAt: '2027-01-23T20:00',
+    settings: { questionnaire: [['v1', 'Wat was je eerste concert?'], ['v2', 'Wat is het domste dat je ooit hebt gekocht?'], ['v3', 'Wat wilde je als kind later worden?'], ['v4', 'Wat is je guilty pleasure-nummer?'], ['v5', 'Wat is je grootste blunder op het werk?']].map(([id, q]) => ({ id, q })) } });
   const E = event.id;
   const teams = [
     ['De Lobbers', ['Bas', 'Joris']], ['Net Niet', ['Koen', 'Mark']], ['Padel Paleis', ['Ruben', 'Sander']],
