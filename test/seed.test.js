@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { openDb, json } from '../server/db.js';
 import * as C from '../server/content.js';
-import { seedMuchachos, sealedBeforeFinal, seedMissions } from '../server/seed-muchachos.js';
+import { seedMuchachos, sealedBeforeFinal, seedMissions, buitentasDrie } from '../server/seed-muchachos.js';
 
 const dir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'seed');
 const quiet = { log: () => {} };
@@ -85,13 +85,27 @@ test('Buitentas-missies: eenmalig, op volgorde, kassabon telt als tijd', async (
   const M = await import('../server/modules.js');
   const db = openDb(':memory:');
   const r = seedMuchachos(db, dir, { now: Date.UTC(2026, 10, 12), ...quiet });
-  assert.equal(seedMissions(db, dir, quiet), 4);
+  assert.equal(seedMissions(db, dir, quiet), 3);
   assert.equal(seedMissions(db, dir, quiet), null);
   const ms = db.all('SELECT * FROM missions WHERE event_id = ? ORDER BY sort', r.event);
-  assert.deepEqual(ms.map(m => m.kind), ['closest', 'closest', 'check', 'check']);
+  assert.deepEqual(ms.map(m => m.kind), ['closest', 'closest', 'check']);
   const teams = db.all('SELECT id FROM teams WHERE event_id = ? ORDER BY sort', r.event);
   M.checkEvidence(db, r.event, ms[0].id, teams[0].id, { measured: '11:58', checked: true });
   M.checkEvidence(db, r.event, ms[0].id, teams[1].id, { measured: '12:09', checked: true });
   const res = M.scoreMission(db, r.event, ms[0].id, () => {});
   assert.equal(res.find(x => x.rank === 1).team, 'Peter & Milan');
+});
+
+test('Buitentas naar 3: oude mysterie-missie en oude berichtteksten worden bijgewerkt, eenmalig', async () => {
+  const M = await import('../server/modules.js');
+  const db = openDb(':memory:');
+  const r = seedMuchachos(db, dir, { now: Date.UTC(2026, 10, 12), ...quiet });
+  M.upsertMission(db, r.event, { title: 'Mysterieus huishoudelijk voorwerp', kind: 'check' });
+  db.run("UPDATE messages SET body = 'Nog 7 dagen. Zaterdag 23 januari om 20:00 gaat het los. Vergeet de Buitentas niet: kassabon, 250 gram, mysterieus voorwerp en de krant. De vragen liggen klaar. Het bewijsmateriaal ook. Geen verdere vragen. VAMOSSS!' WHERE title = 'Nog 7 dagen'");
+  const res = buitentasDrie(db, quiet);
+  assert.equal(res.missions, 1); assert.equal(res.msgs, 1);
+  assert.equal(db.get("SELECT COUNT(*) AS n FROM missions WHERE title LIKE 'Mysterieus%'").n, 0);
+  assert.equal(buitentasDrie(db, quiet), null);
+  assert.ok(!db.all('SELECT body FROM messages').some(m => /mysterieus/i.test(m.body)));
+  assert.match(db.get("SELECT body FROM messages WHERE title = 'Opdracht: de Buitentas'").body, /250 gram en de krant/);
 });

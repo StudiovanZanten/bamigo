@@ -1607,7 +1607,7 @@
   {
    "sendAt": "2027-01-02T17:00",
    "title": "Opdracht: de Buitentas",
-   "body": "Kassabon zo dicht mogelijk bij 12:00, een voorwerp van precies 250 gram, een mysterieus huishoudelijk voorwerp en de krant van 28 december. Vink af en voeg een foto toe.",
+   "body": "Kassabon zo dicht mogelijk bij 12:00, een voorwerp van precies 250 gram en de krant van 28 december. Vink af en voeg een foto toe.",
    "link": "buitentas"
   },
   {
@@ -1619,7 +1619,7 @@
   {
    "sendAt": "2027-01-16T17:00",
    "title": "Nog 7 dagen",
-   "body": "Nog 7 dagen. Zaterdag 23 januari om 20:00 gaat het los. Vergeet de Buitentas niet: kassabon, 250 gram, mysterieus voorwerp en de krant. De vragen liggen klaar. Het bewijsmateriaal ook. Geen verdere vragen. VAMOSSS!"
+   "body": "Nog 7 dagen. Zaterdag 23 januari om 20:00 gaat het los. Vergeet de Buitentas niet: kassabon, 250 gram en de krant. De vragen liggen klaar. Het bewijsmateriaal ook. Geen verdere vragen. VAMOSSS!"
   }
  ],
  "missions": [
@@ -1636,11 +1636,6 @@
    "kind": "closest",
    "target": "250",
    "unit": "gram"
-  },
-  {
-   "title": "Mysterieus huishoudelijk voorwerp",
-   "description": "Neem een huishoudelijk voorwerp mee waarvan niemand weet wat het is. Foto erbij.",
-   "kind": "check"
   },
   {
    "title": "De krant van 28 december",
