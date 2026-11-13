@@ -1,0 +1,80 @@
+/* BAMIGO tv-spelshow: licht, overgangen en spanning. Koper en ivoor blijven de basis. */
+
+/* ---------- lichtshow achter alles ---------- */
+.show-bg { position: fixed; inset: 0; z-index: -1; pointer-events: none; overflow: hidden; }
+body.has-show { background: transparent; } /* html houdt de donkere achtergrond; de lichtshow zit ertussen */
+.show-bg .beam { position: absolute; bottom: -10vh; width: 34vw; height: 140vh; transform-origin: 50% 100%; opacity: .16;
+  background: linear-gradient(to top, var(--beam, #E0814F) 0%, transparent 78%); filter: blur(1.4vw); clip-path: polygon(44% 100%, 56% 100%, 100% 0, 0 0);
+  transition: opacity 1.2s ease, background 1.2s ease; }
+.show-bg .b1 { left: 4vw; animation: sweepL 11s ease-in-out infinite alternate; }
+.show-bg .b2 { left: 33vw; animation: sweepC 14s ease-in-out infinite alternate; --beam: #F4E8CF; opacity: .07; }
+.show-bg .b3 { right: 4vw; animation: sweepR 12s ease-in-out infinite alternate; }
+.show-bg .floor { position: absolute; left: 0; right: 0; bottom: 0; height: 30vh; background: radial-gradient(60% 100% at 50% 100%, #bf5b2c26, transparent 70%); }
+.show-bg .glow { position: absolute; inset: -20% -20% auto; height: 70%; background: radial-gradient(50% 60% at 50% 0%, #bf5b2c22, transparent 70%); }
+.show-bg::after { content: ''; position: absolute; inset: 0; background: radial-gradient(120% 90% at 50% 40%, transparent 55%, #000a 100%); }
+@keyframes sweepL { from { transform: rotate(-24deg); } to { transform: rotate(8deg); } }
+@keyframes sweepC { from { transform: rotate(-10deg); } to { transform: rotate(10deg); } }
+@keyframes sweepR { from { transform: rotate(24deg); } to { transform: rotate(-8deg); } }
+body[data-mood="live"] .show-bg .beam { opacity: .24; }
+body[data-mood="live"] .show-bg .b2 { opacity: .1; }
+body[data-mood="hot"] .show-bg .beam { --beam: #E2725B; opacity: .34; animation-duration: 2.4s; }
+body[data-mood="party"] .show-bg .beam { opacity: .3; animation-duration: 3.5s; }
+body[data-mood="party"] .show-bg .b2 { --beam: #C4AD83; opacity: .2; }
+body[data-mood="reveal"] .show-bg .beam { --beam: #F4E8CF; opacity: .22; }
+
+/* ---------- stinger: koperen wipe met het B.-blokje ---------- */
+.stinger { position: fixed; inset: 0; z-index: 60; pointer-events: none; overflow: hidden; }
+.stinger i { position: absolute; top: -20%; bottom: -20%; width: 70%; transform: skewX(-18deg) translateX(-160%); }
+.stinger .w1 { background: var(--copper); left: 0; animation: wipe .9s cubic-bezier(.7, 0, .3, 1) forwards; }
+.stinger .w2 { background: var(--ivory); left: 0; width: 18%; animation: wipe .9s cubic-bezier(.7, 0, .3, 1) .08s forwards; }
+.st-round .w1 { width: 140%; animation: wipeHold 1.6s cubic-bezier(.7, 0, .3, 1) forwards; }
+.st-round .w2 { animation: wipeHold 1.6s cubic-bezier(.7, 0, .3, 1) .1s forwards; }
+@keyframes wipe { 0% { transform: skewX(-18deg) translateX(-160%); } 100% { transform: skewX(-18deg) translateX(260%); } }
+@keyframes wipeHold { 0% { transform: skewX(-18deg) translateX(-160%); } 35%, 62% { transform: skewX(-18deg) translateX(-10%); } 100% { transform: skewX(-18deg) translateX(260%); } }
+.st-mark { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%) scale(.6); font-family: var(--display); color: var(--ivory); font-size: 22vmin; line-height: 1;
+  display: inline-flex; align-items: baseline; opacity: 0; animation: mark 1.6s ease forwards; }
+.st-mark b { width: .22em; height: .22em; background: #151515; margin-left: .06em; }
+.st-label { position: absolute; left: 50%; top: calc(50% + 14vmin); transform: translateX(-50%); font: 700 2.4vmin var(--body); letter-spacing: .4em; text-transform: uppercase; color: #151515;
+  white-space: nowrap; opacity: 0; animation: mark 1.6s ease forwards; }
+@keyframes mark { 0%, 22% { opacity: 0; transform: translate(-50%, -50%) scale(.6); } 38%, 60% { opacity: 1; transform: translate(-50%, -50%) scale(1); } 75%, 100% { opacity: 0; transform: translate(-50%, -50%) scale(1.15); } }
+.st-label { animation-name: lbl; } @keyframes lbl { 0%, 25% { opacity: 0; } 40%, 60% { opacity: 1; } 72%, 100% { opacity: 0; } }
+
+/* ---------- confetti ---------- */
+.confetti { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 70; pointer-events: none; }
+
+/* ---------- entrees ---------- */
+.slam { animation: slam .55s cubic-bezier(.2, 1.4, .4, 1) both; }
+@keyframes slam { from { opacity: 0; transform: scale(1.35); filter: blur(6px); } to { opacity: 1; transform: none; filter: none; } }
+.rise > * { animation: rise .5s ease-out both; }
+.rise > *:nth-child(2) { animation-delay: .08s; } .rise > *:nth-child(3) { animation-delay: .16s; } .rise > *:nth-child(4) { animation-delay: .24s; }
+.rise > *:nth-child(5) { animation-delay: .32s; } .rise > *:nth-child(6) { animation-delay: .4s; } .rise > *:nth-child(n+7) { animation-delay: .48s; }
+@keyframes rise { from { opacity: 0; transform: translateY(1.4vw); } to { opacity: 1; transform: none; } }
+.flash { animation: flash .9s ease-out; }
+@keyframes flash { 0% { box-shadow: 0 0 0 0 #7FB77Eaa; } 40% { box-shadow: 0 0 0 1vw #7FB77E33, 0 0 4vw #7FB77E66; } 100% { box-shadow: 0 0 0 0 transparent; } }
+
+/* ---------- tv: aftellen en klok ---------- */
+.go-count { font-family: var(--display); font-size: 22vw; line-height: 1; color: var(--ivory); text-shadow: 0 0 4vw #bf5b2c99; }
+.go-count.beat { animation: beat .9s ease-out; }
+@keyframes beat { 0% { transform: scale(1.5); opacity: 0; } 25% { transform: scale(1); opacity: 1; } 100% { transform: scale(.92); opacity: .85; } }
+.ring { --p: 1; position: relative; width: 15vw; height: 15vw; border-radius: 50%; display: grid; place-items: center;
+  background: conic-gradient(var(--ring, var(--copper)) calc(var(--p) * 360deg), #ffffff14 0); }
+.ring::before { content: ''; position: absolute; inset: .7vw; border-radius: 50%; background: var(--bg); }
+.ring > * { position: relative; }
+.ring .timer { font-size: 4.6vw !important; }
+.ring.hot { --ring: #E2725B; animation: hotPulse .5s ease-in-out infinite alternate; }
+.ring.hot .timer { color: #F08A73; }
+@keyframes hotPulse { from { box-shadow: 0 0 0 0 #e2725b00; } to { box-shadow: 0 0 3vw .4vw #e2725b66; } }
+
+/* ---------- tv: tussenstand ---------- */
+.tv .board.rise tr { animation: rise .45s ease-out both; }
+.tv .board.rise tr:nth-child(1) { animation-delay: .9s; } .tv .board.rise tr:nth-child(2) { animation-delay: .7s; } .tv .board.rise tr:nth-child(3) { animation-delay: .5s; }
+.tv .board.rise tr:nth-child(4) { animation-delay: .3s; } .tv .board.rise tr:nth-child(n+5) { animation-delay: .1s; }
+.tv .board tr.lead td { color: var(--ivory); }
+.tv .board tr.lead td.pos { color: #151515; background: var(--copper); }
+
+/* ---------- telefoon ---------- */
+.verdict.slam { display: inline-block; }
+.phone-go { animation: slam .45s cubic-bezier(.2, 1.4, .4, 1) both; }
+
+@media (prefers-reduced-motion: reduce) { .show-bg .beam { animation: none !important; } .slam, .rise > *, .go-count.beat, .ring.hot, .tv .board.rise tr { animation: none !important; } }
+html.reduce-motion .show-bg .beam, html.reduce-motion .slam, html.reduce-motion .rise > *, html.reduce-motion .ring.hot { animation: none !important; }

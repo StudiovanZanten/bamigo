@@ -2,6 +2,8 @@
 import { $, esc, LETTERS, tokenFromHash, connect, connBanner, fmtTime, mascot, sound, mediaUrl, ROUND_LABEL } from './common.js';
 import { rouletteDriver } from './roulette.js';
 import { envelopeKey, envelopeHtml, envelopeSound } from './envelope.js';
+import { initShow, showMood, stinger, confetti } from './show.js';
+initShow('tv');
 
 const stage = $('#stage');
 const token = tokenFromHash('k', 'displayToken');
@@ -36,7 +38,7 @@ function render() {
   else body = `<div class="stage-body center"><div class="brand xl">BAMIGO</div></div>`;
   const banner = L.banner?.type === 'captain' && L.screen === 'question' ? `<div class="tv-banner fade-in">${L.banner.changes.map(c => `<div><span class="tag">Kapitein overboord!</span><h2>${esc(c.to)} neemt het roer over</h2><p>${esc(c.team)} · ${esc(c.from)} had 3x op rij fout</p></div>`).join('')}</div>` : '';
   stage.innerHTML = head(v) + body + banner + foot(v) + (L.paused ? '<div class="tv-paused"><div class="center"><h1>Gepauzeerd</h1><p class="intro-sub" style="margin:0 auto">De tijd staat stil.</p></div></div>' : '');
-  if (L.screen !== prevScreen && L.screen === 'question' && L.phase === 'open') sound.open();
+  showEffects(v);
   prevScreen = L.screen;
   const md = $('[data-media]'); if (md) mediaUrl(md.dataset.media, { 'x-staff-token': token }).then(u => { if (u) md.innerHTML = `<img src="${u}" alt="" style="max-height:40vh;max-width:100%;border-radius:6px">`; });
   tick();
@@ -59,7 +61,7 @@ function intro(v) {
   const r = v.live.round || {};
   const vamos = r.kind === 'intro' || r.kind === 'final' || prevScreen === 'break';
   return `<div class="stage-body fade-in"><div class="q-row" style="justify-content:space-between">
-    <div><span class="tag">${esc(ROUND_LABEL[r.kind] || 'Ronde')}</span><h1 class="intro-title">${esc(r.title || '')}</h1>
+    <div><span class="tag">${esc(ROUND_LABEL[r.kind] || 'Ronde')}</span><h1 class="intro-title slam">${esc(r.title || '')}</h1>
     <p class="intro-sub">${esc(r.instructions || '')}</p>${r.supplies ? `<p class="counter">Nodig: ${esc(r.supplies)}</p>` : ''}</div>
     <div class="center"><div class="host-mascot">${mascot(vamos ? 'feest' : 'welkom')}</div>${vamos ? '<div class="speech">VAMOSSS!</div>' : ''}</div></div></div>`;
 }
@@ -68,13 +70,13 @@ function question(v, q) {
   const L = v.live; const revealed = ['revealed', 'scored'].includes(L.phase);
   const dots = `<div class="progress-dots" style="margin-top:1.5vw">${Array.from({ length: q.of }, (_, i) => `<i class="${i < q.number ? 'on' : ''}"></i>`).join('')}</div>`;
   const tag = `<div><span class="tag">${esc(ROUND_LABEL[L.round?.kind] || L.round?.title || '')}</span> ${q.isExample ? '<span class="example-badge">Voorbeeldvraag</span>' : ''}</div>`;
-  if (L.phase === 'ready') return `<div class="stage-body fade-in">${tag}<h1 class="q">Vraag ${q.number}</h1><p class="intro-sub">${q.scoring === 'speed' ? 'Bliksemvraag — iedereen op eigen telefoon. Sneller goed = meer punten.' : q.scope === 'team' ? 'Teamvraag — de captain stuurt in.' : 'Iedereen antwoordt zelf.'}</p>${dots}</div>`;
-  if (L.phase === 'open' && !q.visible) return `<div class="stage-body center">${tag}<div class="timer" data-countdown style="font-size:16vw">3</div><p class="intro-sub" style="margin:0 auto">Klaar voor de start…</p></div>`;
+  if (L.phase === 'ready') return `<div class="stage-body fade-in">${tag}<h1 class="q slam">Vraag ${q.number}</h1><p class="intro-sub">${q.scoring === 'speed' ? 'Bliksemvraag — iedereen op eigen telefoon. Sneller goed = meer punten.' : q.scope === 'team' ? 'Teamvraag — de captain stuurt in.' : 'Iedereen antwoordt zelf.'}</p>${dots}</div>`;
+  if (L.phase === 'open' && !q.visible) return `<div class="stage-body center">${tag}<div class="go-count" data-countdown>3</div><p class="intro-sub" style="margin:0 auto">Klaar voor de start…</p></div>`;
   const correct = revealed ? [].concat(v.result?.correct) : [];
   const dist = v.result?.distribution; const max = dist ? Math.max(1, ...dist) : 1;
-  const opts = q.options && (q.type === 'mc' || q.type === 'tf') ? `<div class="tv-options">${q.options.map((o, i) => `<div class="tv-opt ${revealed ? (correct.includes(i) ? 'correct' : 'dim') : ''}">
+  const opts = q.options && (q.type === 'mc' || q.type === 'tf') ? `<div class="tv-options ${L.phase === 'open' && !revealed ? 'rise' : ''}">${q.options.map((o, i) => `<div class="tv-opt ${revealed ? (correct.includes(i) ? 'correct flash' : 'dim') : ''}">
       <span class="letter">${LETTERS[i]}.</span><span>${esc(o)}</span>${revealed && dist ? `<span class="cnt">${dist[i]}</span><span class="bar" style="width:${(dist[i] / max) * 100}%"></span>` : ''}</div>`).join('')}</div>` : '';
-  const right = L.phase === 'open' ? `<div class="divider"></div><div class="center"><div class="timer" data-timer>--:--</div><div class="counter" style="margin-top:.6vw">${v.counts ? `${v.counts.submitted}/${v.counts.expected} ${q.scope === 'team' ? 'teams' : 'spelers'} ingestuurd` : ''}</div></div>`
+  const right = L.phase === 'open' ? `<div class="divider"></div><div class="center"><div class="ring" data-ring><div class="timer" data-timer>--:--</div></div><div class="counter" style="margin-top:.8vw">${v.counts ? `${v.counts.submitted}/${v.counts.expected} ${q.scope === 'team' ? 'teams' : 'spelers'} ingestuurd` : ''}</div></div>`
     : L.phase === 'closed' ? `<div class="divider"></div><div class="center"><div class="timer">00:00</div><div class="counter">Tijd is om · ${v.counts?.submitted ?? 0} antwoorden</div></div>` : '';
   let reveal = '';
   const r0 = v.result || {};
@@ -126,7 +128,7 @@ function board(v) {
   const ind = sb.individuals.filter(p => p.points > 0);
   return `<div class="stage-body fade-in"><div class="q-row" style="align-items:flex-start">
     <div style="flex:1.4"><span class="tag">${fin ? 'Eindstand' : 'Tussenstand'}</span>
-      <table class="board" style="margin-top:1.4vw"><tbody>${sb.teams.map(t => `<tr><td class="pos">${t.rank}</td><td>${esc(t.name)}</td><td class="pts">${t.points}</td></tr>`).join('')}</tbody></table></div>
+      <table class="board rise" style="margin-top:1.4vw"><tbody>${sb.teams.map(t => `<tr class="${t.rank === 1 && sb.teams.filter(x => x.rank === 1).length === 1 ? 'lead' : ''}"><td class="pos">${t.rank}</td><td>${esc(t.name)}</td><td class="pts">${t.points}</td></tr>`).join('')}</tbody></table></div>
     ${ind.length ? `<div style="flex:1"><span class="tag">Snelste Bamigo</span><table class="board" style="margin-top:1.4vw"><tbody>${ind.slice(0, 5).map(p => `<tr><td class="pos">${p.rank}</td><td>${esc(p.name)}</td><td class="pts">${p.points}</td></tr>`).join('')}</tbody></table></div>` : ''}
     ${fin ? `<div class="center"><div class="host-mascot">${mascot('feest')}</div><div class="speech">VAMOSSS!</div></div>` : ''}</div></div>`;
 }
@@ -147,9 +149,16 @@ function tick() {
   envTick();
   if (!view || !conn) return;
   const L = view.live; const now = conn.now();
-  const cd = $('[data-countdown]'); if (cd && L.openAt) { const s = Math.ceil((L.openAt - now) / 1000); cd.textContent = s > 0 ? s : '!'; }
+  const cd = $('[data-countdown]');
+  if (cd && L.openAt) { const s = Math.ceil((L.openAt - now) / 1000); const txt = s > 0 ? String(s) : 'GO!';
+    if (cd.textContent !== txt || !cd.dataset.done) { cd.dataset.done = 1; cd.textContent = txt; cd.classList.remove('beat'); void cd.offsetWidth; cd.classList.add('beat'); s > 0 ? sound.count() : sound.go(); } }
   const t = $('[data-timer]');
-  if (t && L.deadline) { const left = L.deadline - (L.paused ? L.pausedAt : now); t.textContent = fmtTime(left); const s = Math.ceil(left / 1000); if (s !== lastSec && s <= 5 && s > 0 && !L.paused) sound.tick(); lastSec = s; }
+  if (t && L.deadline) {
+    const left = Math.max(0, L.deadline - (L.paused ? L.pausedAt : now)); t.textContent = fmtTime(left); const s = Math.ceil(left / 1000);
+    const total = (view.question?.seconds || 30) * 1000; const ring = $('[data-ring]');
+    if (ring) { ring.style.setProperty('--p', Math.min(1, left / total).toFixed(3)); ring.classList.toggle('hot', s <= 5 && s > 0); }
+    showMood(s <= 5 && s > 0 && !L.paused ? 'hot' : 'live');
+    if (s !== lastSec && s <= 5 && s > 0 && !L.paused) sound.tick(); if (s !== lastSec && s === 0 && lastSec === 1) sound.buzzer(); lastSec = s; }
 }
 setInterval(tick, 200);
 
@@ -169,4 +178,32 @@ function shotsReveal(v) {
       <div style="font-size:1.3vw;font-weight:600">${esc(s.name || '')}</div><div class="m">${esc(s.flavor || '')} · ${esc(s.base || '')}</div>${s.story ? `<p style="font-size:1.1vw;margin:.6vw 0 0;color:var(--champagne)">“${esc(s.story)}”</p>` : ''}</div>`).join('')}</div>
     <div class="counter" style="margin-top:1.6vw">Punten deze ronde</div>
     <div style="display:flex;gap:1vw;flex-wrap:wrap;margin-top:.6vw">${d.points.map(p => `<div class="team-card" style="padding:.6vw 1.2vw;display:flex;gap:1vw;align-items:baseline"><span style="font-size:1.5vw">${esc(p.name)}</span><span class="display copper-text" style="font-size:2.4vw">${p.points}</span></div>`).join('')}</div></div>`;
+}
+
+/** Spelshow: licht, overgangen, geluid en confetti, alleen bij een echte wissel van scherm of fase. */
+let fxPrev = {};
+function showEffects(v) {
+  const L = v.live; const q = v.question;
+  const cur = { screen: L.screen, phase: L.phase, qid: q?.id, round: L.round?.id };
+  const p = fxPrev; fxPrev = cur;
+  if (!p.screen) { showMood(L.screen === 'finale' ? 'party' : 'calm'); return; } // eerste keer laden: geen show
+  const changed = k => cur[k] !== p[k];
+  if (L.screen === 'round_intro' && (changed('screen') || changed('round'))) {
+    stinger('round', ROUND_LABEL[L.round?.kind] || ''); sound.whoosh(); setTimeout(() => sound.drumroll(900), 300); showMood('calm');
+  } else if (L.screen === 'question' && L.phase === 'ready' && (changed('qid') || changed('phase'))) {
+    stinger('q'); sound.whoosh(); showMood('calm');
+  } else if (L.screen === 'question' && L.phase === 'open' && changed('phase')) {
+    showMood('live');
+  } else if (L.screen === 'question' && L.phase === 'closed' && changed('phase')) {
+    showMood('calm');
+  } else if (L.screen === 'question' && L.phase === 'revealed' && changed('phase')) {
+    showMood('reveal'); sound.reveal();
+    if (v.result?.correctCount > 0 && !v.result?.pitchHidden) setTimeout(() => confetti(110), 250);
+  } else if (L.screen === 'scoreboard' && changed('screen')) {
+    stinger('q'); sound.whoosh(); setTimeout(() => sound.drumroll(1000), 200); showMood('calm');
+  } else if (L.screen === 'finale' && changed('screen')) {
+    showMood('party'); sound.drumroll(1200); setTimeout(() => { sound.fanfare(); confetti(320, { duration: 4200 }); }, 1300); setTimeout(() => confetti(200, { duration: 3800 }), 4200);
+  } else if (L.screen === 'envelopes' && changed('screen')) {
+    stinger('round', 'De enveloppen'); sound.whoosh(); showMood('party');
+  } else if (changed('screen')) showMood('calm');
 }

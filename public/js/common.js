@@ -130,6 +130,24 @@ export const sound = {
   tick() { this.beep(880, 60, 'square', 0.05); },
   good() { this.beep(660, 120); setTimeout(() => this.beep(990, 180), 120); },
   open() { this.beep(523, 90); setTimeout(() => this.beep(784, 140), 90); },
+  // ---- spelshow-geluiden (synthetisch, geen bestanden nodig) ----
+  noise(ms = 600, { from = 400, to = 4000, vol = 0.18, q = 1.2, type = 'bandpass' } = {}) {
+    if (!this.enabled() || !this.ctx) return;
+    const c = this.ctx, len = Math.floor(c.sampleRate * ms / 1000), buf = c.createBuffer(1, len, c.sampleRate), d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+    const src = c.createBufferSource(), f = c.createBiquadFilter(), g = c.createGain(), t = c.currentTime;
+    src.buffer = buf; f.type = type; f.Q.value = q; f.frequency.setValueAtTime(from, t); f.frequency.exponentialRampToValueAtTime(to, t + ms / 1000);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + ms / 3000); g.gain.exponentialRampToValueAtTime(0.0001, t + ms / 1000);
+    src.connect(f).connect(g).connect(c.destination); src.start(); src.stop(t + ms / 1000 + 0.05);
+  },
+  whoosh() { this.noise(700, { from: 300, to: 5000, vol: 0.22 }); },
+  drumroll(ms = 1400) { for (let t = 0; t < ms; t += 55) setTimeout(() => this.noise(60, { from: 180 + t / 8, to: 260 + t / 6, vol: 0.05 + 0.12 * (t / ms), q: 0.8, type: 'lowpass' }), t);
+    setTimeout(() => { this.noise(260, { from: 2000, to: 9000, vol: 0.2, q: .5, type: 'highpass' }); this.beep(110, 260, 'triangle', 0.3); }, ms); },
+  go() { this.beep(1046, 260, 'square', 0.08); this.beep(523, 260, 'triangle', 0.15); },
+  count() { this.beep(660, 120, 'square', 0.06); },
+  reveal() { this.noise(380, { from: 3000, to: 600, vol: 0.12 }); [523, 659, 784].forEach((f, i) => setTimeout(() => this.beep(f, 260, 'triangle', 0.14), 60 + i * 70)); },
+  buzzer() { this.beep(150, 420, 'sawtooth', 0.08); this.beep(156, 420, 'sawtooth', 0.06); },
+  fanfare() { [[523, 0], [659, 140], [784, 280], [1046, 420], [784, 700], [1046, 840]].forEach(([f, t]) => setTimeout(() => { this.beep(f, t >= 840 ? 900 : 200, 'triangle', 0.16); this.beep(f / 2, t >= 840 ? 900 : 200, 'sine', 0.08); }, t)); },
 };
 
 export const ROUND_LABEL = { quiz: 'Algemene kennis', brocode: 'De Bro Code', ranking: 'Ranking de Boys', kompaan: 'Ken je kompaan', shots: 'Shot in het duister', missions: 'Zoek, pak & bewijs',
