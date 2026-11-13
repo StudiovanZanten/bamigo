@@ -207,7 +207,12 @@ export class Live {
     const s = this.state(eventId);
     const list = this.db.all(`SELECT q.id, q.voided_at, EXISTS (SELECT 1 FROM submissions s WHERE s.question_id = q.id) AS played
       FROM questions q JOIN rounds r ON r.id = q.round_id WHERE q.event_id = ? ORDER BY r.sort, r.id, q.sort, q.id`, eventId);
-    const i = s.question_id ? list.findIndex(x => x.id === s.question_id) : -1;
+    let i = s.question_id ? list.findIndex(x => x.id === s.question_id) : -1;
+    // Na een rondetitel (geen huidige vraag) beginnen bij die ronde, niet terugspringen naar een eerdere vraag zonder antwoorden.
+    if (!s.question_id && s.round_id) {
+      const first = this.db.get('SELECT q.id FROM questions q WHERE q.round_id = ? ORDER BY q.sort, q.id LIMIT 1', s.round_id)?.id;
+      const j = first ? list.findIndex(x => x.id === first) : -1; if (j >= 0) i = j - 1;
+    }
     return list.slice(i + 1).find(x => !x.voided_at && !x.played)?.id ?? null;
   }
 

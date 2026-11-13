@@ -252,3 +252,13 @@ test('een gespeelde vraag kan niet opnieuw worden klaargezet; volgende slaat hem
   assert.equal(live.nextQuestionId(E), q2);
   assert.throws(() => run(live, E, 'prepare', { questionId: q1 }), /al gespeeld/);
 });
+
+test('Na een rondetitel gaat "volgende vraag" naar die ronde, ook als een eerdere vraag geen antwoorden kreeg', () => {
+  const { db, live, E, round } = setup();
+  const qa = C.upsertQuestion(db, E, { roundId: round, type: 'mc', prompt: 'A?', options: ['x', 'y'], key: { correct: 0 } });
+  const r2 = C.upsertRound(db, E, { title: 'R2', kind: 'quiz' });
+  const qb = C.upsertQuestion(db, E, { roundId: r2, type: 'mc', prompt: 'B?', options: ['x', 'y'], key: { correct: 0 } });
+  run(live, E, 'prepare', { questionId: qa }); // niemand antwoordt op A
+  run(live, E, 'round_intro', { roundId: r2 });
+  assert.equal(live.nextQuestionId(E), qb);
+});
