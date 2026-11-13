@@ -3,6 +3,8 @@ import { $, $$, esc, LETTERS, prefs, tokenFromHash, api, connect, toast, connBan
 import { rouletteDriver } from './roulette.js';
 import { openDossier } from './dossier.js';
 import { envelopeSvg } from './envelope.js';
+import { initShow, stinger, confetti, buzz } from './show.js';
+initShow('phone');
 
 const app = $('#app');
 let token = tokenFromHash('t', 'playerToken');
@@ -125,7 +127,7 @@ function render() {
     ${v.me.isCaptain ? '<span class="badge-captain">Captain</span>' : ''}${v.event.isDemo ? '<span class="demo-badge">Demo</span>' : ''}</div>`;
   let body = '';
   if (L.screen === 'question' && q) body = questionScreen(v, q);
-  else if (L.screen === 'round_intro') body = `<div class="center stack"><span class="tag">${esc(ROUND_LABEL[L.round?.kind] || 'Ronde')}</span><h1>${esc(L.round?.title || '')}</h1>
+  else if (L.screen === 'round_intro') body = `<div class="center stack"><span class="tag">${esc(ROUND_LABEL[L.round?.kind] || 'Ronde')}</span><h1 class="slam">${esc(L.round?.title || '')}</h1>
     <p>${esc(L.round?.instructions || '')}</p><div class="host-mascot" style="margin:0 auto">${mascot('welkom')}</div></div>`;
   else if (L.screen === 'scoreboard' || L.screen === 'finale') body = boardScreen(v);
   else if (L.screen === 'shots_reveal') body = shotsRevealScreen(v);
@@ -139,6 +141,7 @@ function render() {
   $$('[data-push-on]').forEach(b => b.onclick = () => { b.disabled = true; enablePush(); });
   $$('[data-push-off]').forEach(b => b.onclick = disablePush);
   if (pendingTask && v.prep) { const t = pendingTask; pendingTask = null; setTimeout(() => openTask(t), 100); }
+  phoneEffects(v);
   if (focusId && document.getElementById(focusId)) document.getElementById(focusId).focus();
   tick();
 }
@@ -355,7 +358,7 @@ function questionScreen(v, q) {
     const verdict = mine?.verdict;
     const waiting = mine && (verdict == null || verdict === 'review');
     out += `<div class="center" style="margin-top:20px"><div class="host-mascot" style="margin:0 auto 6px">${mascot(verdict === 'correct' ? 'goed' : waiting || !mine ? 'denken' : 'fout')}</div>
-      <div class="verdict ${verdict === 'correct' ? 'ok' : waiting ? 'wait' : 'no'}">${!mine ? 'Geen antwoord' : verdict === 'correct' ? 'Goed!' : verdict === 'review' ? 'Quizmaster beoordeelt…' : v.result?.ranking?.skipped ? 'Vraag vervalt' : verdict == null ? 'Beoordeling volgt' : 'Helaas'}</div>
+      <div class="verdict slam ${verdict === 'correct' ? 'ok' : waiting ? 'wait' : 'no'}">${!mine ? 'Geen antwoord' : verdict === 'correct' ? 'Goed!' : verdict === 'review' ? 'Quizmaster beoordeelt…' : v.result?.ranking?.skipped ? 'Vraag vervalt' : verdict == null ? 'Beoordeling volgt' : 'Helaas'}</div>
       ${mine?.points != null ? `<p>${mine.points > 0 ? '+' : ''}${mine.points} punten</p>` : ''}
       ${v.result?.explanation ? `<p class="muted small">${esc(v.result.explanation)}</p>` : ''}${revealExtra(v, q)}
       ${v.result?.fastest?.length ? `<p class="small">Snelst goed: ${v.result.fastest.map(f => `${esc(f.name)} (${f.seconds.toFixed(2)} s)`).join(', ')}</p>` : ''}</div>`;
@@ -638,3 +641,15 @@ function tick() {
 setInterval(tick, 200);
 
 if (token) start(); else joinScreen();
+
+/** Spelshow op de telefoon: wipe bij een nieuwe ronde, tril bij openen, confetti bij goed. Alleen bij een echte wissel. */
+let fxPrev = null;
+function phoneEffects(v) {
+  const L = v.live, q = v.question;
+  const cur = { screen: L.screen, round: L.round?.id, qid: q?.id, open: L.phase === 'open' && q?.visible, phase: L.phase, verdict: v.mine?.verdict };
+  const p = fxPrev; fxPrev = cur; if (!p) return;
+  if (cur.screen === 'round_intro' && (p.screen !== 'round_intro' || p.round !== cur.round)) { stinger('round', ROUND_LABEL[L.round?.kind] || ''); buzz(40); }
+  else if (cur.open && !p.open) { buzz([25, 40, 25]); $('.qprompt')?.classList.add('phone-go'); }
+  else if (cur.phase === 'revealed' && p.phase !== 'revealed' && cur.verdict === 'correct') { setTimeout(() => confetti(90, { duration: 2200 }), 150); buzz([30, 50, 30]); }
+  else if (cur.screen === 'finale' && p.screen !== 'finale') { setTimeout(() => confetti(160, { duration: 3200 }), 900); buzz([40, 60, 40, 60, 80]); }
+}
