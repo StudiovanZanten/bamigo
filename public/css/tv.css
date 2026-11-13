@@ -136,3 +136,4 @@ body.tv { overflow: hidden; cursor: default; }
 .ans-chips { display: flex; flex-wrap: wrap; gap: .6vw; }
 .ans-chips span { border: 1px solid var(--line); background: var(--raised); padding: .45vw 1vw; border-radius: 4px; font-size: 1.25vw; white-space: nowrap; color: var(--muted); }
 .ans-chips b { color: var(--ivory); margin-left: .4vw; }
+.copper-corner > .stage-head { position: relative; z-index: 1; } /* brand altijd boven de koperen hoek */
