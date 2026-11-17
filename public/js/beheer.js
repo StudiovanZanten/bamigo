@@ -119,25 +119,25 @@ const waHref = t => 'https://wa.me/?text=' + encodeURIComponent(t);
 function todoCard(v) {
   const joined = (v.teams || []).flatMap(t => t.members).filter(m => m.joined).length; // alleen de vaste spelers (de quizmaster telt niet mee)
   const total = (v.teams || []).flatMap(t => t.members).length;
-  const job = (v.grants || []).filter(g => g.role === 'spoilerfree' && !g.revoked);
+  const job = (v.grants || []).filter(g => g.role === 'content' && g.label === 'Job' && !g.revoked);
   if (total && joined >= total && job.length && !jobLink) return '';
   const pText = `BAMIGO 23 januari: meld je aan via ${v.event.joinUrl} en kies je naam. Zet de site daarna op je beginscherm en zet meldingen aan. VAMOSSS!`;
-  return `<section class="card todo"><h2 style="margin:0 0 4px">${['Alles staat klaar', 'Nog één ding', 'Nog twee dingen'][(joined < total ? 1 : 0) + (job.length ? 0 : 1)]}</h2><p class="muted small" style="margin:0 0 14px">De vragen, het spelersdossier, de verzegelde ronde, de berichten en de duo's staan klaar.</p>
-    <div class="todo-step ${joined ? 'done' : ''}"><span class="home-num">1</span><div class="grow"><b>Deel de spelerslink met de 10 spelers</b>
-      <p class="small muted" style="margin:2px 0 8px">Privé of in een eigen groepje (niet in Brocode). Ze kiezen hun naam en komen vanzelf in hun duo. ${total ? `<b>${joined}/${total} aangemeld.</b>` : ''}</p>
+  return `<section class="card todo"><h2 style="margin:0 0 4px">${['Alles staat klaar', 'Nog één ding', 'Nog twee dingen'][(joined < total ? 1 : 0) + (job.length ? 0 : 1)]}</h2><p class="muted small" style="margin:0 0 14px">De vragen, het spelersdossier, de verzegelde ronde, de berichten en de teams staan klaar.</p>
+    <div class="todo-step ${joined ? 'done' : ''}"><span class="home-num">1</span><div class="grow"><b>Deel de spelerslink met de ${total || ''} spelers</b>
+      <p class="small muted" style="margin:2px 0 8px">Privé of in een eigen groepje (niet in Brocode). Ze kiezen hun naam en komen vanzelf in hun team. ${total ? `<b>${joined}/${total} aangemeld.</b>` : ''}</p>
       <div class="row" style="gap:8px"><input readonly value="${esc(v.event.joinUrl)}" style="flex:1;min-width:200px" aria-label="Spelerslink">
       <button class="btn ghost" data-copy="${esc(v.event.joinUrl)}">Kopieer</button><a class="btn primary" href="${waHref(pText)}" target="_blank" rel="noopener">Deel via WhatsApp</a></div></div></div>
-    <div class="todo-step ${job.length ? 'done' : ''}"><span class="home-num">2</span><div class="grow"><b>Link voor Job (spoilervrij)</b>
-      <p class="small muted" style="margin:2px 0 8px">Job ziet wie nog iets moet invullen, maar geen vragen, antwoorden of shots. Stuur hem de link privé.</p>
+    <div class="todo-step ${job.length ? 'done' : ''}"><span class="home-num">2</span><div class="grow"><b>Link voor Job (medequizmaster)</b>
+      <p class="small muted" style="margin:2px 0 8px">Job ziet alle vragen en antwoorden en kan de avond mee bedienen. Stuur hem de link privé.</p>
       ${jobLink ? `<div class="row" style="gap:8px"><input readonly value="${esc(jobLink)}" style="flex:1;min-width:200px" aria-label="Link voor Job"><button class="btn ghost" data-copy="${esc(jobLink)}">Kopieer</button>
-        <a class="btn primary" href="${waHref('Job, hier is je BAMIGO-link als spoilervrije medequizmaster: ' + jobLink + ' . Je ziet wie nog iets moet invullen, maar geen vragen of antwoorden.')}" target="_blank" rel="noopener">Deel via WhatsApp</a></div>`
+        <a class="btn primary" href="${waHref('Job, hier is je BAMIGO-link als medequizmaster: ' + jobLink + ' . Je ziet alle vragen en antwoorden. Niet delen!')}" target="_blank" rel="noopener">Deel via WhatsApp</a></div>`
         : `<button class="btn ${job.length ? 'ghost' : 'primary'}" id="mkJob">${job.length ? 'Nieuwe link maken (oude stopt)' : 'Maak Job’s link'}</button>${job.length ? ' <span class="pill ok"><span class="dot"></span>al gemaakt</span>' : ''}`}</div></div></section>`;
 }
 function bindTodo(v) {
   $$('[data-copy]').forEach(b => b.onclick = async () => { try { await navigator.clipboard.writeText(b.dataset.copy); toast('Gekopieerd.'); } catch { b.previousElementSibling?.select?.(); toast('Selecteer en kopieer de link.'); } });
   const mk = $('#mkJob'); if (mk) mk.onclick = () => act(mk, async () => {
-    for (const g of (v.grants || []).filter(g => g.role === 'spoilerfree' && !g.revoked)) await A.post(`/api/staff/grants/${g.id}/revoke`);
-    const r = await A.post('/api/staff/grants', { role: 'spoilerfree', label: 'Job' }); jobLink = r.url; render();
+    for (const g of (v.grants || []).filter(g => (g.role === 'spoilerfree' || g.label === 'Job') && !g.revoked)) await A.post(`/api/staff/grants/${g.id}/revoke`);
+    const r = await A.post('/api/staff/grants', { role: 'content', label: 'Job' }); jobLink = r.url; render();
   }, 'Link voor Job gemaakt.');
 }
 function homeTab(v) {

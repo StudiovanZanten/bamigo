@@ -146,3 +146,39 @@ export function snelheidsbonusAan(db) {
     db.run('INSERT INTO kv (key, value) VALUES (?, ?)', K, String(Date.now()));
   });
 }
+
+/**
+ * Reno 17-11-2026: Job is medequizmaster (speelt niet mee) en Jelle valt af. Robin schuift bij Kevin C: 4 duo's.
+ * Eenmalig. Profielen van Job en Jelle worden bewaard in kv (backup:*), daarna verwijderd als speler.
+ */
+export function teamsVierDuos(db, { log = console.log } = {}) {
+  const K = 'fix:teams-4duos:v1';
+  if (db.get('SELECT 1 FROM kv WHERE key = ?', K)) return;
+  db.tx(() => {
+    for (const ev of db.all('SELECT id FROM events WHERE is_demo = 0')) {
+      const team = n => db.get('SELECT * FROM teams WHERE event_id = ? AND name = ?', ev.id, n);
+      const person = n => db.get('SELECT * FROM participants WHERE event_id = ? AND name = ?', ev.id, n);
+      const keep = team('Kevin C & Jelle'), gone = team('Robin & Job'), robin = person('Robin Butsers');
+      if (!keep || !gone || !robin) continue;
+      for (const n of ['Job van Zoggel', 'Jelle van der Lee']) {
+        const p = person(n); if (!p) continue;
+        db.run('INSERT OR REPLACE INTO kv (key, value) VALUES (?, ?)', `backup:${ev.id}:${n}`, JSON.stringify({ profile: p.profile, joined_at: p.joined_at }));
+        db.run('DELETE FROM participants WHERE id = ?', p.id);
+      }
+      // Shot en buitentas-bewijs van Robin & Job meenemen als het nieuwe duo die nog niet heeft
+      if (!db.get('SELECT 1 FROM shots WHERE team_id = ?', keep.id)) db.run('UPDATE shots SET team_id = ? WHERE team_id = ?', keep.id, gone.id);
+      for (const e of db.all('SELECT id, mission_id FROM evidence WHERE team_id = ?', gone.id))
+        if (!db.get('SELECT 1 FROM evidence WHERE team_id = ? AND mission_id IS ?', keep.id, e.mission_id)) db.run('UPDATE evidence SET team_id = ? WHERE id = ?', keep.id, e.id);
+      db.run('DELETE FROM memberships WHERE participant_id = ?', robin.id);
+      db.run('INSERT INTO memberships (participant_id, team_id, is_captain) VALUES (?, ?, 0)', robin.id, keep.id);
+      db.run('DELETE FROM teams WHERE id = ?', gone.id);
+      db.run('UPDATE teams SET name = ? WHERE id = ?', 'Kevin C & Robin', keep.id);
+      if (!db.get('SELECT 1 FROM memberships WHERE team_id = ? AND is_captain = 1', keep.id)) {
+        const cap = db.get('SELECT m.participant_id FROM memberships m JOIN participants p ON p.id = m.participant_id WHERE m.team_id = ? ORDER BY p.joined_at IS NULL, p.joined_at, p.name LIMIT 1', keep.id);
+        if (cap) db.run('UPDATE memberships SET is_captain = 1, captain_since = ? WHERE participant_id = ?', Date.now(), cap.participant_id);
+      }
+      log?.(`Teams bijgewerkt (${ev.id}): 4 duo's, Job en Jelle spelen niet mee.`);
+    }
+    db.run('INSERT INTO kv (key, value) VALUES (?, ?)', K, String(Date.now()));
+  });
+}
