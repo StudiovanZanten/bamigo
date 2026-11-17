@@ -571,7 +571,7 @@ export class Live {
       if (M.scoreModule(this.db, { ...q, event_id: eventId }, key, subs, addM)) return;
       if (q.scoring === 'closest' && q.type === 'number') {
         const target = Number(key.correct);
-        const scale = q.settings.scale || [5, 4, 3, 2, 1];
+        const scale = q.settings.scale || (q.scope === 'individual' ? [5, 4, 3, 2, 1] : M.teamScale(this.db, eventId));
         const ranks = competitionRanks(subs, s => Math.abs(json(s.answer) - target), false);
         for (const s of subs) {
           const r = ranks.get(s); const p = pointsForRank(r, scale);

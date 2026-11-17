@@ -229,7 +229,7 @@ export function scoreModule(db, q, key, subs, add) {
     const { all, rows } = pitchTotals(db, q);
     if (all.some(p => p.id !== q.id && !p.locked_at)) return true; // punten pas na de laatste pitch
     const ranks = competitionRanks(rows, r => r.total);
-    const scale = q.settings.scale || [5, 4, 3, 2, 1];
+    const scale = q.settings.scale || teamScale(db, q.event_id);
     for (const r of rows) { const p = pointsForRank(ranks.get(r), scale); if (p && r.total > 0) add(r.teamId, null, 'team', 't:' + r.teamId, p, `Dragons: €${r.total.toLocaleString('nl-NL')} opgehaald met “${r.item}” (plek ${ranks.get(r)})`); }
     return true;
   }
@@ -286,7 +286,7 @@ export function scoreModule(db, q, key, subs, add) {
     for (const s of subs) for (const [tid, amt] of Object.entries(JSON.parse(s.answer))) totals.set(tid, (totals.get(tid) ?? 0) + amt);
     const items = teams.map(t => ({ ...t, total: totals.get(t.id) }));
     const ranks = competitionRanks(items, i => i.total);
-    const scale = q.settings.scale || [5, 4, 3, 2, 1];
+    const scale = q.settings.scale || teamScale(db, q.event_id);
     for (const it of items) { const p = pointsForRank(ranks.get(it), scale); if (p && it.total > 0) add(it.id, null, 'team', 't:' + it.id, p, `Dragons: €${it.total.toLocaleString('nl-NL')} opgehaald (plek ${ranks.get(it)})`); }
     return true;
   }
@@ -462,4 +462,10 @@ export function fastestCorrect(db, eventId, q, subs) {
   if (q.scoring !== 'fixed' || !(q.points > 0) || !['mc', 'tf', 'open', 'number', 'order', 'match'].includes(q.type)) return null;
   if (json(db.get('SELECT settings FROM events WHERE id = ?', eventId)?.settings, {}).fastBonus !== true) return null;
   return subs.filter(s => s.verdict === 'correct' && s.owner_key !== 'host').sort((a, b) => (a.elapsed_ms ?? 1e12) - (b.elapsed_ms ?? 1e12) || a.received_at - b.received_at)[0] || null;
+}
+
+/** Standaard puntenschaal naar aantal teams: 4 teams = 4-3-2-1, 5 teams = 5-4-3-2-1. */
+export function teamScale(db, eventId) {
+  const n = Math.max(1, db.get('SELECT COUNT(*) AS n FROM teams WHERE event_id = ?', eventId)?.n || 5);
+  return Array.from({ length: n }, (_, i) => n - i);
 }

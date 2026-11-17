@@ -205,3 +205,13 @@ export function jelleUitVragen(db, dir, { log = console.log } = {}) {
   });
   if (n) log?.(`Vragen zonder Jelle bijgewerkt: ${n}.`);
 }
+
+/** 17-11-2026: bericht "De duo's zijn bekend" naar de 4 duo's (alleen als het nog niet verstuurd en niet aangepast is). */
+export function berichtVierDuos(db) {
+  const K = 'fix:bericht-4duos:v1';
+  if (db.get('SELECT 1 FROM kv WHERE key = ?', K)) return;
+  db.tx(() => {
+    db.run('UPDATE messages SET body = ? WHERE body = ? AND sent_at IS NULL', "Peter & Milan · Kevin C & Robin · Jasper & Kevin B · Erik & Mattijs. Rinus en Jobba zijn jullie quizmasters. Verzin samen een teamnaam. Een duo-outfit levert een bonuspunt op.", "Peter & Milan · Kevin C & Jelle · Jasper & Kevin B · Erik & Mattijs · Robin & Job. Verzin samen een teamnaam. Een duo-outfit levert een bonuspunt op.");
+    db.run('INSERT INTO kv (key, value) VALUES (?, ?)', K, String(Date.now()));
+  });
+}
