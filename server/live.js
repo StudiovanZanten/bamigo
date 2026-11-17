@@ -29,6 +29,12 @@ export class Live {
       this.db.run('INSERT INTO live_state (event_id, updated_at) VALUES (?, ?)', eventId, this.clock());
       s = this.db.get('SELECT * FROM live_state WHERE event_id = ?', eventId);
     }
+    // Verwijderde vraag of ronde die nog live stond: terug naar de lobby in plaats van vastlopen.
+    const gone = (s.question_id && !this.db.get('SELECT 1 FROM questions WHERE id = ?', s.question_id)) || (s.round_id && !this.db.get('SELECT 1 FROM rounds WHERE id = ?', s.round_id));
+    if (gone) {
+      this.db.run(`UPDATE live_state SET screen = 'lobby', round_id = NULL, question_id = NULL, phase = 'idle', paused = 0, open_at = NULL, deadline = NULL, paused_at = NULL, banner = NULL, seq = seq + 1, updated_at = ? WHERE event_id = ?`, this.clock(), eventId);
+      s = this.db.get('SELECT * FROM live_state WHERE event_id = ?', eventId);
+    }
     return s;
   }
 

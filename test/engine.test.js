@@ -277,3 +277,11 @@ test('quiz resetten: antwoorden en punten weg, quiz weer bij het begin, vragen b
   assert.equal(live.nextQuestionId(E), q1);
   run(live, E, 'prepare', { questionId: q1 }); // opnieuw speelbaar
 });
+
+test('een vraag verwijderen die live klaarstond laat het beheer niet vastlopen', () => {
+  const { db, live, E, round } = setup();
+  const q1 = C.upsertQuestion(db, E, { roundId: round, type: 'tf', prompt: '1', seconds: 10, key: { correct: 0 } });
+  run(live, E, 'prepare', { questionId: q1 });
+  C.deleteQuestion(db, E, q1);
+  const s = live.state(E); assert.equal(s.question_id, null); assert.equal(s.screen, 'lobby');
+});
