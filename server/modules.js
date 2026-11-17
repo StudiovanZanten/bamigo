@@ -456,3 +456,10 @@ export function scoreMission(db, eventId, missionId, add) {
   db.run('UPDATE missions SET scored_at = ? WHERE id = ?', Date.now(), m.id);
   return results;
 }
+
+/** Het snelste goede antwoord bij een gewone vraag (vaste punten), als de snelheidsbonus aanstaat. */
+export function fastestCorrect(db, eventId, q, subs) {
+  if (q.scoring !== 'fixed' || !(q.points > 0) || !['mc', 'tf', 'open', 'number', 'order', 'match'].includes(q.type)) return null;
+  if (json(db.get('SELECT settings FROM events WHERE id = ?', eventId)?.settings, {}).fastBonus !== true) return null;
+  return subs.filter(s => s.verdict === 'correct' && s.owner_key !== 'host').sort((a, b) => (a.elapsed_ms ?? 1e12) - (b.elapsed_ms ?? 1e12) || a.received_at - b.received_at)[0] || null;
+}

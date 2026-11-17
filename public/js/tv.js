@@ -99,6 +99,7 @@ function question(v, q) {
     const r = v.result || {};
     const ans = (q.type === 'open' || q.type === 'number') && r.correct != null ? `<div class="ans-box"><small>Antwoord</small><b>${esc(r.correct)}</b></div>` : q.type === 'order' ? `<div class="ans-box"><small>Goede volgorde</small><b class="seq">${[].concat(r.correct).map(i => esc(q.options[i])).join(' <i>→</i> ')}</b></div>` : '';
     reveal = `<div class="ans-row">${ans}<div class="ans-side"><div class="ans-score"><b>${r.correctCount}/${r.total}</b> goed</div>
+      ${r.quickest ? `<div class="ans-chips"><span>⚡ Snelste: ${esc(r.quickest.name)} <b>${r.quickest.seconds.toFixed(1)}s</b> · dubbele punten</span></div>` : ''}
       ${r.fastest?.length ? `<div class="ans-chips">${r.fastest.map(f => `<span>⚡ ${esc(f.name)} <b>${f.seconds.toFixed(2)}s</b></span>`).join('')}</div>` : ''}
       ${r.answers ? `<div class="ans-chips">${r.answers.map(a => `<span>${esc(a.name)} <b>${esc(a.value)}</b></span>`).join('')}</div>` : ''}</div></div>
       ${r.explanation ? `<p class="intro-sub" style="font-size:1.5vw;margin-top:1vw">${esc(r.explanation)}</p>` : ''}`;

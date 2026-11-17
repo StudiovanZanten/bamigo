@@ -771,6 +771,7 @@ function eventTab(v) {
     <div class="field"><label for="eCd">Aftellen vóór elke vraag (sec)</label><input id="eCd" type="number" min="0" max="10" value="${(s.countdownMs ?? 3000) / 1000}"></div>
     <label class="check"><input type="checkbox" id="eSelfTeam" ${s.selfTeam !== false ? 'checked' : ''}> Spelers kiezen zelf hun team bij aanmelden</label>
     <label class="check"><input type="checkbox" id="eAutoCap" ${s.autoCaptain !== false ? 'checked' : ''}> Captain-wissel na 3x fout op rij</label>
+    <label class="check"><input type="checkbox" id="eFast" ${s.fastBonus ? 'checked' : ''}> Snelste goede antwoord krijgt dubbele punten</label>
     <label class="check"><input type="checkbox" id="eOne" ${s.oneliners !== false ? 'checked' : ''}> Oneliners tonen</label>
     <label class="check"><input type="checkbox" id="eDrinks" ${s.drinks !== false ? 'checked' : ''}> Drankonderdelen aan</label></details>
     <button class="btn primary" style="margin-top:10px">Opslaan</button></form>
@@ -810,7 +811,7 @@ function eventTab(v) {
     if (!confirm(`Quiz terugzetten naar het begin?\n\nAlle antwoorden en punten van deze avond worden gewist${out ? ' en alle telefoons worden afgemeld' : ''}. Dit kan niet ongedaan worden.`)) return;
     act(e.currentTarget, () => A.post('/api/staff/reset', { confirm: 'RESET', signOut: out }), 'Leeg. De quiz staat weer aan het begin.'); };
   $('#evForm').onsubmit = e => { e.preventDefault(); act(e.submitter, () => A.patch('/api/staff/event', { name: $('#eName').value, subtitle: $('#eSub').value, startsAt: $('#eStart').value, durationTarget: +$('#eTarget').value, durationMax: +$('#eMax').value,
-    settings: { countdownMs: Math.round(+$('#eCd').value * 1000), selfTeam: $('#eSelfTeam').checked, autoCaptain: $('#eAutoCap').checked, oneliners: $('#eOne').checked, drinks: $('#eDrinks').checked } }), 'Opgeslagen.'); };
+    settings: { countdownMs: Math.round(+$('#eCd').value * 1000), selfTeam: $('#eSelfTeam').checked, autoCaptain: $('#eAutoCap').checked, fastBonus: $('#eFast').checked, oneliners: $('#eOne').checked, drinks: $('#eDrinks').checked } }), 'Opgeslagen.'); };
   $('#qnForm').onsubmit = e => { e.preventDefault();
     let d; try { d = JSON.parse($('#qnText').value); } catch { return toast('Dit is geen geldige lijst. Controleer haakjes en aanhalingstekens.', 'bad'); }
     const items = Array.isArray(d) ? d : d.items || [];

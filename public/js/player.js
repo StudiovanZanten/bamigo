@@ -366,6 +366,7 @@ function questionScreen(v, q) {
       <div class="verdict slam ${verdict === 'correct' ? 'ok' : waiting ? 'wait' : 'no'}">${!mine ? 'Geen antwoord' : verdict === 'correct' ? 'Goed!' : verdict === 'review' ? 'Quizmaster beoordeelt…' : v.result?.ranking?.skipped ? 'Vraag vervalt' : verdict == null ? 'Beoordeling volgt' : 'Helaas'}</div>
       ${mine?.points != null ? `<p>${mine.points > 0 ? '+' : ''}${mine.points} punten</p>` : ''}
       ${v.result?.explanation ? `<p class="muted small">${esc(v.result.explanation)}</p>` : ''}${revealExtra(v, q)}
+      ${v.result?.quickest ? `<p class="small">${(v.result.quickest.teamId && v.result.quickest.teamId === v.team?.id) || v.result.quickest.participantId === v.me?.id ? '⚡ <b>Jullie waren het snelst: dubbele punten!</b>' : `⚡ Snelste: ${esc(v.result.quickest.name)} (${v.result.quickest.seconds.toFixed(1)} s), dubbele punten`}</p>` : ''}
       ${v.result?.fastest?.length ? `<p class="small">Snelst goed: ${v.result.fastest.map(f => `${esc(f.name)} (${f.seconds.toFixed(2)} s)`).join(', ')}</p>` : ''}</div>`;
   }
   return out;

@@ -580,6 +580,9 @@ export class Live {
         }
         return;
       }
+      // Snelste goede antwoord krijgt dubbele punten (alleen als settings.fastBonus aanstaat).
+      const fast = M.fastestCorrect(this.db, eventId, q, subs);
+      if (fast) addM(fast.team_id, fast.participant_id, q.scope === 'individual' ? 'individual' : 'team', 'fast', q.points, `⚡ Snelste goed antwoord (${(fast.elapsed_ms / 1000).toFixed(1)}s): dubbele punten`);
       for (const s of subs) {
         const ok = s.verdict === 'correct';
         if (q.scoring === 'speed') { if (ok) add(s, speedScore(s.elapsed_ms, q.seconds), `Bliksem: goed in ${(s.elapsed_ms / 1000).toFixed(2)}s`, 'individual'); continue; }

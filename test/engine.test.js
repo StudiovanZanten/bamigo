@@ -305,3 +305,19 @@ test('nep-spelers beantwoorden elk vraagtype, per team één antwoord', () => {
     run(live, E, 'close'); if (i !== 5) { run(live, E, 'reveal'); run(live, E, 'score'); }
   });
 });
+
+test('snelste goede antwoord krijgt dubbele punten, de rest normaal', () => {
+  const { db, live, clock, E, people, round } = setup();
+  C.updateEvent(db, E, { settings: { fastBonus: true } });
+  const q = C.upsertQuestion(db, E, { roundId: round, type: 'mc', prompt: 'x', options: ['a', 'b'], points: 1, seconds: 30, key: { correct: 0 } });
+  run(live, E, 'prepare', { questionId: q }); run(live, E, 'open'); clock.add(3500);
+  const cap = t => db.get('SELECT p.* FROM participants p JOIN memberships m ON m.participant_id = p.id JOIN teams tm ON tm.id = m.team_id WHERE tm.name = ? AND m.is_captain = 1', t);
+  clock.add(1000); live.submit(E, cap('B'), { questionId: q, answer: 1 }); // snelst maar fout
+  clock.add(1000); live.submit(E, cap('A'), { questionId: q, answer: 0 }); // snelst goed
+  clock.add(1000); live.submit(E, cap('C'), { questionId: q, answer: 0 });
+  run(live, E, 'close'); run(live, E, 'reveal'); run(live, E, 'score');
+  const pts = n => live.scoreboard(E).teams.find(t => t.name === n).points;
+  assert.equal(pts('A'), 2); assert.equal(pts('C'), 1); assert.equal(pts('B'), 0);
+  C.updateEvent(db, E, { settings: { fastBonus: false } }); live.scoreQuestion(E, q, 'test');
+  assert.equal(pts('A'), 1);
+});

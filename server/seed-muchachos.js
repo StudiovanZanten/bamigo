@@ -133,3 +133,16 @@ export function buitentasDrie(db, { log = console.log } = {}) {
   if (missions || msgs) log(`Buitentas bijgewerkt: ${missions} missie weg, ${msgs} berichten aangepast.`);
   return { missions, msgs };
 }
+
+/** Reno 17-11-2026: snelste goede antwoord krijgt dubbele punten. Eenmalig aanzetten voor de echte avond(en); daarna via Instellingen. */
+export function snelheidsbonusAan(db) {
+  const K = 'fix:fastbonus:v1';
+  if (db.get('SELECT 1 FROM kv WHERE key = ?', K)) return;
+  db.tx(() => {
+    for (const ev of db.all('SELECT id, settings FROM events WHERE is_demo = 0')) {
+      const s = JSON.parse(ev.settings || '{}'); s.fastBonus = true;
+      db.run('UPDATE events SET settings = ? WHERE id = ?', JSON.stringify(s), ev.id);
+    }
+    db.run('INSERT INTO kv (key, value) VALUES (?, ?)', K, String(Date.now()));
+  });
+}

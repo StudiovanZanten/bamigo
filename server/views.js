@@ -68,6 +68,9 @@ function revealInfo(live, s) {
     out.fastest = live.db.all(`SELECT p.name, s.elapsed_ms FROM submissions s JOIN participants p ON p.id = s.participant_id
       WHERE s.question_id = ? AND s.verdict = 'correct' ORDER BY s.elapsed_ms LIMIT 3`, s.question_id).map(r => ({ name: r.name, seconds: +(r.elapsed_ms / 1000).toFixed(2) }));
   }
+  { const f = M.fastestCorrect(live.db, q.event_id, q, live.db.all('SELECT * FROM submissions WHERE question_id = ?', s.question_id));
+    if (f) out.quickest = { name: f.team_id ? live.db.get('SELECT name FROM teams WHERE id = ?', f.team_id)?.name : live.db.get('SELECT name FROM participants WHERE id = ?', f.participant_id)?.name,
+      seconds: +((f.elapsed_ms ?? 0) / 1000).toFixed(1), points: q.points, teamId: f.team_id, participantId: f.participant_id }; }
   Object.assign(out, M.revealModule(live.db, { ...q, event_id: q.event_id }) || {});
   if (q.type === 'number') out.answers = subs.length <= 12 ? live.db.all(`SELECT t.name, s.answer FROM submissions s LEFT JOIN teams t ON t.id = s.team_id WHERE s.question_id = ?`, s.question_id).map(r => ({ name: r.name, value: json(r.answer) })) : null;
   return out;
