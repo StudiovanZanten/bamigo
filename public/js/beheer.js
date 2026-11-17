@@ -409,7 +409,7 @@ function bindHostInvest(v) {
 // ---------- SHOT-ROULETTE ----------
 let rlEx = null, rlHost = null;
 const QN_LABEL = { open: 'open', number: 'getal', scale: 'cijfer 1–10', time: 'tijd', muchacho: 'kies een Muchacho' }; // lokale keuze 'doet niet mee' (overleeft verversen van het scherm)
-const RL_TASKS = ['Neem een shotje!', 'Neem 3 slokken!', 'Neem een 0.0-shotje!'];
+const RL_TASKS = ['Neem een shotje!', 'Neem 3 slokken!', 'Neem een 0.0-shotje!', 'Deel een shotje uit!', 'Deel 3 slokken uit!'];
 function rouletteCard(v) {
   const r = v.live.roulette; const ex = rlEx ?? v.event.settings?.rouletteExclude ?? [];
   const people = [...v.teams.flatMap(t => t.members), ...(v.unassigned || [])].filter(m => m.joined).sort((a, b) => a.name.localeCompare(b.name));

@@ -7,7 +7,7 @@ import * as M from './modules.js';
 import { botTargets, botAnswer } from './bots.js';
 import { randomInt } from 'node:crypto';
 
-export const ROULETTE_TASKS = ['Neem een shotje!', 'Neem 3 slokken!', 'Neem een 0.0-shotje!'];
+export const ROULETTE_TASKS = ['Neem een shotje!', 'Neem 3 slokken!', 'Neem een 0.0-shotje!', 'Deel een shotje uit!', 'Deel 3 slokken uit!'];
 
 export const ADVICE_TYPES = ['mc', 'tf', 'open', 'number', 'ranking', 'envelope', 'career'];
 export const CAPTAIN_STREAK = 3;
@@ -464,7 +464,7 @@ export class Live {
       for (let i = names.length - 1; i > 0; i--) { const j = randomInt(i + 1); [names[i], names[j]] = [names[j], names[i]]; }
       const chosen = String(task || '').trim().slice(0, 80) || ROULETTE_TASKS[0];
       // Wint de quizmaster? Dan de 0.0-variant: hij moet scherp blijven.
-      const r = { id: id('r_'), at: this.clock() + 400, task: w.id === 'host' ? ROULETTE_TASKS[2] : chosen, names, winner: { id: w.id, name: w.name, team: w.team || null } };
+      const r = { id: id('r_'), at: this.clock() + 400, task: w.id === 'host' && !/^Deel /.test(chosen) ? ROULETTE_TASKS[2] : chosen, names, winner: { id: w.id, name: w.name, team: w.team || null } };
       const s = this.state(eventId);
       this.db.run('UPDATE live_state SET roulette = ?, seq = ?, updated_at = ? WHERE event_id = ?', JSON.stringify(r), s.seq + 1, this.clock(), eventId);
       this.audit(eventId, actor, 'roulette', { winner: w.name, task: r.task });
