@@ -8,6 +8,10 @@ initShow('phone');
 
 const app = $('#app');
 let token = tokenFromHash('t', 'playerToken');
+// Andere avond gescand (QR met ?code=)? Dan niet de sessie van de vorige avond openen, maar die van deze avond (of aanmelden).
+const urlCode = (new URLSearchParams(location.search).get('code') || '').toUpperCase();
+function switchToCode() { const t = prefs.get('playerTokens', {})[urlCode] || null; token = t; if (t) prefs.set('playerToken', t); else prefs.del('playerToken'); prefs.set('playerCode', urlCode); }
+{ const known = prefs.get('playerCode', null); if (urlCode && token && known && known !== urlCode) switchToCode(); }
 let conn = null, view = null;
 let draft = { qid: null, choice: null, text: '', bet: null, order: null };
 let sending = null;       // { qid, status: 'pending'|'error', error }
@@ -95,7 +99,8 @@ function start() {
   app.innerHTML = '<p class="center muted" style="margin-top:40px">Verbinden…</p>';
   conn = connect({
     kind: 'player', token,
-    onState: v => { noticeNew(v); view = v; roul.set(v.live.roulette); render(); },
+    onState: v => { if (urlCode && v.joinCode && v.joinCode !== urlCode) { prefs.set('playerTokens', { ...prefs.get('playerTokens', {}), [v.joinCode]: token }); conn.sock.close(); switchToCode(); location.reload(); return; }
+      if (v.joinCode) { prefs.set('playerCode', v.joinCode); prefs.set('playerTokens', { ...prefs.get('playerTokens', {}), [v.joinCode]: token }); } noticeNew(v); view = v; roul.set(v.live.roulette); render(); },
     onStatus: (s, clock) => {
       const el = $('#status');
       const map = { online: ['ok', 'Verbonden'], synced: ['ok', 'Verbonden'], offline: ['bad', 'Verbinding weg'], reconnecting: ['warn', 'Opnieuw verbinden'], unauthorized: ['bad', 'Sessie ongeldig'] };

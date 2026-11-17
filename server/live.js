@@ -4,6 +4,7 @@ import { id, json } from './db.js';
 import { HttpError, bad, deny, notFound } from './auth.js';
 import { judgeOpen, speedScore, competitionRanks, pointsForRank, sameArray } from './scoring.js';
 import * as M from './modules.js';
+import { botTargets, botAnswer } from './bots.js';
 import { randomInt } from 'node:crypto';
 
 export const ROULETTE_TASKS = ['Neem een shotje!', 'Neem 3 slokken!', 'Neem een 0.0-shotje!'];
@@ -89,6 +90,38 @@ export class Live {
     });
     this.notify(eventId);
     return { submissions: n };
+  }
+
+  // ---------- nep-spelers (oefenen) ----------
+  botsOn(eventId) { return !!json(this.db.get('SELECT settings FROM events WHERE id = ?', eventId)?.settings, {}).bots; }
+
+  /** Deelnemers die bij de huidige vraag een nep-antwoord krijgen. Zet zo nodig een captain, zodat elk team kan antwoorden. */
+  botPlan(eventId) {
+    const s = this.state(eventId); const q = s.question_id ? this.question(s.question_id) : null;
+    if (!q) return [];
+    const targets = botTargets(this.db, eventId, q);
+    if (q.scope === 'team') for (const p of targets) if (!p.is_captain) {
+      this.db.run('UPDATE memberships SET is_captain = 0 WHERE team_id = ?', p.team_id);
+      this.db.run('UPDATE memberships SET is_captain = 1, captain_since = ? WHERE participant_id = ?', this.clock(), p.id);
+    }
+    return targets.map(p => p.id);
+  }
+
+  /** Eén nep-antwoord insturen (stil overslaan als het niet kan: al beantwoord, gesloten, eigen shot…). */
+  botSubmit(eventId, seq, pid) {
+    try {
+      const s = this.state(eventId); if (s.seq !== seq || s.phase !== 'open' || !s.question_id) return false;
+      const q = this.question(s.question_id); const participant = this.db.get('SELECT * FROM participants WHERE id = ?', pid); if (!q || !participant) return false;
+      const answer = botAnswer(this.db, eventId, q, this.answerKey(q.id), this.membership(pid)); if (answer == null) return false;
+      return !this.submit(eventId, { ...participant, joined_at: null }, { questionId: q.id, answer, bet: q.allow_bet ? 1 + Math.floor(Math.random() * 3) : undefined }).duplicate;
+    } catch (e) { if (process.env.BAMIGO_DEBUG) console.error('bot', pid, e.message); return false; }
+  }
+
+  /** Alle nep-antwoorden in één keer (voor tests en de knop 'nu laten antwoorden'). */
+  botsAnswerNow(eventId) {
+    const s = this.state(eventId); let n = 0;
+    for (const pid of this.botPlan(eventId)) if (this.botSubmit(eventId, s.seq, pid)) n++;
+    return n;
   }
 
   audit(eventId, actor, action, detail) {
@@ -265,9 +298,14 @@ export class Live {
   reschedule(eventId) {
     if (!this.useTimers) return;
     for (const k of ['open', 'close']) { clearTimeout(this.timers.get(eventId + k)); this.timers.delete(eventId + k); }
+    for (const k of [...this.timers.keys()].filter(k => k.startsWith(eventId + 'bot'))) { clearTimeout(this.timers.get(k)); this.timers.delete(k); }
     const s = this.state(eventId);
     if (s.phase !== 'open' || s.paused) return;
     const t = this.clock();
+    if (this.botsOn(eventId) && s.question_id) { // nep-spelers: verspreid over de eerste ~60% van de tijd (hooguit 15 s)
+      const span = Math.min(15000, Math.max(2000, ((s.deadline || s.open_at + 20000) - s.open_at) * 0.6));
+      this.botPlan(eventId).forEach((pid, i) => { const at = s.open_at + 800 + Math.random() * span; this.timers.set(eventId + 'bot' + i, setTimeout(() => this.botSubmit(eventId, s.seq, pid), Math.max(0, at - t))); });
+    }
     if (s.open_at > t) this.timers.set(eventId + 'open', setTimeout(() => this.notify(eventId), s.open_at - t + 5));
     { // carrière met automatische hints: telefoons en tv bijwerken bij elke nieuwe hint
       const q = s.question_id && this.question(s.question_id); const sec = q?.type === 'career' ? q.settings.clueSeconds : 0;

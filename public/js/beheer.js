@@ -245,6 +245,7 @@ function liveTab(v) {
       <p class="explain">${esc(explain(v))}</p>
       <div class="state-line"><span class="pill">Op tv: ${SCREEN_LABEL[L.screen]}</span>
         ${L.paused ? '<span class="pill warn"><span class="dot"></span>Gepauzeerd</span>' : ''}
+        ${v.event.settings?.bots ? '<span class="pill warn" title="Uitzetten in Instellingen">🤖 Oefenmodus: nep-spelers</span>' : ''}
         ${L.phase === 'open' && L.deadline ? `<span class="timer" style="font-size:1.8rem" data-timer>--:--</span>` : ''}
         ${v.counts ? `<span class="pill">${v.counts.submitted}/${v.counts.expected} ingestuurd</span>` : ''}</div>
       ${q ? `<p class="small muted" style="margin:0">${esc(L.round?.title || '')} · vraag ${q.number}/${q.of} · ${TYPE_LABEL[q.type]} · ${q.scope === 'team' ? 'team' : 'individueel'}${q.scoring === 'speed' ? ' · bliksem' : ''}</p>
@@ -789,6 +790,10 @@ function eventTab(v) {
     <div id="grantOut"></div>
     <p class="small muted" style="margin-top:14px">Speel je zelf mee? Geef jezelf een spoilervrije link en laat een ander de vragen maken.</p>
   </section>
+  <section class="card"><h3>Oefenen met nep-spelers</h3>
+    <p class="small muted">Elke vraag die je opent, wordt vanzelf beantwoord door alle spelers die niet zelf antwoorden. Ongeveer de helft goed. Zo zie je op tv en hier hoe de avond loopt. Echte telefoons gaan altijd voor.</p>
+    <label class="check"><input type="checkbox" id="botsOn" ${v.event.settings?.bots ? 'checked' : ''}> Nep-spelers spelen mee</label>
+    <p class="small" style="color:var(--warn)">Zet dit uit vóór de echte avond.</p></section>
   <section class="card"><h3>Quiz opnieuw spelen</h3>
     <p class="small muted">Na een testronde zet je de quiz hiermee terug naar het begin. Antwoorden, punten en onthullingen gaan weg. Vragen, teams, dossiers, rankings, shots en opdrachten blijven staan.</p>
     <label class="check"><input type="checkbox" id="rsOut"> Ook alle telefoons afmelden (iedereen kiest opnieuw zijn naam)</label>
@@ -800,6 +805,7 @@ function eventTab(v) {
       <label class="check"><input type="checkbox" id="dP"> Namen van spelers meenemen</label>
       <button class="btn copper">Kopie maken</button></form><div id="dupOut"></div></details>
     <hr style="border-color:var(--line);margin:18px 0"><button class="btn ghost small" id="archive">${v.event.status === 'archived' ? 'Archivering opheffen' : 'Avond archiveren'}</button></section></div>`;
+  $('#botsOn').onchange = e => act(null, () => A.patch('/api/staff/event', { settings: { bots: e.target.checked } }), e.target.checked ? 'Nep-spelers spelen mee.' : 'Nep-spelers uit.');
   $('#resetQuiz').onclick = e => { const out = $('#rsOut').checked;
     if (!confirm(`Quiz terugzetten naar het begin?\n\nAlle antwoorden en punten van deze avond worden gewist${out ? ' en alle telefoons worden afgemeld' : ''}. Dit kan niet ongedaan worden.`)) return;
     act(e.currentTarget, () => A.post('/api/staff/reset', { confirm: 'RESET', signOut: out }), 'Leeg. De quiz staat weer aan het begin.'); };

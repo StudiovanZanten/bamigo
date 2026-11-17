@@ -146,6 +146,7 @@ export function playerView(live, { participant, event }, online, t = live.clock(
     ownShot: q?.type === 'shot' && team ? !!db.get('SELECT 1 FROM shots WHERE team_id = ? AND number = ?', team.id, q.shotNumber) : false,
     kompaan: q?.kompaan && team ? { pair: M.kompaanPair(db, { ...live.question(q.id), event_id: event.id }, team.id).map(p => ({ id: p.id, name: p.name })) } : null,
     prep: prepView(live, event, participant, team),
+    joinCode: event.join_code,
   };
 }
 

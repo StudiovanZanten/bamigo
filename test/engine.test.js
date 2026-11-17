@@ -285,3 +285,23 @@ test('een vraag verwijderen die live klaarstond laat het beheer niet vastlopen',
   C.deleteQuestion(db, E, q1);
   const s = live.state(E); assert.equal(s.question_id, null); assert.equal(s.screen, 'lobby');
 });
+
+test('nep-spelers beantwoorden elk vraagtype, per team één antwoord', () => {
+  const { db, live, clock, E, round } = setup();
+  const qs = [
+    C.upsertQuestion(db, E, { roundId: round, type: 'mc', prompt: 'mc', options: ['a', 'b', 'c'], key: { correct: 1 } }),
+    C.upsertQuestion(db, E, { roundId: round, type: 'open', prompt: 'open', key: { correct: 'bami' } }),
+    C.upsertQuestion(db, E, { roundId: round, type: 'number', scoring: 'closest', prompt: 'num', key: { correct: 1932 } }),
+    C.upsertQuestion(db, E, { roundId: round, type: 'order', prompt: 'ord', options: ['x', 'y', 'z'], key: { correct: [2, 0, 1] } }),
+    C.upsertQuestion(db, E, { roundId: round, type: 'mc', scope: 'individual', scoring: 'speed', prompt: 'snel', options: ['a', 'b'], key: { correct: 0 } }),
+    C.upsertQuestion(db, E, { roundId: round, type: 'envelope', prompt: 'env', settings: { pledge: true } }),
+    C.upsertQuestion(db, E, { roundId: round, type: 'invest', prompt: 'drag' }),
+  ];
+  const expected = [5, 5, 5, 5, 11, 5, 5];
+  qs.forEach((q, i) => {
+    run(live, E, 'prepare', { questionId: q }); run(live, E, 'open'); clock.add(3500);
+    assert.equal(live.botsAnswerNow(E), expected[i], 'type ' + i);
+    assert.equal(live.botsAnswerNow(E), 0); // tweede keer: niets dubbel
+    run(live, E, 'close'); if (i !== 5) { run(live, E, 'reveal'); run(live, E, 'score'); }
+  });
+});
