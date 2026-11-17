@@ -409,22 +409,26 @@ function bindHostInvest(v) {
 // ---------- SHOT-ROULETTE ----------
 let rlEx = null, rlHost = null;
 const QN_LABEL = { open: 'open', number: 'getal', scale: 'cijfer 1–10', time: 'tijd', muchacho: 'kies een Muchacho' }; // lokale keuze 'doet niet mee' (overleeft verversen van het scherm)
-const RL_TASKS = ['Neem een shotje!', 'Neem 3 slokken!', 'Neem een 0.0-shotje!', 'Deel een shotje uit!', 'Deel 3 slokken uit!'];
+const RL_TASKS = ['Neem een shotje!', 'Neem 3 slokken!', 'Neem een 0.0-shotje!', 'Deel een shotje uit!', 'Deel 3 slokken uit!', 'Shotje met je hele duo!', 'Kies een drinkmaatje!'];
+const rlAll = v => [...RL_TASKS, ...(v.event.settings?.rouletteTasks || [])];
 function rouletteCard(v) {
   const r = v.live.roulette; const ex = rlEx ?? v.event.settings?.rouletteExclude ?? [];
   const people = [...v.teams.flatMap(t => t.members), ...(v.unassigned || [])].filter(m => m.joined).sort((a, b) => a.name.localeCompare(b.name));
+  const mine = v.event.settings?.rouletteTasks || []; const all = rlAll(v);
   const pick = prefs.get('rlTask', RL_TASKS[0]);
-  const custom = !RL_TASKS.includes(pick);
+  const custom = !all.includes(pick);
   const hs = rlHost ?? v.event.settings?.rouletteHost ?? { on: false, name: 'Rinus' };
   const active = r && v.serverNow - r.at < 40000;
   return `<div class="card roulette-card"><div class="row" style="justify-content:space-between;align-items:baseline"><h3 style="margin:0">BAMIGO Shot-roulette</h3><span class="small muted">tussen de rondes · geen punten</span></div>
     <p class="small muted" style="margin:6px 0 12px">BAMIGO kiest willekeurig één speler. Op tv en telefoons: “BAMIGOOO SHOTSS, wie is de Lul!?”, aftellen, en dan de winnaar.</p>
-    <div class="row"><select id="rlTask" style="width:auto;min-width:200px">${RL_TASKS.map(t => `<option ${t === pick ? 'selected' : ''}>${t}</option>`).join('')}<option value="__eigen" ${custom ? 'selected' : ''}>Zelf typen…</option></select>
+    <div class="row"><select id="rlTask" style="width:auto;min-width:200px">${all.map(t => `<option ${t === pick ? 'selected' : ''}>${esc(t)}</option>`).join('')}<option value="__eigen" ${custom ? 'selected' : ''}>Zelf typen…</option></select>
       <input id="rlCustom" maxlength="80" placeholder="Bijv. Zing het Wilhelmus" value="${custom ? esc(pick) : ''}" ${custom ? '' : 'hidden'} style="width:auto;flex:1;min-width:180px">
+      <button class="btn ghost" id="rlSave" ${custom ? '' : 'hidden'} title="Deze opdracht vast in de lijst zetten">Bewaar in lijst</button>
       <button class="btn copper" id="rlGo">Draai de shot-roulette!</button></div>
     ${r ? `<p class="small" style="margin:12px 0 0">${active ? 'Nu op tv' : 'Laatste winnaar'}: <b>${esc(r.winner.name)}</b> · ${esc(r.task)} ${active ? '<button class="btn ghost small" id="rlClose">Weghalen van tv</button>' : ''}</p>` : ''}
     <div class="row" style="margin-top:10px;align-items:center"><label class="check" style="margin:0"><input type="checkbox" id="rlHostOn" ${hs.on ? 'checked' : ''}> Quizmaster doet ook mee als</label>
       <input id="rlHostName" maxlength="40" value="${esc(hs.name)}" style="width:140px"><span class="small muted">(wint hij, dan een 0.0-shotje)</span></div>
+    ${mine.length ? `<details data-keep="rlMine" style="margin-top:10px"><summary class="small">Jullie eigen opdrachten (${mine.length})</summary><ul class="list" style="margin-top:6px">${mine.map((t, i) => `<li class="row" style="justify-content:space-between"><span>${esc(t)}</span><button class="btn danger small" data-rldel="${i}" aria-label="Verwijder ${esc(t)}">×</button></li>`).join('')}</ul></details>` : ''}
     <details data-keep="rlEx" style="margin-top:10px"><summary class="small">Wie doet niet mee? ${ex.length ? `(${ex.length} uitgesloten)` : ''}</summary>
       ${people.length ? `<div class="rl-ex">${people.map(p => `<label class="check"><input type="checkbox" data-rlex="${p.id}" ${ex.includes(p.id) ? 'checked' : ''}> ${esc(p.name)}</label>`).join('')}</div>
       <p class="small muted" style="margin:6px 0 0">Aangevinkt = wordt nooit gekozen (bijv. wie niet drinkt). Wordt bewaard bij de volgende draai.</p>` : '<p class="small muted">Nog niemand aangemeld.</p>'}</details>
@@ -432,7 +436,11 @@ function rouletteCard(v) {
 }
 function bindRoulette(v) {
   const sel = $('#rlTask'); if (!sel) return;
-  sel.onchange = () => { const c = sel.value === '__eigen'; $('#rlCustom').hidden = !c; if (c) $('#rlCustom').focus(); else prefs.set('rlTask', sel.value); };
+  sel.onchange = () => { const c = sel.value === '__eigen'; $('#rlCustom').hidden = !c; $('#rlSave').hidden = !c; if (c) $('#rlCustom').focus(); else prefs.set('rlTask', sel.value); };
+  const mine = v.event.settings?.rouletteTasks || [];
+  $('#rlSave').onclick = e => { const t = $('#rlCustom').value.trim().slice(0, 80); if (!t) return toast('Typ eerst een opdracht.', 'bad'); if (rlAll(v).includes(t)) return toast('Die staat er al in.');
+    prefs.set('rlTask', t); act(e.target, () => A.patch('/api/staff/event', { settings: { rouletteTasks: [...mine, t] } }), 'Bewaard in de lijst.'); };
+  $$('[data-rldel]').forEach(b => b.onclick = () => act(b, () => A.patch('/api/staff/event', { settings: { rouletteTasks: mine.filter((_, i) => i !== +b.dataset.rldel) } }), 'Verwijderd.'));
   $('#rlCustom').onchange = e => prefs.set('rlTask', e.target.value.trim() || RL_TASKS[0]);
   const keepHost = () => { rlHost = { on: $('#rlHostOn').checked, name: $('#rlHostName').value }; };
   $('#rlHostOn').onchange = keepHost; $('#rlHostName').oninput = keepHost;

@@ -80,6 +80,7 @@ export function updateEvent(db, eventId, body) {
   const settings = { ...json(ev.settings, {}), ...(body.settings && typeof body.settings === 'object' ? body.settings : {}) };
   if (body.settings && 'questionnaire' in body.settings) settings.questionnaire = cleanQuestionnaire(body.settings.questionnaire);
   if (body.settings && 'dossier' in body.settings) settings.dossier = cleanDossier(body.settings.dossier);
+  if (body.settings && 'rouletteTasks' in body.settings) settings.rouletteTasks = (Array.isArray(body.settings.rouletteTasks) ? body.settings.rouletteTasks : []).map(t => String(t).trim().slice(0, 80)).filter(Boolean).slice(0, 30);
   db.run(`UPDATE events SET name=?, subtitle=?, starts_at=?, duration_target=?, duration_max=?, mode=?, status=?, settings=?, updated_at=? WHERE id=?`,
     str(body.name, 120) ?? ev.name, body.subtitle !== undefined ? str(body.subtitle, 200) : ev.subtitle, body.startsAt !== undefined ? str(body.startsAt, 40) : ev.starts_at,
     int(body.durationTarget, 10, 600, ev.duration_target), int(body.durationMax, 10, 600, ev.duration_max),

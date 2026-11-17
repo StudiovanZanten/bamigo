@@ -7,7 +7,7 @@ import * as M from './modules.js';
 import { botTargets, botAnswer } from './bots.js';
 import { randomInt } from 'node:crypto';
 
-export const ROULETTE_TASKS = ['Neem een shotje!', 'Neem 3 slokken!', 'Neem een 0.0-shotje!', 'Deel een shotje uit!', 'Deel 3 slokken uit!'];
+export const ROULETTE_TASKS = ['Neem een shotje!', 'Neem 3 slokken!', 'Neem een 0.0-shotje!', 'Deel een shotje uit!', 'Deel 3 slokken uit!', 'Shotje met je hele duo!', 'Kies een drinkmaatje!'];
 
 export const ADVICE_TYPES = ['mc', 'tf', 'open', 'number', 'ranking', 'envelope', 'career'];
 export const CAPTAIN_STREAK = 3;
