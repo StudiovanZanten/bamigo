@@ -262,3 +262,18 @@ test('Na een rondetitel gaat "volgende vraag" naar die ronde, ook als een eerder
   run(live, E, 'round_intro', { roundId: r2 });
   assert.equal(live.nextQuestionId(E), qb);
 });
+
+test('quiz resetten: antwoorden en punten weg, quiz weer bij het begin, vragen blijven', () => {
+  const { db, live, clock, E, people, round } = setup();
+  const q1 = C.upsertQuestion(db, E, { roundId: round, type: 'tf', prompt: '1', seconds: 10, key: { correct: 0 } });
+  run(live, E, 'prepare', { questionId: q1 }); run(live, E, 'open'); clock.add(3500);
+  live.submit(E, people.a1, { questionId: q1, answer: 0 });
+  run(live, E, 'close'); run(live, E, 'reveal'); run(live, E, 'score');
+  assert.equal(live.scoreboard(E).teams.find(t => t.name === 'A').points, 1);
+  live.resetQuiz(E, 'test');
+  assert.equal(live.scoreboard(E).teams.find(t => t.name === 'A').points, 0);
+  assert.equal(db.get('SELECT COUNT(*) AS n FROM submissions').n, 0);
+  const s = live.state(E); assert.equal(s.screen, 'lobby'); assert.equal(s.phase, 'idle'); assert.equal(s.question_id, null);
+  assert.equal(live.nextQuestionId(E), q1);
+  run(live, E, 'prepare', { questionId: q1 }); // opnieuw speelbaar
+});

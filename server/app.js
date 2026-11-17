@@ -276,6 +276,12 @@ export async function buildApp({ dbFile = process.env.BAMIGO_DB || path.join(roo
     touch(s.event.id); return { ok: true };
   });
 
+  app.post('/api/staff/reset', async req => {
+    const s = staff(req, 'event.manage');
+    if ((req.body || {}).confirm !== 'RESET') bad('Bevestig het wissen.');
+    const r = live.resetQuiz(s.event.id, actorOf(s), { signOut: !!req.body.signOut });
+    touch(s.event.id); return { ok: true, ...r };
+  });
   app.post('/api/staff/duplicate', async req => {
     const s = staff(req, 'event.manage');
     const r = C.duplicateEvent(db, s.event.id, req.body || {});

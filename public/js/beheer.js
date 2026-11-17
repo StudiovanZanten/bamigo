@@ -789,6 +789,10 @@ function eventTab(v) {
     <div id="grantOut"></div>
     <p class="small muted" style="margin-top:14px">Speel je zelf mee? Geef jezelf een spoilervrije link en laat een ander de vragen maken.</p>
   </section>
+  <section class="card"><h3>Quiz opnieuw spelen</h3>
+    <p class="small muted">Na een testronde zet je de quiz hiermee terug naar het begin. Antwoorden, punten en onthullingen gaan weg. Vragen, teams, dossiers, rankings, shots en opdrachten blijven staan.</p>
+    <label class="check"><input type="checkbox" id="rsOut"> Ook alle telefoons afmelden (iedereen kiest opnieuw zijn naam)</label>
+    <button class="btn danger" id="resetQuiz">Alles leegmaken en opnieuw beginnen</button></section>
   <section class="card"><h3>Volgende keer</h3><details data-keep="evDup"><summary>Kopie maken voor een nieuwe avond</summary><p class="small muted">Scores en antwoorden van spelers gaan nooit mee.</p>
     <form id="dupForm"><div class="field"><label for="dName">Naam nieuwe avond</label><input id="dName" required value="${esc(v.event.name)} (kopie)"></div>
       <label class="check"><input type="checkbox" id="dQ" checked> Vragen en antwoordsleutels meenemen</label>
@@ -796,6 +800,9 @@ function eventTab(v) {
       <label class="check"><input type="checkbox" id="dP"> Namen van spelers meenemen</label>
       <button class="btn copper">Kopie maken</button></form><div id="dupOut"></div></details>
     <hr style="border-color:var(--line);margin:18px 0"><button class="btn ghost small" id="archive">${v.event.status === 'archived' ? 'Archivering opheffen' : 'Avond archiveren'}</button></section></div>`;
+  $('#resetQuiz').onclick = e => { const out = $('#rsOut').checked;
+    if (!confirm(`Quiz terugzetten naar het begin?\n\nAlle antwoorden en punten van deze avond worden gewist${out ? ' en alle telefoons worden afgemeld' : ''}. Dit kan niet ongedaan worden.`)) return;
+    act(e.currentTarget, () => A.post('/api/staff/reset', { confirm: 'RESET', signOut: out }), 'Leeg. De quiz staat weer aan het begin.'); };
   $('#evForm').onsubmit = e => { e.preventDefault(); act(e.submitter, () => A.patch('/api/staff/event', { name: $('#eName').value, subtitle: $('#eSub').value, startsAt: $('#eStart').value, durationTarget: +$('#eTarget').value, durationMax: +$('#eMax').value,
     settings: { countdownMs: Math.round(+$('#eCd').value * 1000), selfTeam: $('#eSelfTeam').checked, autoCaptain: $('#eAutoCap').checked, oneliners: $('#eOne').checked, drinks: $('#eDrinks').checked } }), 'Opgeslagen.'); };
   $('#qnForm').onsubmit = e => { e.preventDefault();

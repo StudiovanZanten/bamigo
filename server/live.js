@@ -55,6 +55,36 @@ export class Live {
     return next;
   }
 
+  /**
+   * Testronde wissen: de quiz begint weer bij het begin. Alles wat tijdens het spelen ontstaat gaat weg
+   * (antwoorden, advies, investeringen, punten, onthullingen, geschrapte vragen). Voorbereiding blijft staan:
+   * vragen, teams, dossiers, rankingstemmen, shots, bewijs van opdrachten. Met signOut moeten telefoons opnieuw een naam kiezen.
+   */
+  resetQuiz(eventId, actor, { signOut = false } = {}) {
+    const n = this.db.get('SELECT COUNT(*) AS n FROM submissions WHERE event_id = ?', eventId).n;
+    this.db.tx(() => {
+      for (const k of [...this.timers.keys()].filter(k => k.startsWith(eventId))) { clearTimeout(this.timers.get(k)); this.timers.delete(k); }
+      for (const t of ['submissions', 'advice', 'investments', 'score_events']) this.db.run(`DELETE FROM ${t} WHERE event_id = ?`, eventId);
+      this.db.run('UPDATE missions SET scored_at = NULL WHERE event_id = ?', eventId);
+      this.db.run('UPDATE questions SET locked_at = NULL, voided_at = NULL, voided_reason = NULL WHERE event_id = ?', eventId);
+      for (const q of this.db.all('SELECT id, settings FROM questions WHERE event_id = ?', eventId)) {
+        const { cluesShown, pitchTeam, envelopes, ...rest } = json(q.settings, {});
+        if (cluesShown !== undefined || pitchTeam !== undefined || envelopes !== undefined) this.db.run('UPDATE questions SET settings = ? WHERE id = ?', JSON.stringify(rest), q.id);
+      }
+      for (const r of this.db.all('SELECT id, settings FROM rounds WHERE event_id = ?', eventId)) {
+        const { revealedAt, ...rest } = json(r.settings, {});
+        if (revealedAt !== undefined) this.db.run('UPDATE rounds SET settings = ? WHERE id = ?', JSON.stringify(rest), r.id);
+      }
+      if (signOut) this.db.run('UPDATE participants SET token_hash = NULL, joined_at = NULL, last_seen = NULL WHERE event_id = ?', eventId);
+      const s = this.state(eventId);
+      this.db.run(`UPDATE live_state SET screen = 'lobby', round_id = NULL, question_id = NULL, phase = 'idle', paused = 0, open_at = NULL, deadline = NULL,
+        paused_at = NULL, message = NULL, banner = NULL, roulette = NULL, seq = ?, updated_at = ? WHERE event_id = ?`, s.seq + 1, this.clock(), eventId);
+      this.audit(eventId, actor, 'reset_quiz', { submissions: n, signOut });
+    });
+    this.notify(eventId);
+    return { submissions: n };
+  }
+
   audit(eventId, actor, action, detail) {
     this.db.run('INSERT INTO audit_log (event_id, actor, action, detail, created_at) VALUES (?,?,?,?,?)', eventId, actor || null, action, detail ? JSON.stringify(detail) : null, this.clock());
   }
