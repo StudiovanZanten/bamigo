@@ -321,3 +321,39 @@ test('snelste goede antwoord krijgt dubbele punten, de rest normaal', () => {
   C.updateEvent(db, E, { settings: { fastBonus: false } }); live.scoreQuestion(E, q, 'test');
   assert.equal(pts('A'), 1);
 });
+
+test('pestkaarten: bevriezen, tijdbom, schild, steeljoker en één keer per avond', () => {
+  const { db, live, clock, E, round } = setup();
+  C.updateEvent(db, E, { settings: { pranks: true, stealPoints: 2 } });
+  const tid = n => db.get('SELECT id FROM teams WHERE event_id = ? AND name = ?', E, n).id;
+  const cap = t => db.get('SELECT p.* FROM participants p JOIN memberships m ON m.participant_id = p.id JOIN teams tm ON tm.id = m.team_id WHERE tm.name = ? AND m.is_captain = 1', t);
+  const pts = n => live.scoreboard(E).teams.find(t => t.name === n).points;
+  const mk = () => C.upsertQuestion(db, E, { roundId: round, type: 'mc', prompt: 'x', options: ['a', 'b'], points: 1, seconds: 30, key: { correct: 0 } });
+  // vraag 1: C geeft punten weg, A stelt van B (B heeft schild nog) -> afgeketst; B bevriest C
+  const q1 = mk(); run(live, E, 'prepare', { questionId: q1 }); run(live, E, 'open'); clock.add(3500);
+  const r1 = live.playCard(E, cap('A'), { questionId: q1, card: 'freeze', target: tid('B') });
+  assert.equal(r1.blocked, true); // schild van B ketst af
+  assert.doesNotThrow(() => live.submit(E, cap('B'), { questionId: q1, answer: 0 }));
+  assert.throws(() => live.playCard(E, cap('A'), { questionId: q1, card: 'bomb', target: tid('C') }), /al een kaart/);
+  live.playCard(E, cap('B'), { questionId: q1, card: 'freeze', target: tid('C') }); // C heeft schild -> afgeketst
+  live.playCard(E, cap('C'), { questionId: q1, card: 'bomb', target: tid('A') }); // A heeft schild -> afgeketst
+  live.submit(E, cap('A'), { questionId: q1, answer: 0 }); live.submit(E, cap('C'), { questionId: q1, answer: 0 });
+  run(live, E, 'close'); run(live, E, 'reveal'); run(live, E, 'score');
+  // vraag 2: schilden zijn op. B bevriest A, A steelt van C, C tijdbomt B
+  const q2 = mk(); run(live, E, 'prepare', { questionId: q2 }); run(live, E, 'open'); clock.add(3500);
+  assert.equal(live.playCard(E, cap('B'), { questionId: q2, card: 'steal', target: tid('A') }).blocked, false);
+  assert.throws(() => live.playCard(E, cap('B'), { questionId: q2, card: 'shot', target: tid('A') }), /al een kaart/);
+  live.playCard(E, cap('C'), { questionId: q2, card: 'freeze', target: tid('A') });
+  assert.throws(() => live.submit(E, cap("A"), { questionId: q2, answer: 0 }), /bevroren/);
+  clock.add(10500); live.submit(E, cap('A'), { questionId: q2, answer: 0 });
+  live.playCard(E, cap('A'), { questionId: q2, card: 'bomb', target: tid('C') }); // nog 19 s over -> C nog 9,5 s
+  clock.add(10000); assert.throws(() => live.submit(E, cap("C"), { questionId: q2, answer: 0 }), /tijdbom/);
+  live.submit(E, cap('B'), { questionId: q2, answer: 0 });
+  run(live, E, 'close'); run(live, E, 'reveal'); run(live, E, 'score');
+  // B: 1 + 1 + 2 gestolen = 4; A: 1 + 1 - 2 = 0; C: 1
+  assert.equal(pts('B'), 4); assert.equal(pts('A'), 0); assert.equal(pts('C'), 1);
+  // vraag 3: steal opnieuw kan niet
+  const q3 = mk(); run(live, E, 'prepare', { questionId: q3 }); run(live, E, 'open'); clock.add(3500);
+  assert.throws(() => live.playCard(E, cap('B'), { questionId: q3, card: 'steal', target: tid('C') }), /al gespeeld/);
+  live.resetQuiz(E, 'test'); assert.equal(db.get('SELECT COUNT(*) AS n FROM pranks').n, 0);
+});

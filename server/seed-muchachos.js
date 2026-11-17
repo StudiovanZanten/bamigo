@@ -147,6 +147,19 @@ export function snelheidsbonusAan(db) {
   });
 }
 
+/** Reno 17-11-2026: pestkaarten (steeljoker, bevriezen, tijdbom, shotkaart, schild). Eenmalig aan voor de echte avond(en). */
+export function pestkaartenAan(db) {
+  const K = 'fix:pranks:v1';
+  if (db.get('SELECT 1 FROM kv WHERE key = ?', K)) return;
+  db.tx(() => {
+    for (const ev of db.all('SELECT id, settings FROM events WHERE is_demo = 0')) {
+      const s = JSON.parse(ev.settings || '{}'); s.pranks = true; s.stealPoints = s.stealPoints || 2;
+      db.run('UPDATE events SET settings = ? WHERE id = ?', JSON.stringify(s), ev.id);
+    }
+    db.run('INSERT INTO kv (key, value) VALUES (?, ?)', K, String(Date.now()));
+  });
+}
+
 /**
  * Reno 17-11-2026: Job is medequizmaster (speelt niet mee) en Jelle valt af. Robin schuift bij Kevin C: 4 duo's.
  * Eenmalig. Profielen van Job en Jelle worden bewaard in kv (backup:*), daarna verwijderd als speler.

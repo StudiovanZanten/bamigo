@@ -4,6 +4,7 @@
 import { json } from './db.js';
 import { can } from './auth.js';
 import * as M from './modules.js';
+import * as P from './pranks.js';
 import * as MSG from './messages.js';
 
 const AFTER_CLOSE = ['closed', 'revealed', 'scored'];
@@ -118,7 +119,7 @@ export function playerView(live, { participant, event }, online, t = live.clock(
   const m = live.membership(participant.id);
   const team = m ? db.get('SELECT id, name, outfit FROM teams WHERE id = ?', m.team_id) : null;
   const q = publicQuestion(live, s, t);
-  let mine = null, result = null, advice = null;
+  let mine = null, result = null, advice = null, cards = null;
   if (q) {
     const owner = q.scope === 'team' ? (m ? 't:' + m.team_id : null) : 'p:' + participant.id;
     const sub = owner ? db.get('SELECT s.*, p.name AS by_name FROM submissions s LEFT JOIN participants p ON p.id = s.participant_id WHERE question_id = ? AND owner_key = ?', q.id, owner) : null;
@@ -131,6 +132,7 @@ export function playerView(live, { participant, event }, online, t = live.clock(
       }
     }
     result = revealInfo(live, s);
+    if (team) cards = P.hand(db, event.id, s, live.question(q.id), team.id);
     // Teamadvies: het hele team ziet wie wat aantikt (pas zichtbaar als de vraag zichtbaar is).
     if (m && q.scope === 'team' && q.visible) advice = db.all(`SELECT a.participant_id AS id, p.name, a.answer FROM advice a JOIN participants p ON p.id = a.participant_id
       WHERE a.question_id = ? AND a.team_id = ? ORDER BY a.updated_at`, q.id, m.team_id).map(r => ({ id: r.id, name: r.name, answer: json(r.answer), mine: r.id === participant.id }));
@@ -150,6 +152,7 @@ export function playerView(live, { participant, event }, online, t = live.clock(
     kompaan: q?.kompaan && team ? { pair: M.kompaanPair(db, { ...live.question(q.id), event_id: event.id }, team.id).map(p => ({ id: p.id, name: p.name })) } : null,
     prep: prepView(live, event, participant, team),
     joinCode: event.join_code,
+    cards, pranks: q ? P.publicPranks(db, q.id, { revealed: REVEALED.includes(s.phase) }) : [],
   };
 }
 
@@ -161,6 +164,7 @@ export function displayView(live, event, online, joinUrl, t = live.clock()) {
     kind: 'display', serverNow: t, event: eventInfo(event), joinCode: event.join_code, joinUrl,
     teams: teams.map(tm => ({ id: tm.id, name: tm.name, color: tm.color, size: tm.members.length, joined: tm.members.filter(m => m.joined).length, online: tm.members.filter(m => m.online).length, members: tm.members.map(m => ({ name: m.name, online: m.online })) })),
     live: liveInfo(live, s, t), question: publicQuestion(live, s, t), counts: counts(live, event.id, s), result: revealInfo(live, s),
+    pranks: s.question_id ? P.publicPranks(live.db, s.question_id, { revealed: REVEALED.includes(s.phase) }) : [],
     scoreboard: ['scoreboard', 'finale'].includes(s.screen) || s.phase === 'scored' ? boardFor(live, event.id, { topTeams: 10, topPeople: 10 }) : null,
     shotsReveal: s.screen === 'shots_reveal' ? M.shotsRevealData(live.db, event.id, s.round_id) : null,
   };
@@ -208,6 +212,7 @@ export function staffView(live, { event, role, grant }, online, joinUrl, t = liv
   if (host || full) {
     view.question = publicQuestion(live, s, t);
     view.sealed = sealedNow;
+    view.pranks = s.question_id ? P.publicPranks(db, s.question_id, { revealed: REVEALED.includes(s.phase) }) : [];
     if (view.question?.career) view.careerAll = live.question(view.question.id).settings.clues;
     if (view.question?.pitch) { const pq = live.question(view.question.id); view.pitchStatus = M.pitchStatus(db, pq, 'host', null);
       view.pitchDone = M.pitchQuestions(db, pq.round_id).filter(p => p.id !== pq.id && p.settings.pitchTeam).map(p => p.settings.pitchTeam); }

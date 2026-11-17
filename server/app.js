@@ -16,7 +16,7 @@ import { Live } from './live.js';
 import { playerView, displayView, staffView } from './views.js';
 import { exportResults, exportPack, importPack, emergencyPack } from './exporting.js';
 import { seedDemo } from './seed-demo.js';
-import { seedMuchachos, sealedBeforeFinal, seedMissions, buitentasDrie, snelheidsbonusAan, teamsVierDuos, jelleUitVragen, berichtVierDuos } from './seed-muchachos.js';
+import { seedMuchachos, sealedBeforeFinal, seedMissions, buitentasDrie, snelheidsbonusAan, pestkaartenAan, teamsVierDuos, jelleUitVragen, berichtVierDuos } from './seed-muchachos.js';
 import * as M from './modules.js';
 import * as MSG from './messages.js';
 
@@ -34,6 +34,7 @@ export async function buildApp({ dbFile = process.env.BAMIGO_DB || path.join(roo
   if (seedDir) { try { seedMissions(db, seedDir); } catch (e) { console.error('Missies niet ingeladen:', e.message); } }
   if (seedDir) { try { buitentasDrie(db); } catch (e) { console.error('Buitentas niet bijgewerkt:', e.message); } }
   if (seedDir) { try { snelheidsbonusAan(db); } catch (e) { console.error('Snelheidsbonus niet gezet:', e.message); } }
+  if (seedDir) { try { pestkaartenAan(db); } catch (e) { console.error('Pestkaarten niet gezet:', e.message); } }
   if (seedDir) { try { teamsVierDuos(db); } catch (e) { console.error('Teams niet bijgewerkt:', e.message); } }
   if (seedDir) { try { jelleUitVragen(db, seedDir); } catch (e) { console.error('Vragen niet bijgewerkt:', e.message); } }
   if (seedDir) { try { berichtVierDuos(db); } catch (e) { console.error('Bericht niet bijgewerkt:', e.message); } }
@@ -159,6 +160,11 @@ export async function buildApp({ dbFile = process.env.BAMIGO_DB || path.join(roo
     const p = player(req);
     const r = live.submit(p.event.id, p.participant, req.body || {});
     return { ok: true, duplicate: r.duplicate, receivedAt: r.submission.received_at };
+  });
+  app.post('/api/player/prank', async req => {
+    const p = player(req);
+    const r = live.playCard(p.event.id, p.participant, req.body || {});
+    return { ok: true, blocked: r.blocked, target: r.target };
   });
   app.post('/api/player/captain', async req => {
     const p = player(req);

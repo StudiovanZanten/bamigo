@@ -25,7 +25,7 @@ const foot = v => `<div class="stage-foot">${v.teams.length} teams. Alles op het
 
 function render() {
   const v = view; const L = v.live; const q = v.question;
-  const key = JSON.stringify([L.screen, L.phase, L.paused, L.seq, q?.visible, v.counts, v.result?.total, v.teams, v.scoreboard, q?.career?.clues?.length]);
+  const key = JSON.stringify([L.screen, L.phase, L.paused, L.seq, q?.visible, v.counts, v.result?.total, v.teams, v.scoreboard, q?.career?.clues?.length, v.pranks]);
   if (key === lastKey) return; lastKey = key;
   let body = '';
   if (L.screen === 'lobby') body = lobby(v);
@@ -39,6 +39,7 @@ function render() {
   const banner = L.banner?.type === 'captain' && L.screen === 'question' ? `<div class="tv-banner fade-in">${L.banner.changes.map(c => `<div><span class="tag">Kapitein overboord!</span><h2>${esc(c.to)} neemt het roer over</h2><p>${esc(c.team)} · ${esc(c.from)} had 3x op rij fout</p></div>`).join('')}</div>` : '';
   stage.innerHTML = head(v) + body + banner + foot(v) + (L.paused ? '<div class="tv-paused"><div class="center"><h1>Gepauzeerd</h1><p class="intro-sub" style="margin:0 auto">De tijd staat stil.</p></div></div>' : '');
   showEffects(v);
+  prankPops(v);
   prevScreen = L.screen;
   const md = $('[data-media]'); if (md) mediaUrl(md.dataset.media, { 'x-staff-token': token }).then(u => { if (u) md.innerHTML = `<img src="${u}" alt="" style="max-height:40vh;max-width:100%;border-radius:6px">`; });
   tick();
@@ -108,7 +109,28 @@ function question(v, q) {
   return `<div class="stage-body ${revealed ? 'revealed' : ''}">${tag}
     <div class="q-row"><div style="flex:1"><h1 class="q ${len > 90 ? 'xlong' : len > 50 ? 'long' : ''}">${esc(q.prompt)}</h1>${q.quote ? `<div class="quote">${esc(q.quote)}</div>` : ''}${q.media ? `<div data-media="${q.media.id}"></div>` : ''}</div>${right}
     ${revealed && !q.career ? `<div class="host-mascot">${mascot(v.result?.correctCount ? 'goed' : 'verrast')}</div>` : ''}</div>
-    ${opts}${reveal}${dots}</div>`;
+    ${opts}${reveal}${prankFeed(v, revealed)}${dots}</div>`;
+}
+
+const PRANK_VERB = { steal: 'probeert te stelen van', freeze: 'bevriest', bomb: 'legt een tijdbom bij', shot: 'geeft een shotje aan' };
+function prankLine(p) { return p.card === 'shield' ? `🛡️ ${esc(p.by)} ketst ${esc(p.target)} af` : `${p.icon} ${esc(p.by)} ${PRANK_VERB[p.card] || 'pest'} ${esc(p.target)}${p.blocked ? ' · afgeketst!' : ''}`; }
+function prankFeed(v, revealed) {
+  const ps = (v.pranks || []).filter(p => p.card !== 'shield'); if (!ps.length) return '';
+  return `<div class="ans-chips prank-feed">${ps.map(p => `<span>${revealed && p.card === 'steal' && !p.blocked && p.ok !== undefined ? (p.ok ? `🦹 ${esc(p.by)} <b>steelt van ${esc(p.target)}!</b>` : `🦹 Steelpoging ${esc(p.by)} <b>mislukt</b>`) : prankLine(p)}</span>`).join('')}</div>`;
+}
+/** Grote pop-up op tv zodra er een pestkaart gespeeld wordt. */
+let prankSeen = { qid: null, n: 0 };
+function prankPops(v) {
+  const qid = v.question?.id; const ps = (v.pranks || []).filter(p => p.card !== 'shield');
+  if (prankSeen.qid !== qid) { prankSeen = { qid, n: ps.length }; return; }
+  const fresh = ps.slice(prankSeen.n); prankSeen.n = ps.length;
+  fresh.forEach((p, i) => setTimeout(() => {
+    document.querySelectorAll('.prank-pop').forEach(e => e.remove());
+    const el = document.createElement('div'); el.className = 'prank-pop'; el.setAttribute('role', 'status');
+    el.innerHTML = `<div class="pp-icon">${p.icon}</div><div class="pp-name">${esc(p.name)}</div><div class="pp-line">${esc(p.by)} ${PRANK_VERB[p.card] || 'pest'} ${esc(p.target)}</div>${p.blocked ? '<div class="pp-block">🛡️ Afgeketst op het schild!</div>' : ''}`;
+    document.body.append(el); try { sound.whoosh(); } catch {}
+    setTimeout(() => el.remove(), 3800);
+  }, i * 4000));
 }
 
 /** Van wie is deze carrière? Hints als een cv dat zich regel voor regel vult; daarna de onthulling. */

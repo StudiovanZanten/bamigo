@@ -120,7 +120,7 @@ function render() {
   if (q?.id !== draft.qid) { draft = { qid: q?.id ?? null, choice: null, picks: [], text: '', bet: null, order: q?.options ? q.options.map((_, i) => i) : null, shot: { flavor: '', base: '', teamId: '' }, invest: {} }; sending = null; }
   if (q?.options && !draft.order) draft.order = q.options.map((_, i) => i);
   // Structuursleutel: alleen opnieuw opbouwen als er echt iets verandert (behoudt focus en invoer).
-  const key = JSON.stringify([L.screen, L.phase, L.paused, L.seq, q?.id, q?.visible, v.mine, v.me, v.team?.members, sending, v.result && v.result.total, v.scoreboard, L.message, v.advice, L.banner, v.messages, pushState, v.pitchStatus, q?.pitch, q?.career?.clues?.length]);
+  const key = JSON.stringify([L.screen, L.phase, L.paused, L.seq, q?.id, q?.visible, v.mine, v.me, v.team?.members, sending, v.result && v.result.total, v.scoreboard, L.message, v.advice, L.banner, v.messages, pushState, v.pitchStatus, q?.pitch, q?.career?.clues?.length, v.cards, v.pranks, draft.card, draft.target, draft.cardsOpen, prankTick]);
   renderPrep(v);
   if (key === lastKey) return;
   const focusId = document.activeElement?.id;
@@ -292,6 +292,7 @@ function questionScreen(v, q) {
   const advTag = val => { const n = adviceFor(val); return n.length ? `<span class="adv">${esc(n.join(', '))}</span>` : ''; };
   const tappable = canAnswer || advising;
   if (L.banner?.type === 'captain') out += captainBanner(L.banner);
+  out += prankHits(v, q);
 
   if (q.kompaan && v.kompaan) {
     const inPair = v.kompaan.pair.some(p => p.id === v.me.id);
@@ -356,8 +357,9 @@ function questionScreen(v, q) {
 
   if (L.phase === 'open' && !mine) {
     if (notCaptain) out += `<p class="notice" style="margin-top:16px">${advising ? 'Tik je advies aan. ' : ''}Captain <b>${esc(v.team?.members.find(m => m.isCaptain)?.name || '')}</b> beslist en stuurt in.</p>`;
-    else if (q.scoring !== 'speed' && sending?.status !== 'pending') out += (q.scope === 'team' && v.advice?.length ? `<p class="small muted" style="margin:12px 0 0">Je team heeft geadviseerd. Jij beslist.</p>` : '') + `<button id="submitBtn" class="btn primary block big" style="margin-top:16px" ${hasDraft(q) ? '' : 'disabled'}>Antwoord insturen</button>`;
+    else if (q.scoring !== 'speed' && sending?.status !== 'pending') out += (q.scope === 'team' && v.advice?.length ? `<p class="small muted" style="margin:12px 0 0">Je team heeft geadviseerd. Jij beslist.</p>` : '') + (frozenUntil(v) ? `<button class="btn primary block big" style="margin-top:16px" disabled>❄️ Bevroren…</button>` : `<button id="submitBtn" class="btn primary block big" style="margin-top:16px" ${hasDraft(q) ? '' : 'disabled'}>Antwoord insturen</button>`);
   }
+  out += cardsSection(v, q);
   if (L.phase === 'closed') out += `<p class="center muted" style="margin-top:16px">${mine ? 'Tijd is om. Wachten op de onthulling…' : 'Tijd is om. Geen antwoord ontvangen.'}</p>`;
   if (revealed) {
     const verdict = mine?.verdict;
@@ -367,6 +369,7 @@ function questionScreen(v, q) {
       ${mine?.points != null ? `<p>${mine.points > 0 ? '+' : ''}${mine.points} punten</p>` : ''}
       ${v.result?.explanation ? `<p class="muted small">${esc(v.result.explanation)}</p>` : ''}${revealExtra(v, q)}
       ${v.result?.quickest ? `<p class="small">${(v.result.quickest.teamId && v.result.quickest.teamId === v.team?.id) || v.result.quickest.participantId === v.me?.id ? '⚡ <b>Jullie waren het snelst: dubbele punten!</b>' : `⚡ Snelste: ${esc(v.result.quickest.name)} (${v.result.quickest.seconds.toFixed(1)} s), dubbele punten`}</p>` : ''}
+      ${prankResults(v)}
       ${v.result?.fastest?.length ? `<p class="small">Snelst goed: ${v.result.fastest.map(f => `${esc(f.name)} (${f.seconds.toFixed(2)} s)`).join(', ')}</p>` : ''}</div>`;
   }
   return out;
@@ -406,6 +409,7 @@ function bind(v, q) {
   const at3 = $('#adviseTop'); if (at3) at3.onclick = () => advise(q, draft.picks.length ? draft.picks : (view.advice || []).find(a => a.mine)?.answer);
   const ab = $('#adviseBtn'); if (ab) ab.onclick = () => { const a = $('#ans').value.trim(); if (a) advise(q, a); };
   bindShot(q); bindInvest(q);
+  bindCards(q);
   $$('[data-bet]').forEach(b => b.onclick = () => { draft.bet = Number(b.dataset.bet) || null; lastKey = ''; render(); });
   $$('[data-up]').forEach(b => b.onclick = () => { const p = Number(b.dataset.up); const o = draft.order; [o[p - 1], o[p]] = [o[p], o[p - 1]]; lastKey = ''; render(); });
   const ans = $('#ans'); if (ans) ans.oninput = () => { draft.text = ans.value; const sb = $('#submitBtn'); if (sb) sb.disabled = !ans.value.trim(); };
@@ -629,6 +633,67 @@ function renderPrep(v) {
   });
 }
 
+// ---------- pestkaarten ----------
+let prankTick = 0;
+const pnow = () => (conn ? conn.now() : Date.now());
+/** Bevroren tot (servertijd), of 0. */
+function frozenUntil(v) {
+  if (!v.me.teamId || !v.live.openAt) return 0;
+  const f = (v.pranks || []).filter(p => p.card === 'freeze' && !p.blocked && p.targetTeam === v.me.teamId).map(p => v.live.openAt + p.untilMs);
+  const u = Math.max(0, ...f); return u > pnow() ? u : 0;
+}
+function prankHits(v, q) {
+  if (!v.me.teamId || !(v.pranks || []).length || !['open', 'closed'].includes(v.live.phase)) return '';
+  const L = v.live; let out = '';
+  for (const p of v.pranks) {
+    if (p.targetTeam === v.me.teamId) {
+      if (p.blocked) { out += `<p class="notice ok prank-hit">🛡️ <b>Schild!</b> De ${esc(p.name)} van ${esc(p.by)} ketst af op jullie schild.</p>`; continue; }
+      const until = L.openAt + (p.untilMs || 0);
+      if (p.card === 'freeze' && until > pnow() && L.phase === 'open') out += `<p class="notice bad prank-hit">❄️ <b>Bevroren door ${esc(p.by)}!</b> Nog <b data-until="${until}">${Math.ceil((until - pnow()) / 1000)}</b> s voordat jullie kunnen antwoorden.</p>`;
+      if (p.card === 'bomb' && L.phase === 'open' && !v.mine) out += until > pnow() ? `<p class="notice bad prank-hit">⏱️ <b>Tijdbom van ${esc(p.by)}!</b> Jullie hebben nog maar <b data-until="${until}">${Math.ceil((until - pnow()) / 1000)}</b> s.</p>` : `<p class="notice bad prank-hit">💥 De tijdbom van ${esc(p.by)} is afgegaan.</p>`;
+      if (p.card === 'steal') out += `<p class="notice warn prank-hit">🦹 <b>${esc(p.by)}</b> probeert punten van jullie te stelen!</p>`;
+      if (p.card === 'shot') out += `<p class="notice warn prank-hit">🥃 <b>${esc(p.by)}</b> speelt de Shotkaart: jullie nemen nu samen een shotje!</p>`;
+    }
+  }
+  return out;
+}
+function cardsSection(v, q) {
+  const h = v.cards; if (!h || v.live.phase !== 'open' || !q.visible) return '';
+  const mineP = (v.pranks || []).find(p => p.byTeam === v.me.teamId && p.card !== 'shield');
+  if (mineP) return `<div class="prank-box"><p class="small" style="margin:0">${mineP.icon} Jullie speelden <b>${esc(mineP.name)}</b> op <b>${esc(mineP.target)}</b>.${mineP.blocked ? ' 🛡️ Helaas: afgeketst op hun schild.' : ''}</p></div>`;
+  const left = h.cards.filter(c => !c.used && c.key !== 'shield').length;
+  const playable = h.cards.filter(c => c.playable);
+  if (!draft.cardsOpen) return `<button id="cardsToggle" class="btn ghost block" style="margin-top:14px" ${playable.length ? '' : 'disabled'}>🃏 Pestkaarten <span class="muted small">(${left} over)</span></button>`;
+  const sel = h.cards.find(c => c.key === draft.card);
+  let out = `<div class="prank-box"><div class="row" style="justify-content:space-between"><b>🃏 Pestkaarten</b><button id="cardsToggle" class="btn ghost small">Sluiten</button></div>
+    <p class="small muted" style="margin:4px 0 10px">Elke kaart één keer per avond, één kaart per vraag. Iedereen in jullie team mag spelen.</p>
+    <div class="prank-cards">${h.cards.map(c => `<button class="choice prank-card ${c.used ? 'used' : ''}" data-card="${c.key}" aria-pressed="${draft.card === c.key}" ${c.playable ? '' : 'disabled'} title="${esc(c.why || '')}"><span class="pc-icon" aria-hidden="true">${c.icon}</span><span class="pc-name">${esc(c.name)}</span><span class="pc-sub">${c.used ? (c.key === 'shield' ? 'Op' : 'Gespeeld') : c.key === 'shield' ? 'Actief' : c.playable ? '' : esc(c.why || '')}</span></button>`).join('')}</div>`;
+  if (sel) {
+    out += `<p class="small" style="margin:10px 0 6px">${sel.icon} ${esc(sel.text)}</p><label>Op welk team?</label>
+      <div class="prank-targets">${h.targets.map(t => `<button class="choice" data-target="${t.id}" aria-pressed="${draft.target === t.id}">${esc(t.name)}</button>`).join('')}</div>
+      <button id="playCard" class="btn primary block" style="margin-top:10px" ${draft.target ? '' : 'disabled'}>Speel ${esc(sel.name)}!</button>`;
+  }
+  return out + '</div>';
+}
+function prankResults(v) {
+  const steals = (v.pranks || []).filter(p => p.card === 'steal' && !p.blocked && p.ok !== undefined);
+  return steals.map(p => `<p class="small">🦹 ${p.ok ? `<b>${esc(p.by)}</b> steelt ${v.cards?.stealPoints || 2} punten van ${esc(p.target)}!` : `Steeljoker van ${esc(p.by)} mislukt (fout antwoord).`}</p>`).join('');
+}
+function bindCards(q) {
+  const tg = $('#cardsToggle'); if (tg) tg.onclick = () => { draft.cardsOpen = !draft.cardsOpen; render(); };
+  $$('[data-card]').forEach(b => b.onclick = () => { draft.card = b.dataset.card; render(); });
+  $$('[data-target]').forEach(b => b.onclick = () => { draft.target = b.dataset.target; render(); });
+  const pc = $('#playCard'); if (pc) pc.onclick = async () => {
+    pc.disabled = true;
+    try {
+      const r = await api({ 'x-player-token': token }).post('/api/player/prank', { questionId: q.id, card: draft.card, target: draft.target });
+      toast(r.blocked ? `🛡️ Afgeketst! ${r.target} had een schild.` : `Kaart gespeeld op ${r.target}!`, r.blocked ? 'bad' : undefined);
+      buzz([30, 40, 30]); draft.card = null; draft.target = null; draft.cardsOpen = false;
+      conn.sock.emit('refresh', null, nv => { if (nv) { view = nv; render(); } });
+    } catch (e) { toast(e.message, 'bad'); pc.disabled = false; }
+  };
+}
+
 // ---------- timer ----------
 let lastSec = null, cdRefreshed = null;
 function tick() {
@@ -636,6 +701,7 @@ function tick() {
   const now = conn.now(); const L = v.live;
   const cd = $('[data-countdown]');
   if (cd && L.openAt) { const s = Math.ceil((L.openAt - now) / 1000); cd.textContent = s > 0 ? s : 'Nu!'; if (s <= 0 && !v.question?.visible && cdRefreshed !== v.question?.id) { cdRefreshed = v.question?.id; conn.sock.emit('refresh', null, nv => { if (nv) { view = nv; render(); } }); } }
+  $$('[data-until]').forEach(el => { const s = Math.max(0, Math.ceil((Number(el.dataset.until) - now) / 1000)); el.textContent = s; if (s <= 0 && el.dataset.done !== '1') { el.dataset.done = '1'; prankTick++; render(); } });
   const tEl = $('[data-timer]'), bar = $('[data-bar]');
   if (tEl && L.deadline) {
     const ref = L.paused ? L.pausedAt : now;

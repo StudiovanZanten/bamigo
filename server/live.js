@@ -4,6 +4,7 @@ import { id, json } from './db.js';
 import { HttpError, bad, deny, notFound } from './auth.js';
 import { judgeOpen, speedScore, competitionRanks, pointsForRank, sameArray } from './scoring.js';
 import * as M from './modules.js';
+import * as P from './pranks.js';
 import { botTargets, botAnswer } from './bots.js';
 import { randomInt } from 'node:crypto';
 
@@ -71,7 +72,7 @@ export class Live {
     const n = this.db.get('SELECT COUNT(*) AS n FROM submissions WHERE event_id = ?', eventId).n;
     this.db.tx(() => {
       for (const k of [...this.timers.keys()].filter(k => k.startsWith(eventId))) { clearTimeout(this.timers.get(k)); this.timers.delete(k); }
-      for (const t of ['submissions', 'advice', 'investments', 'score_events']) this.db.run(`DELETE FROM ${t} WHERE event_id = ?`, eventId);
+      for (const t of ['submissions', 'advice', 'investments', 'score_events', 'pranks']) this.db.run(`DELETE FROM ${t} WHERE event_id = ?`, eventId);
       this.db.run('UPDATE missions SET scored_at = NULL WHERE event_id = ?', eventId);
       this.db.run('UPDATE questions SET locked_at = NULL, voided_at = NULL, voided_reason = NULL WHERE event_id = ?', eventId);
       for (const q of this.db.all('SELECT id, settings FROM questions WHERE event_id = ?', eventId)) {
@@ -113,8 +114,14 @@ export class Live {
       const s = this.state(eventId); if (s.seq !== seq || s.phase !== 'open' || !s.question_id) return false;
       const q = this.question(s.question_id); const participant = this.db.get('SELECT * FROM participants WHERE id = ?', pid); if (!q || !participant) return false;
       const answer = botAnswer(this.db, eventId, q, this.answerKey(q.id), this.membership(pid)); if (answer == null) return false;
+      const bm = this.membership(pid);
+      if (bm && q.scope === 'team' && Math.random() < 0.3) { const h = P.hand(this.db, eventId, s, q, bm.team_id); const c = h?.cards.filter(x => x.playable) || [];
+        if (c.length && h.targets.length) try { this.playCard(eventId, participant, { questionId: q.id, card: c[Math.floor(Math.random() * c.length)].key, target: h.targets[Math.floor(Math.random() * h.targets.length)].id }); } catch {} }
       return !this.submit(eventId, { ...participant, joined_at: null }, { questionId: q.id, answer, bet: q.allow_bet ? 1 + Math.floor(Math.random() * 3) : undefined }).duplicate;
-    } catch (e) { if (process.env.BAMIGO_DEBUG) console.error('bot', pid, e.message); return false; }
+    } catch (e) {
+      if (e.code === 'frozen' && e.retryIn) this.timers.set(eventId + 'botfz' + pid, setTimeout(() => this.botSubmit(eventId, seq, pid), e.retryIn + 300 + Math.random() * 2000));
+      if (process.env.BAMIGO_DEBUG) console.error('bot', pid, e.message); return false;
+    }
   }
 
   /** Alle nep-antwoorden in één keer (voor tests en de knop 'nu laten antwoorden'). */
@@ -356,6 +363,7 @@ export class Live {
       if (t < s.open_at) conflict('De vraag is nog niet geopend.', 'not_open');
       if (s.deadline && t > s.deadline) conflict('Te laat: de tijd was om.', 'late');
       if (q.scope === 'individual' && participant.joined_at && participant.joined_at > s.open_at) conflict('Je doet mee vanaf de volgende vraag.', 'late_join');
+      P.checkSubmit(this.db, q, s, m?.team_id, t);
       M.checkModuleSubmit(this.db, q, participant, m);
       let clean = validateAnswer(q, answer, this.db, eventId, m);
       if (q.type === 'career') clean = { pick: clean, clue: M.careerShown(q, s, t) }; // vroeg vastzetten = meer punten
@@ -375,6 +383,19 @@ export class Live {
     });
     if (!res.duplicate) this.notify(eventId);
     return res;
+  }
+
+  /** Pestkaart spelen (iedereen in het team mag). */
+  playCard(eventId, participant, { questionId, card, target }) {
+    const t = this.clock();
+    const r = this.db.tx(() => {
+      const s = this.state(eventId);
+      if (!questionId || s.question_id !== questionId) conflict('Deze vraag is niet (meer) actief.', 'not_active');
+      return P.play(this.db, s, this.question(questionId), eventId, participant, this.membership(participant.id), { card: String(card || ''), target }, t);
+    });
+    this.audit(eventId, 'player:' + participant.id, 'prank', { card, target, blocked: r.blocked });
+    this.notify(eventId);
+    return r;
   }
 
   // ---------- beoordelen en scoren ----------
@@ -596,6 +617,8 @@ export class Live {
           }
         } else if (ok) add(s, q.points, 'Goed antwoord', board);
       }
+      // Steeljoker na de gewone punten: het doelwit verliest wat het nu heeft (nooit onder 0).
+      if (q.scope === 'team') P.scoreSteals(this.db, eventId, q, subs, addM, tid => this.teamTotal(eventId, tid));
     });
   }
 

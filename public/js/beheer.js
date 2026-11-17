@@ -248,6 +248,7 @@ function liveTab(v) {
         ${v.event.settings?.bots ? '<span class="pill warn" title="Uitzetten in Instellingen">🤖 Oefenmodus: nep-spelers</span>' : ''}
         ${L.phase === 'open' && L.deadline ? `<span class="timer" style="font-size:1.8rem" data-timer>--:--</span>` : ''}
         ${v.counts ? `<span class="pill">${v.counts.submitted}/${v.counts.expected} ingestuurd</span>` : ''}</div>
+      ${(v.pranks || []).filter(p => p.card !== 'shield').length ? `<div class="row" style="flex-wrap:wrap;gap:6px;margin:6px 0">${v.pranks.filter(p => p.card !== 'shield').map(p => `<span class="pill${p.blocked ? '' : ' warn'}">${p.icon} ${esc(p.by)} → ${esc(p.target)}${p.blocked ? ' (schild)' : ''}${p.card === 'shot' && !p.blocked ? ': shotje!' : ''}</span>`).join('')}</div>` : ''}
       ${q ? `<p class="small muted" style="margin:0">${esc(L.round?.title || '')} · vraag ${q.number}/${q.of} · ${TYPE_LABEL[q.type]} · ${q.scope === 'team' ? 'team' : 'individueel'}${q.scoring === 'speed' ? ' · bliksem' : ''}</p>
         <h2 style="margin:6px 0">${esc(q.prompt ?? allQs.find(x => x.id === q.id)?.prompt ?? '(vraagtekst verborgen tot openen)')}</h2>
         ${qFull.options?.length ? `<ol type="A" class="small">${qFull.options.map(o => `<li>${esc(o)}</li>`).join('')}</ol>` : ''}` : ''}
@@ -780,6 +781,8 @@ function eventTab(v) {
     <label class="check"><input type="checkbox" id="eSelfTeam" ${s.selfTeam !== false ? 'checked' : ''}> Spelers kiezen zelf hun team bij aanmelden</label>
     <label class="check"><input type="checkbox" id="eAutoCap" ${s.autoCaptain !== false ? 'checked' : ''}> Captain-wissel na 3x fout op rij</label>
     <label class="check"><input type="checkbox" id="eFast" ${s.fastBonus ? 'checked' : ''}> Snelste goede antwoord krijgt dubbele punten</label>
+    <label class="check"><input type="checkbox" id="ePranks" ${s.pranks ? 'checked' : ''}> Pestkaarten: elk team heeft 1x Steeljoker, Bevriezen, Tijdbom, Shotkaart en Schild</label>
+    <div class="field" style="max-width:260px"><label for="eSteal">Steeljoker pakt zoveel punten</label><input id="eSteal" type="number" min="1" max="10" value="${s.stealPoints || 2}"></div>
     <label class="check"><input type="checkbox" id="eOne" ${s.oneliners !== false ? 'checked' : ''}> Oneliners tonen</label>
     <label class="check"><input type="checkbox" id="eDrinks" ${s.drinks !== false ? 'checked' : ''}> Drankonderdelen aan</label></details>
     <button class="btn primary" style="margin-top:10px">Opslaan</button></form>
@@ -828,7 +831,7 @@ function eventTab(v) {
     if (!confirm(`Quiz terugzetten naar het begin?\n\nAlle antwoorden en punten van deze avond worden gewist${out ? ' en alle telefoons worden afgemeld' : ''}. Dit kan niet ongedaan worden.`)) return;
     act(e.currentTarget, () => A.post('/api/staff/reset', { confirm: 'RESET', signOut: out }), 'Leeg. De quiz staat weer aan het begin.'); };
   $('#evForm').onsubmit = e => { e.preventDefault(); act(e.submitter, () => A.patch('/api/staff/event', { name: $('#eName').value, subtitle: $('#eSub').value, startsAt: $('#eStart').value, durationTarget: +$('#eTarget').value, durationMax: +$('#eMax').value,
-    settings: { countdownMs: Math.round(+$('#eCd').value * 1000), selfTeam: $('#eSelfTeam').checked, autoCaptain: $('#eAutoCap').checked, fastBonus: $('#eFast').checked, oneliners: $('#eOne').checked, drinks: $('#eDrinks').checked } }), 'Opgeslagen.'); };
+    settings: { countdownMs: Math.round(+$('#eCd').value * 1000), selfTeam: $('#eSelfTeam').checked, autoCaptain: $('#eAutoCap').checked, fastBonus: $('#eFast').checked, pranks: $('#ePranks').checked, stealPoints: Math.max(1, Math.min(10, Math.round(+$('#eSteal').value || 2))), oneliners: $('#eOne').checked, drinks: $('#eDrinks').checked } }), 'Opgeslagen.'); };
   $('#qnForm').onsubmit = e => { e.preventDefault();
     let d; try { d = JSON.parse($('#qnText').value); } catch { return toast('Dit is geen geldige lijst. Controleer haakjes en aanhalingstekens.', 'bad'); }
     const items = Array.isArray(d) ? d : d.items || [];

@@ -139,3 +139,17 @@ body.no-scroll { overflow: hidden; }
 #prep { padding-top: 0; }
 .verdict.wait { color: var(--champagne); }
 .env-phone { width: 132px; margin: 0 auto 8px; } .env-phone svg { width: 100%; height: auto; filter: drop-shadow(0 8px 16px #000a); }
+
+/* pestkaarten */
+.prank-box { margin-top: 14px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--raised); }
+.prank-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
+.prank-card { flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 2px; min-height: 86px; padding: 8px 6px; }
+.prank-card .pc-icon { font-size: 1.6rem; line-height: 1; }
+.prank-card .pc-name { font-weight: 700; font-size: .9rem; }
+.prank-card .pc-sub { font-size: .72rem; opacity: .75; }
+.prank-card.used { opacity: .45; }
+.prank-targets { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.prank-targets .choice { min-height: 48px; justify-content: center; }
+.prank-hit { margin: 0 0 12px; animation: prankIn .4s ease-out; }
+@keyframes prankIn { from { transform: scale(.94); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .prank-hit { animation: none; } }
