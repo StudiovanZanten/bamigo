@@ -13,10 +13,10 @@
    ]
   ],
   [
-   "Kevin C & Jelle",
+   "Kevin C & Robin",
    [
     "Kevin Christen",
-    "Jelle van der Lee"
+    "Robin Butsers"
    ]
   ],
   [
@@ -31,13 +31,6 @@
    [
     "Erik Thus",
     "Mattijs Claassen"
-   ]
-  ],
-  [
-   "Robin & Job",
-   [
-    "Robin Butsers",
-    "Job van Zoggel"
    ]
   ]
  ],
@@ -273,7 +266,7 @@
       "options": [
        "Milan",
        "Kevin C",
-       "Jelle",
+       "Peter",
        "Erik"
       ],
       "points": 1,
@@ -332,7 +325,7 @@
       "prompt": "Wie appte dit, de ochtend na een feestje?",
       "options": [
        "Rinus 0.0",
-       "Jelle",
+       "Batsbak",
        "Bloempie",
        "Thus"
       ],
@@ -419,21 +412,21 @@
       "type": "mc",
       "scope": "team",
       "scoring": "fixed",
-      "prompt": "Wie appte dit?",
+      "prompt": "Wie appte dit, op carnavalsmaandag?",
       "options": [
        "Jasper",
-       "Jelle",
+       "Mattijs",
        "Kevin B",
-       "Mattijs"
+       "Robin"
       ],
       "points": 1,
       "seconds": 30,
       "key": {
        "correct": 1,
-       "explanation": ""
+       "explanation": "Het was bericht 4 van 11 op een rij. Niemand kwam ertussen."
       },
-      "quote": "Ik voel me ook altijd grappiger met Reno erbij 😂👍🏻",
-      "context": "November 2020"
+      "quote": "Is grote smurf nog steeds een grote smurf?",
+      "context": "3 maart 2025"
      },
      {
       "type": "mc",
@@ -481,7 +474,7 @@
       "scoring": "fixed",
       "prompt": "Wie stuurde deze nieuwjaarswens?",
       "options": [
-       "Jelle",
+       "Peter",
        "Job",
        "Robin",
        "Milan"
@@ -516,21 +509,19 @@
       "context": "Oktober 2020"
      },
      {
-      "type": "mc",
+      "type": "open",
       "scope": "team",
       "scoring": "fixed",
-      "prompt": "Februari 2022: een paar jongens doen alsof ze een bericht in de verkeerde app sturen. Wat stuurde Jelle?",
-      "options": [
-       "Schat, ik ben nog even bij de jongens",
-       "Ga maar vast klaarliggen. Kom er zo aan.",
-       "Ik heb de pillen opgehaald",
-       "Doe die rode string maar aan"
-      ],
+      "prompt": "Maak af. Carnavalsmaandag 2025, bericht 9 van 11 achter elkaar: \"Doet prins pils nog steeds zijn naam eer aan of is hij vandaag prins ……?\"",
       "points": 1,
-      "seconds": 30,
+      "seconds": 45,
       "key": {
-       "correct": 1,
-       "explanation": "Gevolgd door: \"Ho verkeerde\"."
+       "correct": "Paracetamol",
+       "accepted": [
+        "paracetamol",
+        "prins paracetamol"
+       ],
+       "explanation": "Mattijs, en hij sloot af met: \"Je vraagt het je toch af...\""
       }
      },
      {
@@ -550,21 +541,22 @@
       "context": "18 december 2022"
      },
      {
-      "type": "open",
+      "type": "mc",
       "scope": "team",
       "scoring": "fixed",
-      "prompt": "Maak af. Jelle over manieren van afvegen: \"De kijker, de niet-kijker, de vouwer, de propper, de schrobber, de zuinige enkel vel… En als laatste: ……\"",
+      "prompt": "Als hij reageert, reageert hij binnen 35 seconden. Wie is de snelste reageerder van Brocode?",
+      "options": [
+       "Milan",
+       "Kevin B",
+       "Peter",
+       "Robin"
+      ],
       "points": 1,
-      "seconds": 45,
+      "seconds": 30,
       "key": {
-       "correct": "De vrouw",
-       "accepted": [
-        "vrouw",
-        "de vrouwen"
-       ],
-       "explanation": ""
-      },
-      "context": "Juni 2026"
+       "correct": 2,
+       "explanation": "Peter: 35 seconden. Terwijl hij het minst appt van iedereen! Robin is het traagst: ruim 4 minuten."
+      }
      },
      {
       "type": "mc",
@@ -842,7 +834,7 @@
        "Erik",
        "Kevin B",
        "Jasper",
-       "Jelle"
+       "Kevin C"
       ],
       "points": 1,
       "seconds": 30,
@@ -859,7 +851,7 @@
       "options": [
        "Peter",
        "Robin",
-       "Jelle",
+       "Kevin B",
        "Job"
       ],
       "points": 1,
@@ -895,7 +887,7 @@
       "options": [
        "Mattijs",
        "Jasper",
-       "Jelle",
+       "Robin",
        "Milan"
       ],
       "points": 1,

@@ -1,0 +1,366 @@
+[
+ {
+  "round": "De Bro Code — Wie appte dit?",
+  "old": {
+   "type": "mc",
+   "scope": "team",
+   "scoring": "fixed",
+   "prompt": "Wie appte dit?",
+   "options": [
+    "Milan",
+    "Kevin C",
+    "Jelle",
+    "Erik"
+   ],
+   "points": 1,
+   "seconds": 30,
+   "key": {
+    "correct": 0,
+    "explanation": ""
+   },
+   "quote": "Ho ho 375. En die gaat 31 km/h inclusief cruise control en discolampen 😎",
+   "context": "Over een e-step, februari 2022"
+  },
+  "new": {
+   "type": "mc",
+   "scope": "team",
+   "scoring": "fixed",
+   "prompt": "Wie appte dit?",
+   "options": [
+    "Milan",
+    "Kevin C",
+    "Peter",
+    "Erik"
+   ],
+   "points": 1,
+   "seconds": 30,
+   "key": {
+    "correct": 0,
+    "explanation": ""
+   },
+   "quote": "Ho ho 375. En die gaat 31 km/h inclusief cruise control en discolampen 😎",
+   "context": "Over een e-step, februari 2022"
+  }
+ },
+ {
+  "round": "De Bro Code — Wie appte dit?",
+  "old": {
+   "type": "mc",
+   "scope": "team",
+   "scoring": "fixed",
+   "prompt": "Wie appte dit, de ochtend na een feestje?",
+   "options": [
+    "Rinus 0.0",
+    "Jelle",
+    "Bloempie",
+    "Thus"
+   ],
+   "points": 1,
+   "seconds": 30,
+   "key": {
+    "correct": 0,
+    "explanation": ""
+   },
+   "quote": "Haha zoo zeg, er zat dus toch alcohol in. Nu weet ik het zeker",
+   "context": "Februari 2022"
+  },
+  "new": {
+   "type": "mc",
+   "scope": "team",
+   "scoring": "fixed",
+   "prompt": "Wie appte dit, de ochtend na een feestje?",
+   "options": [
+    "Rinus 0.0",
+    "Batsbak",
+    "Bloempie",
+    "Thus"
+   ],
+   "points": 1,
+   "seconds": 30,
+   "key": {
+    "correct": 0,
+    "explanation": ""
+   },
+   "quote": "Haha zoo zeg, er zat dus toch alcohol in. Nu weet ik het zeker",
+   "context": "Februari 2022"
+  }
+ },
+ {
+  "round": "De Bro Code — Wie appte dit?",
+  "old": {
+   "type": "mc",
+   "scope": "team",
+   "scoring": "fixed",
+   "prompt": "Wie appte dit?",
+   "options": [
+    "Jasper",
+    "Jelle",
+    "Kevin B",
+    "Mattijs"
+   ],
+   "points": 1,
+   "seconds": 30,
+   "key": {
+    "correct": 1,
+    "explanation": ""
+   },
+   "quote": "Ik voel me ook altijd grappiger met Reno erbij 😂👍🏻",
+   "context": "November 2020"
+  },
+  "new": {
+   "type": "mc",
+   "scope": "team",
+   "scoring": "fixed",
+   "prompt": "Wie appte dit, op carnavalsmaandag?",
+   "options": [
+    "Jasper",
+    "Mattijs",
+    "Kevin B",
+    "Robin"
+   ],
+   "points": 1,
+   "seconds": 30,
+   "key": {
+    "correct": 1,
+    "explanation": "Het was bericht 4 van 11 op een rij. Niemand kwam ertussen."
+   },
+   "quote": "Is grote smurf nog steeds een grote smurf?",
+   "context": "3 maart 2025"
+  }
+ },
+ {
+  "round": "De Bro Code — Wie appte dit?",
+  "old": {
+   "type": "mc",
+   "scope": "team",
+   "scoring": "fixed",
+   "prompt": "Wie stuurde deze nieuwjaarswens?",
+   "options": [
+    "Jelle",
+    "Job",
+    "Robin",
+    "Milan"
+   ],
+   "points": 1,
+   "seconds": 30,
+   "key": {
+    "correct": 2,
+    "explanation": ""
+   },
+   "quote": "Faptastic 2021, dat iedereens natte droom waarheid mag worden 💦",
+   "context": "1 januari 2021"
+  },
+  "new": {
+   "type": "mc",
+   "scope": "team",
+   "scoring": "fixed",
+   "prompt": "Wie stuurde deze nieuwjaarswens?",
+   "options": [
+    "Peter",
+    "Job",
+    "Robin",
+    "Milan"
+   ],
+   "points": 1,
+   "seconds": 30,
+   "key": {
+    "correct": 2,
+    "explanation": ""
+   },
+   "quote": "Faptastic 2021, dat iedereens natte droom waarheid mag worden 💦",
+   "context": "1 januari 2021"
+  }
+ },
+ {
+  "round": "De Bro Code — Wie appte dit?",
+  "old": {
+   "type": "mc",
+   "scope": "team",
+   "scoring": "fixed",
+   "prompt": "Februari 2022: een paar jongens doen alsof ze een bericht in de verkeerde app sturen. Wat stuurde Jelle?",
+   "options": [
+    "Schat, ik ben nog even bij de jongens",
+    "Ga maar vast klaarliggen. Kom er zo aan.",
+    "Ik heb de pillen opgehaald",
+    "Doe die rode string maar aan"
+   ],
+   "points": 1,
+   "seconds": 30,
+   "key": {
+    "correct": 1,
+    "explanation": "Gevolgd door: \"Ho verkeerde\"."
+   }
+  },
+  "new": {
+   "type": "open",
+   "scope": "team",
+   "scoring": "fixed",
+   "prompt": "Maak af. Carnavalsmaandag 2025, bericht 9 van 11 achter elkaar: \"Doet prins pils nog steeds zijn naam eer aan of is hij vandaag prins ……?\"",
+   "points": 1,
+   "seconds": 45,
+   "key": {
+    "correct": "Paracetamol",
+    "accepted": [
+     "paracetamol",
+     "prins paracetamol"
+    ],
+    "explanation": "Mattijs, en hij sloot af met: \"Je vraagt het je toch af...\""
+   }
+  }
+ },
+ {
+  "round": "De Bro Code — Wie appte dit?",
+  "old": {
+   "type": "open",
+   "scope": "team",
+   "scoring": "fixed",
+   "prompt": "Maak af. Jelle over manieren van afvegen: \"De kijker, de niet-kijker, de vouwer, de propper, de schrobber, de zuinige enkel vel… En als laatste: ……\"",
+   "points": 1,
+   "seconds": 45,
+   "key": {
+    "correct": "De vrouw",
+    "accepted": [
+     "vrouw",
+     "de vrouwen"
+    ],
+    "explanation": ""
+   },
+   "context": "Juni 2026"
+  },
+  "new": {
+   "type": "mc",
+   "scope": "team",
+   "scoring": "fixed",
+   "prompt": "Als hij reageert, reageert hij binnen 35 seconden. Wie is de snelste reageerder van Brocode?",
+   "options": [
+    "Milan",
+    "Kevin B",
+    "Peter",
+    "Robin"
+   ],
+   "points": 1,
+   "seconds": 30,
+   "key": {
+    "correct": 2,
+    "explanation": "Peter: 35 seconden. Terwijl hij het minst appt van iedereen! Robin is het traagst: ruim 4 minuten."
+   }
+  }
+ },
+ {
+  "round": "De Bro Code — Brocode in cijfers",
+  "old": {
+   "type": "mc",
+   "scope": "team",
+   "scoring": "fixed",
+   "prompt": "Welke speler schrijft 67 keer \"Boeddha\" in plaats van Buddha?",
+   "options": [
+    "Erik",
+    "Kevin B",
+    "Jasper",
+    "Jelle"
+   ],
+   "points": 1,
+   "seconds": 30,
+   "key": {
+    "correct": 2,
+    "explanation": "Alleen Roy Schol doet het nog vaker: 70 keer."
+   }
+  },
+  "new": {
+   "type": "mc",
+   "scope": "team",
+   "scoring": "fixed",
+   "prompt": "Welke speler schrijft 67 keer \"Boeddha\" in plaats van Buddha?",
+   "options": [
+    "Erik",
+    "Kevin B",
+    "Jasper",
+    "Kevin C"
+   ],
+   "points": 1,
+   "seconds": 30,
+   "key": {
+    "correct": 2,
+    "explanation": "Alleen Roy Schol doet het nog vaker: 70 keer."
+   }
+  }
+ },
+ {
+  "round": "De Bro Code — Brocode in cijfers",
+  "old": {
+   "type": "mc",
+   "scope": "team",
+   "scoring": "fixed",
+   "prompt": "Wiens stopwoordjes zijn \"jonge\", \"ekkes\" en \"zuiver\"?",
+   "options": [
+    "Peter",
+    "Robin",
+    "Jelle",
+    "Job"
+   ],
+   "points": 1,
+   "seconds": 30,
+   "key": {
+    "correct": 3,
+    "explanation": "Jonge 35x, ekkes 18x, zuiver 11x."
+   }
+  },
+  "new": {
+   "type": "mc",
+   "scope": "team",
+   "scoring": "fixed",
+   "prompt": "Wiens stopwoordjes zijn \"jonge\", \"ekkes\" en \"zuiver\"?",
+   "options": [
+    "Peter",
+    "Robin",
+    "Kevin B",
+    "Job"
+   ],
+   "points": 1,
+   "seconds": 30,
+   "key": {
+    "correct": 3,
+    "explanation": "Jonge 35x, ekkes 18x, zuiver 11x."
+   }
+  }
+ },
+ {
+  "round": "De Bro Code — Brocode in cijfers",
+  "old": {
+   "type": "mc",
+   "scope": "team",
+   "scoring": "fixed",
+   "prompt": "Welke speler is de grootste nachtbraker (berichten tussen 2 en 6 uur)?",
+   "options": [
+    "Mattijs",
+    "Jasper",
+    "Jelle",
+    "Milan"
+   ],
+   "points": 1,
+   "seconds": 30,
+   "key": {
+    "correct": 3,
+    "explanation": "Milan 48. Van de hele groep wint Roy Schol: 73."
+   }
+  },
+  "new": {
+   "type": "mc",
+   "scope": "team",
+   "scoring": "fixed",
+   "prompt": "Welke speler is de grootste nachtbraker (berichten tussen 2 en 6 uur)?",
+   "options": [
+    "Mattijs",
+    "Jasper",
+    "Robin",
+    "Milan"
+   ],
+   "points": 1,
+   "seconds": 30,
+   "key": {
+    "correct": 3,
+    "explanation": "Milan 48. Van de hele groep wint Roy Schol: 73."
+   }
+  }
+ }
+]

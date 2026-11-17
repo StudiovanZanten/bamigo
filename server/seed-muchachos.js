@@ -182,3 +182,26 @@ export function teamsVierDuos(db, { log = console.log } = {}) {
     db.run('INSERT INTO kv (key, value) VALUES (?, ?)', K, String(Date.now()));
   });
 }
+
+/**
+ * Vragenthread 17-11-2026: Jelle valt af, dus 9 vragen in de Bro Code-rondes krijgen andere opties of een nieuwe vraag.
+ * Alleen vragen die nog precies zo staan als in de oude startinhoud worden aangepast (eigen wijzigingen van Reno blijven staan).
+ */
+export function jelleUitVragen(db, dir, { log = console.log } = {}) {
+  const K = 'fix:jelle-vragen:v1';
+  if (db.get('SELECT 1 FROM kv WHERE key = ?', K)) return;
+  const file = path.join(dir, 'fix-jelle.json'); if (!fs.existsSync(file)) return;
+  const pairs = JSON.parse(fs.readFileSync(file, 'utf8'));
+  let n = 0;
+  db.tx(() => {
+    for (const ev of db.all('SELECT id FROM events WHERE is_demo = 0')) for (const { round, old, new: nu } of pairs) {
+      const r = db.get('SELECT id FROM rounds WHERE event_id = ? AND title = ?', ev.id, round); if (!r) continue;
+      const q = db.all('SELECT id, prompt, options, quote FROM questions WHERE round_id = ?', r.id)
+        .find(x => x.prompt === old.prompt && x.options === JSON.stringify(old.options || []) && (x.quote || null) === (old.quote || null));
+      if (!q) continue;
+      C.upsertQuestion(db, ev.id, { ...nu, id: q.id, roundId: r.id }); n++;
+    }
+    db.run('INSERT INTO kv (key, value) VALUES (?, ?)', K, String(Date.now()));
+  });
+  if (n) log?.(`Vragen zonder Jelle bijgewerkt: ${n}.`);
+}
