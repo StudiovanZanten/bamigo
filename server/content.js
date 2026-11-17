@@ -305,9 +305,9 @@ export function deleteQuestion(db, eventId, qid) {
  * Dupliceer een avond. Kopieert instellingen, rondes, vragen en (optioneel) teams-namen.
  * Kopieert NOOIT: deelnemers-sessies, antwoorden, stemmen, shots, bewijs, investeringen of scores.
  */
-export function duplicateEvent(db, srcId, { name, includeQuestions = true, includeTeams = false, includeParticipants = false } = {}) {
+export function duplicateEvent(db, srcId, { name, includeQuestions = true, includeTeams = false, includeParticipants = false, practice = false } = {}) {
   const src = db.get('SELECT * FROM events WHERE id = ?', srcId) || notFound();
-  const res = createEvent(db, { name: name || src.name + ' (kopie)', subtitle: src.subtitle, mode: src.mode, settings: json(src.settings, {}), durationTarget: src.duration_target, durationMax: src.duration_max });
+  const res = createEvent(db, { name: name || src.name + ' (kopie)', subtitle: practice ? 'Testavond' : src.subtitle, mode: src.mode, settings: { ...json(src.settings, {}), ...(practice ? { bots: true } : {}) }, durationTarget: src.duration_target, durationMax: src.duration_max });
   const dst = res.event.id;
   db.tx(() => {
     const teamMap = new Map();

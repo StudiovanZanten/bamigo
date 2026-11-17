@@ -791,6 +791,10 @@ function eventTab(v) {
     <div id="grantOut"></div>
     <p class="small muted" style="margin-top:14px">Speel je zelf mee? Geef jezelf een spoilervrije link en laat een ander de vragen maken.</p>
   </section>
+  <section class="card"><h3>Eigen testavond</h3>
+    <p class="small muted">Een losse kopie van deze avond om in te testen en te klooien: zelfde vragen, teams en spelers, nep-spelers staan al aan. De echte avond blijft onaangeroerd. Handig als Rinus en Jobba los van elkaar willen testen.</p>
+    <form id="testForm"><div class="row" style="gap:8px"><input id="tName" class="grow" value="Testavond ${v.role === 'owner' ? 'Rinus' : 'Jobba'}" maxlength="80" aria-label="Naam testavond"><button class="btn copper">Maak testavond</button></div></form>
+    <div id="testOut"></div></section>
   <section class="card"><h3>Oefenen met nep-spelers</h3>
     <p class="small muted">Elke vraag die je opent, wordt vanzelf beantwoord door alle spelers die niet zelf antwoorden. Ongeveer de helft goed. Zo zie je op tv en hier hoe de avond loopt. Echte telefoons gaan altijd voor.</p>
     <label class="check"><input type="checkbox" id="botsOn" ${v.event.settings?.bots ? 'checked' : ''}> Nep-spelers spelen mee</label>
@@ -806,6 +810,11 @@ function eventTab(v) {
       <label class="check"><input type="checkbox" id="dP"> Namen van spelers meenemen</label>
       <button class="btn copper">Kopie maken</button></form><div id="dupOut"></div></details>
     <hr style="border-color:var(--line);margin:18px 0"><button class="btn ghost small" id="archive">${v.event.status === 'archived' ? 'Archivering opheffen' : 'Avond archiveren'}</button></section></div>`;
+  $('#testForm').onsubmit = async e => { e.preventDefault();
+    const r = await act(e.submitter, () => A.post('/api/staff/duplicate', { name: $('#tName').value, includeQuestions: true, includeTeams: true, includeParticipants: true, practice: true }), 'Testavond gemaakt.');
+    if (r) $('#testOut').innerHTML = `<p class="small" style="margin-top:12px">Beheer van de testavond (alleen voor jou, of stuur hem naar Jobba):</p><div class="linkbox">${esc(r.url)}</div>
+      <div class="row" style="gap:8px;margin-top:8px"><a class="btn primary" href="${esc(r.url)}" target="_blank" rel="noopener">Openen</a><a class="btn ghost" href="${waHref('Jobba, hier is je eigen BAMIGO-testavond: ' + r.url + ' . Niet delen!')}" target="_blank" rel="noopener">Stuur naar Jobba</a></div>
+      <p class="small muted">TV van de testavond: ${esc(r.tvUrl)}</p>`; };
   $('#botsOn').onchange = e => act(null, () => A.patch('/api/staff/event', { settings: { bots: e.target.checked } }), e.target.checked ? 'Nep-spelers spelen mee.' : 'Nep-spelers uit.');
   $('#resetQuiz').onclick = e => { const out = $('#rsOut').checked;
     if (!confirm(`Quiz terugzetten naar het begin?\n\nAlle antwoorden en punten van deze avond worden gewist${out ? ' en alle telefoons worden afgemeld' : ''}. Dit kan niet ongedaan worden.`)) return;
