@@ -60,8 +60,9 @@ export function connect({ kind, token, onState, onStatus }) {
   };
   sock.on('connect', () => { onStatus?.('online', clock); sync(); });
   sock.on('disconnect', () => onStatus?.('offline', clock));
-  sock.on('connect_error', e => onStatus?.(e.message === 'unauthorized' ? 'unauthorized' : 'offline', clock));
+  sock.on('connect_error', e => { onStatus?.(e.message === 'unauthorized' ? 'unauthorized' : 'offline', clock); if (/^serverfout/.test(e.message || '')) { const el = $('#conn'); if (el) { el.hidden = false; el.textContent = e.message; } } });
   sock.io.on('reconnect_attempt', () => onStatus?.('reconnecting', clock));
+  sock.on('fatal', m => { connBanner('online'); const el = $('#conn'); el.hidden = false; el.textContent = 'Serverfout: ' + m; });
   sock.on('state', v => { if (v.serverNow && clock.rtt === Infinity) clock.offset = v.serverNow - Date.now(); onState(v); });
   setInterval(sync, 30000);
   return { sock, clock, now: () => Date.now() + clock.offset };

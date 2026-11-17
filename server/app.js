@@ -387,7 +387,8 @@ export async function buildApp({ dbFile = process.env.BAMIGO_DB || path.join(roo
 
   app.addHook('onReady', async () => {
     io = new IOServer(app.server, { cors: { origin: false }, serveClient: true, pingInterval: 10000, pingTimeout: 8000, maxHttpBufferSize: 64 * 1024 });
-    io.use((sock, next) => {
+    io.use((sock, next) => { try { authSocket(sock, next); } catch (e) { console.error('socket-auth', e); next(new Error('serverfout: ' + String(e?.message || e).slice(0, 160))); } });
+    function authSocket(sock, next) {
       const { kind, token } = sock.handshake.auth || {};
       const host = sock.handshake.headers['x-forwarded-host'] || sock.handshake.headers.host;
       sock.data.req = { protocol: sock.handshake.headers['x-forwarded-proto'] || (sock.handshake.secure ? 'https' : 'http'), headers: { host } };
@@ -399,7 +400,7 @@ export async function buildApp({ dbFile = process.env.BAMIGO_DB || path.join(roo
         Object.assign(sock.data, { kind, token, eid: s.event.id, grantId: s.grant.id, role: s.role });
       } else return next(new Error('unauthorized'));
       next();
-    });
+    }
     io.on('connection', sock => {
       const { eid, pid } = sock.data;
       sock.join('ev:' + eid);
@@ -408,9 +409,9 @@ export async function buildApp({ dbFile = process.env.BAMIGO_DB || path.join(roo
         C.markJoined(db, pid); C.claimCaptainIfAbsent(db, pid);
       }
       live.notify(eid);
-      const v = viewFor(sock); if (v) sock.emit('state', v);
+      try { const v = viewFor(sock); if (v) sock.emit('state', v); } catch (e) { console.error('view bij verbinden', e); sock.emit('fatal', String(e?.message || e).slice(0, 200)); }
       sock.on('time', (t0, ack) => typeof ack === 'function' && ack({ t0, now: live.clock() }));
-      sock.on('refresh', (_, ack) => { const v = viewFor(sock); typeof ack === 'function' && ack(v); });
+      sock.on('refresh', (_, ack) => { let v = null; try { v = viewFor(sock); } catch (e) { console.error('view bij verversen', e); } typeof ack === 'function' && ack(v); });
       sock.on('submit', (body, ack) => {
         if (typeof ack !== 'function') return;
         try {
