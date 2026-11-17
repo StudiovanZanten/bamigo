@@ -79,6 +79,7 @@ function render() {
   const v = view;
   $('#evName').innerHTML = `${esc(v.event.name)} ${v.event.isDemo ? '<span class="demo-badge">Demo</span>' : ''}`;
   $('#roleBadge').textContent = v.roleLabel;
+  const sw = $('#switchEv'); sw.hidden = v.role !== 'owner'; sw.onclick = () => { prefs.del('staffToken'); location.href = '/beheer'; };
   const tabs = tabsFor(v);
   if (!tabs.some(([k]) => k === tab)) tab = tabs[0][0];
   const tk = JSON.stringify(tabs) + tab;
