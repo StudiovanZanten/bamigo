@@ -362,8 +362,9 @@ function pitchCard(v) {
   const q = v.question; if (!q?.pitch || v.live.phase !== 'ready') return '';
   const done = new Set(v.pitchDone || []);
   return `<div class="card roulette-card"><h3 style="margin:0 0 6px">🎤 Wie pitcht dit ding?</h3>
-    <p class="small muted" style="margin:0 0 10px">Het ding verschijnt pas op tv als je de vraag opent. Kies een team of laat BAMIGO loten (alleen teams die nog niet pitchten).</p>
+    <p class="small muted" style="margin:0 0 10px">Het ding verschijnt pas op tv als je de vraag opent. Kies een team of laat BAMIGO loten (alleen teams die nog niet pitchten). Pitchen jullie zelf? Kies Quizmasters: alle teams bieden, de punten gaan naar niemand.</p>
     <div class="row" style="gap:6px">${v.teams.map(t => `<button class="btn ${q.pitch.team?.id === t.id ? 'primary' : 'ghost'} small" data-pitch="${t.id}" ${done.has(t.id) ? 'disabled title="Heeft al gepitcht"' : ''}>${esc(t.name)}</button>`).join('')}
+      <button class="btn ${q.pitch.team?.id === 'host' ? 'primary' : 'ghost'} small" data-pitch="host" ${done.has('host') ? 'disabled title="Hebben al gepitcht"' : ''} title="Jullie pitchen zelf: alle teams bieden, punten gaan naar niemand">🎩 Quizmasters</button>
       <button class="btn copper small" data-pitch="random">🎲 Loten</button></div>
     ${q.pitch.team ? `<p class="small" style="margin:10px 0 0">Gekozen: <b>${esc(q.pitch.team.name)}</b>. Open nu de vraag.</p>` : ''}</div>`;
 }

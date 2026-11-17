@@ -43,7 +43,7 @@ export function publicQuestion(live, s, t) {
     top: q.type === 'ranking' ? (q.settings.top || 1) : null,
     candidates: visible && ['ranking', 'career'].includes(q.type) ? live.db.all('SELECT id, name FROM participants WHERE event_id = ? ORDER BY name', q.event_id) : null,
     teams: visible && ['shot', 'invest'].includes(q.type) ? live.db.all('SELECT id, name FROM teams WHERE event_id = ? ORDER BY sort, name', q.event_id) : null,
-    pitch: q.type === 'invest' && q.settings.pitch ? { team: q.settings.pitchTeam ? live.db.get('SELECT id, name FROM teams WHERE id = ?', q.settings.pitchTeam) : null } : null,
+    pitch: q.type === 'invest' && q.settings.pitch ? { team: M.pitchTeamInfo(live.db, q.settings.pitchTeam) } : null,
     budget: q.type === 'invest' ? (q.settings.budget || M.DRAGONS_BUDGET) : null, step: q.type === 'invest' ? M.DRAGONS_STEP : null,
     shotNumber: q.type === 'shot' ? q.settings.shotNumber : null,
     pledge: q.type === 'envelope' ? !!q.settings.pledge : null,
@@ -103,7 +103,7 @@ function counts(live, eventId, s) {
   const expected = q.scope === 'team'
     ? live.db.get('SELECT COUNT(*) AS n FROM teams WHERE event_id = ?', eventId).n
     : live.db.get('SELECT COUNT(*) AS n FROM participants WHERE event_id = ? AND joined_at IS NOT NULL', eventId).n;
-  const sitOut = q.type === 'invest' && q.settings.pitch && q.settings.pitchTeam ? 1 : 0; // het pitchende team biedt niet
+  const sitOut = q.type === 'invest' && q.settings.pitch && q.settings.pitchTeam && q.settings.pitchTeam !== M.HOST_PITCH ? 1 : 0; // het pitchende team biedt niet
   return { submitted, expected: Math.max(0, expected - sitOut) };
 }
 

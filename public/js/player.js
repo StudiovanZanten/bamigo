@@ -508,6 +508,7 @@ function pitchQuestion(v, q, mine, canAnswer, notCaptain) {
   const pt = q.pitch.team; const st = v.pitchStatus;
   const ownPitch = pt && pt.id === v.me.teamId;
   let out = `<div class="pitch-head"><span class="small muted">Pitch door</span><b>${pt ? esc(pt.name) : 'nog onbekend'}</b></div>`;
+  if (pt?.host && v.live.phase === 'open' && !mine) out += `<p class="notice small">🎩 De quizmasters pitchen zelf. Bieden mag, maar hier zijn geen punten mee te winnen: alleen geld te verliezen.</p>`;
   if (ownPitch) return out + `<div class="notice">🎤 Jullie pitchen! Overtuig de Dragons. Na jullie pitch bieden de andere teams geheim.</div>`;
   if (!st) return out;
   if (draft.bid == null) draft.bid = st.mustAll ? st.remaining : 0;

@@ -85,7 +85,7 @@ function question(v, q) {
   if (q.type === 'shot') reveal = `<p class="intro-sub">Allergenen shot ${q.shotNumber}: <b>${esc(q.allergens)}</b> · Proeven is vrijwillig.</p>${L.phase === 'closed' ? '<p class="counter">Vastgezet. De onthulling volgt na het laatste shot.</p>' : ''}`;
   if (q.type === 'ranking' && !revealed) reveal = `<p class="intro-sub">${q.top > 1 ? `Teams voorspellen op de telefoon de top ${q.top} van de groep.` : 'Teams voorspellen op de telefoon wie de groep het vaakst koos.'}</p>`;
   if (q.type === 'envelope') reveal = `<p class="intro-sub">Captains: op welke plek eindigt jullie team? Je voorspelling gaat verzegeld de envelop in. Pas bij de uitslag gaat hij open. Precies goed = bonuspunten.</p>${L.phase === 'closed' ? '<p class="counter">Verzegeld. Tot de uitslag!</p>' : ''}`;
-  if (q.pitch && !revealed) reveal = `<p class="intro-sub">${q.pitch.team ? `Pitch door <b>${esc(q.pitch.team.name)}</b>. ` : ''}Alle andere teams${v.live ? '' : ''} bieden geheim uit hun resterende budget. De totalen blijven geheim tot na de laatste pitch.</p>`;
+  if (q.pitch && !revealed) reveal = `<p class="intro-sub">${q.pitch.team ? `Pitch door <b>${esc(q.pitch.team.name)}</b>. ` : ''}${q.pitch.team?.host ? 'Alle teams' : 'Alle andere teams'} bieden geheim uit hun resterende budget. De totalen blijven geheim tot na de laatste pitch.</p>`;
   else if (q.type === 'invest' && !revealed) reveal = `<p class="intro-sub">Verdeel ${eur(q.budget)} fictief over de andere teams. Alles blijft geheim tot de onthulling.</p>`;
   if (q.career) reveal = careerTv(q, L, r0, revealed);
   if (q.kompaan && !revealed) reveal = '<p class="intro-sub">Ken je kompaan: de aangewezen teamgenoten antwoorden ieder zelf. Niet overleggen!</p>';

@@ -5,6 +5,8 @@ import { judgeOpen, normalize, competitionRanks, pointsForRank } from './scoring
 
 const conflict = m => { throw new HttpError(409, m, 'conflict'); };
 export const DRAGONS_BUDGET = 10000, DRAGONS_STEP = 500;
+/** Dragons: de quizmasters pitchen zelf ook één ding. Iedereen biedt, punten gaan naar niemand. */
+export const HOST_PITCH = 'host', HOST_PITCH_NAME = 'De quizmasters';
 
 // ---------- Ranking de Boys ----------
 /** Stemtotalen voor een rankingvraag. Alleen totalen; nooit wie op wie stemde. */
@@ -206,6 +208,7 @@ export function pitchQuestions(db, roundId) {
   return db.all("SELECT * FROM questions WHERE round_id = ? AND type = 'invest' AND voided_at IS NULL ORDER BY sort, id", roundId)
     .map(x => ({ ...x, settings: json(x.settings, {}) })).filter(x => x.settings.pitch);
 }
+export const pitchTeamInfo = (db, tid) => !tid ? null : tid === HOST_PITCH ? { id: HOST_PITCH, name: HOST_PITCH_NAME, host: true } : db.get('SELECT id, name FROM teams WHERE id = ?', tid);
 /** Resterend budget en of dit de laatste biedkans is (dan moet alles erin). owner: 't:<team>' of 'host'. */
 export function pitchStatus(db, q, owner, teamId) {
   const all = pitchQuestions(db, q.round_id);
@@ -220,7 +223,7 @@ export function pitchStatus(db, q, owner, teamId) {
 function pitchTotals(db, q) {
   const all = pitchQuestions(db, q.round_id);
   const teams = db.all('SELECT id, name FROM teams WHERE event_id = ?', q.event_id);
-  return { all, rows: all.filter(p => p.settings.pitchTeam).map(p => ({ teamId: p.settings.pitchTeam, name: teams.find(t => t.id === p.settings.pitchTeam)?.name ?? '?', item: p.prompt,
+  return { all, rows: all.filter(p => p.settings.pitchTeam).map(p => ({ teamId: p.settings.pitchTeam, host: p.settings.pitchTeam === HOST_PITCH, name: p.settings.pitchTeam === HOST_PITCH ? HOST_PITCH_NAME : teams.find(t => t.id === p.settings.pitchTeam)?.name ?? '?', item: p.prompt,
     total: db.all('SELECT answer FROM submissions WHERE question_id = ?', p.id).reduce((s, x) => s + (JSON.parse(x.answer).amount || 0), 0) })) };
 }
 
@@ -228,9 +231,10 @@ export function scoreModule(db, q, key, subs, add) {
   if (q.type === 'invest' && q.settings?.pitch) {
     const { all, rows } = pitchTotals(db, q);
     if (all.some(p => p.id !== q.id && !p.locked_at)) return true; // punten pas na de laatste pitch
-    const ranks = competitionRanks(rows, r => r.total);
+    const teamRows = rows.filter(r => !r.host); // de quizmaster-pitch telt mee voor het budget, niet voor de punten
+    const ranks = competitionRanks(teamRows, r => r.total);
     const scale = q.settings.scale || teamScale(db, q.event_id);
-    for (const r of rows) { const p = pointsForRank(ranks.get(r), scale); if (p && r.total > 0) add(r.teamId, null, 'team', 't:' + r.teamId, p, `Dragons: €${r.total.toLocaleString('nl-NL')} opgehaald met “${r.item}” (plek ${ranks.get(r)})`); }
+    for (const r of teamRows) { const p = pointsForRank(ranks.get(r), scale); if (p && r.total > 0) add(r.teamId, null, 'team', 't:' + r.teamId, p, `Dragons: €${r.total.toLocaleString('nl-NL')} opgehaald met “${r.item}” (plek ${ranks.get(r)})`); }
     return true;
   }
   if (q.type === 'envelope') return true; // punten pas bij het openen van de enveloppen
@@ -365,7 +369,7 @@ export function revealModule(db, q) {
   if (q.type === 'invest' && q.settings?.pitch) {
     const { all, rows } = pitchTotals(db, q);
     if (all.some(p => p.id !== q.id && !p.locked_at)) return { pitchHidden: true, pitchesLeft: all.filter(p => p.id !== q.id && !p.locked_at).length };
-    return { invest: rows.map(r => ({ name: `${r.name} · ${r.item}`, total: r.total })).sort((a, b) => b.total - a.total) };
+    return { invest: rows.map(r => ({ name: `${r.host ? '🎩 ' : ''}${r.name} · ${r.item}${r.host ? ' (voor de lol)' : ''}`, total: r.total, host: r.host })).sort((a, b) => b.total - a.total) };
   }
   if (q.type === 'invest') {
     const teams = db.all('SELECT id, name FROM teams WHERE event_id = ? ORDER BY sort, name', q.event_id);

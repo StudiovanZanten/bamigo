@@ -495,3 +495,31 @@ test('Carrière met automatische hints: hint volgt de klok', () => {
   run('close'); run('reveal'); run('score');
   assert.equal(pts().A, 2);
 });
+
+test('Dragons: quizmasters pitchen zelf; alle teams bieden, telt voor budget, punten naar niemand', () => {
+  const { db, live, E, T, P, run, pts, ev, clock } = setup();
+  const r = C.upsertRound(db, E, { title: 'Dragons', kind: 'dragons' });
+  const qs = ['Q0', 'Q1', 'Q2', 'Q3', 'Q4', 'Q5'].map(it => C.upsertQuestion(db, E, { roundId: r, type: 'invest', scope: 'team', prompt: it, seconds: 60, settings: { pitch: true } }));
+  const caps = { [T.A]: P.a1, [T.B]: P.b1, [T.C]: P.c1, [T.D]: P.d1, [T.E]: P.e1 };
+  const order = ['host', T.A, T.B, T.C, T.D, 'random'];
+  for (const [i, q] of qs.entries()) {
+    run('prepare', { questionId: q });
+    run('pitch_team', { message: order[i] });
+    if (i === 1) assert.throws(() => run('pitch_team', { message: 'host' }), /quizmasters hebben al/);
+    const pq = displayView(live, ev(), new Set(), 'x').question;
+    if (i === 0) { assert.equal(pq.pitch.team.name, 'De quizmasters'); }
+    if (i === 5) assert.equal(pq.pitch.team.id, T.E, 'loting: alleen E is nog over');
+    run('open'); clock.add(10);
+    for (const t of Object.values(T)) {
+      if (t === pq.pitch.team.id) continue;
+      const st = playerView(live, { participant: caps[t], event: ev() }, new Set()).pitchStatus;
+      live.submit(E, caps[t], { questionId: q, answer: { amount: st.mustAll ? st.remaining : (i === 0 ? 4000 : t === T.E && i === 1 ? 3000 : 500) } });
+    }
+    if (i === 0) assert.equal(displayView(live, ev(), new Set(), 'x').counts.expected, 5, 'bij de quizmaster-pitch biedt iedereen');
+    if (i === 1) assert.equal(playerView(live, { participant: caps[T.B], event: ev() }, new Set()).pitchStatus.remaining, 6000 - 500 + 500);
+    run('close'); run('reveal'); run('score');
+  }
+  const res = displayView(live, ev(), new Set(), 'x').result;
+  const host = res.invest.find(x => x.host); assert.ok(host); assert.equal(host.total, 20000);
+  assert.deepEqual(pts(), { E: 5, A: 4, D: 3, B: 2, C: 2 }); // quizmasters haalden het meest op, maar de punten gaan alleen naar teams
+});

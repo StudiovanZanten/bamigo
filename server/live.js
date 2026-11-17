@@ -222,9 +222,9 @@ export class Live {
           const done = new Set(M.pitchQuestions(this.db, q.round_id).filter(p => p.id !== q.id && p.settings.pitchTeam).map(p => p.settings.pitchTeam));
           const teams = this.db.all('SELECT id FROM teams WHERE event_id = ?', eventId).map(x => x.id);
           let tid = message;
-          if (tid === 'random') { const free = teams.filter(x => !done.has(x)); if (!free.length) bad('Alle teams hebben al gepitcht.'); tid = free[randomInt(free.length)]; }
-          if (!teams.includes(tid)) bad('Onbekend team.');
-          if (done.has(tid)) conflict('Dit team heeft al gepitcht.');
+          if (tid === 'random') { const free = teams.filter(x => !done.has(x)); if (!free.length) { if (done.has(M.HOST_PITCH)) bad('Alle teams hebben al gepitcht.'); free.push(M.HOST_PITCH); } tid = free[randomInt(free.length)]; }
+          if (!teams.includes(tid) && tid !== M.HOST_PITCH) bad('Onbekend team.');
+          if (done.has(tid)) conflict(tid === M.HOST_PITCH ? 'De quizmasters hebben al gepitcht.' : 'Dit team heeft al gepitcht.');
           this.db.run('UPDATE questions SET settings = ? WHERE id = ?', JSON.stringify({ ...q.settings, pitchTeam: tid }), q.id);
           return this.#set(eventId, {}, actor, action);
         }
